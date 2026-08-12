@@ -299,22 +299,6 @@ button, input{ font-family:var(--font-family); }
 .confirm-msg{ font-size:13px; color:var(--color-black); margin:0 0 var(--space-5) 0; line-height:1.5; }
 .confirm-actions{ display:flex; justify-content:flex-end; gap:var(--space-3); }
 
-.print-options-overlay{
-  display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100;
-  align-items:center; justify-content:center;
-}
-.print-options-overlay.open{ display:flex; }
-.print-options-box{
-  background:var(--color-white); border-radius:6px; padding:var(--space-6); width:380px;
-  box-shadow:0 12px 32px rgba(0,0,0,.2); font-family:var(--font-family);
-}
-.print-options-box h3{ font-size:15px; font-weight:600; margin:0 0 var(--space-4) 0; color:var(--color-black); }
-.print-options-list{ display:flex; flex-direction:column; gap:12px; margin-bottom:var(--space-5); }
-.print-option-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--color-black); cursor:pointer; }
-.print-option-row input[type="number"]{
-  width:56px; border:1px solid var(--g200); border-radius:3px; padding:3px 6px; font-size:13px; font-family:var(--font-family);
-}
-
 .col-resize{
   width:6px; flex:0 0 auto; cursor:col-resize; position:relative; background:transparent;
 }
@@ -339,17 +323,9 @@ button, input{ font-family:var(--font-family); }
 ::-webkit-scrollbar-thumb:hover{ background:var(--g600); }
 
 @media print{
-  @page{ size: landscape; margin: 10mm; }
-  .toolbar, .app-footer, .confirm-overlay, .print-options-overlay{ display:none !important; }
-  html, body{ height:auto !important; overflow:visible !important; }
-  body.printing .app{ height:auto !important; }
-  body.printing .board{ display:flex; overflow:visible !important; }
-  body.printing .list-col{ width:var(--list-w); flex:0 0 var(--list-w); }
-  body.printing .timeline-col{ width:auto; flex:1 1 auto; overflow:visible !important; }
-  body.printing .list-body, body.printing .timeline-body{ overflow:visible !important; }
-  body.printing .timeline-header-wrap{ overflow:visible !important; }
-  body.printing .list-body-inner, body.printing .timeline-rows-inner, body.printing .timeline-header-inner{ transform:none !important; }
-  body.printing #app{ transform-origin: top left; }
+  /* Drucken öffnet eine eigene statische Druckseite (neuer Tab) — dies hier greift nur,
+     falls jemand Cmd+P direkt auf der Live-App auslöst. */
+  .toolbar, .app-footer, .confirm-overlay{ display:none !important; }
 }
 </style>
 
@@ -385,7 +361,7 @@ button, input{ font-family:var(--font-family); }
       <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
     </div>
     <div class="toolbar-group">
-      <button class="btn" data-action="print" title="Druckt den vollständigen Gantt-Chart — im Dialog auch als PDF speicherbar">Drucken</button>
+      <button class="btn" data-action="print" title="Öffnet eine eigene Druckseite in neuem Tab — Skalierung dort über den Browser-Druckdialog (wie bei Google Sheets)">Drucken</button>
       <button class="btn" data-action="export-pdf" title="Lädt den Zeitplan als PDF-Tabelle (nur Daten, ohne Balken) herunter">PDF-Tabelle exportieren</button>
     </div>
   </div>
@@ -439,22 +415,6 @@ button, input{ font-family:var(--font-family); }
   </div>
 </div>
 
-<div class="print-options-overlay" id="printOptionsOverlay">
-  <div class="print-options-box">
-    <h3>Druckskalierung</h3>
-    <div class="print-options-list">
-      <label class="print-option-row"><input type="radio" name="printScaleMode" value="fit-width" checked> Optimale Breite (gut lesbar, ggf. mehrere Seiten)</label>
-      <label class="print-option-row"><input type="radio" name="printScaleMode" value="fit-page"> Ganzer Zeitplan auf einer Seite</label>
-      <label class="print-option-row"><input type="radio" name="printScaleMode" value="fit-height"> Optimale Höhe</label>
-      <label class="print-option-row"><input type="radio" name="printScaleMode" value="100"> Normal (100%)</label>
-      <label class="print-option-row"><input type="radio" name="printScaleMode" value="custom"> Benutzerdefiniert: <input type="number" id="printCustomPct" value="100" min="10" max="400">%</label>
-    </div>
-    <div class="confirm-actions">
-      <button class="btn" id="printOptionsCancel">Abbrechen</button>
-      <button class="btn primary" id="printOptionsGo">Drucken</button>
-    </div>
-  </div>
-</div>
 
 <script>
 (function () {
@@ -611,10 +571,6 @@ button, input{ font-family:var(--font-family); }
   var confirmOk = $('#confirmOk');
   var confirmCancel = $('#confirmCancel');
   var fileInputEl = $('#fileInput');
-  var printOptionsOverlay = $('#printOptionsOverlay');
-  var printOptionsCancel = $('#printOptionsCancel');
-  var printOptionsGo = $('#printOptionsGo');
-  var printCustomPctEl = $('#printCustomPct');
 
   function showConfirm(message, onYes, options) {
     options = options || {};
@@ -1769,7 +1725,6 @@ button, input{ font-family:var(--font-family); }
   }
 
   /* ────────────────────────── Rohdatei speichern / öffnen ────────────────────────── */
-  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
   function sanitizeFilenamePart(s) {
     return String(s || '').trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ');
   }
@@ -1837,66 +1792,128 @@ button, input{ font-family:var(--font-family); }
     setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
   }
 
-  function openPrintOptions() {
-    printOptionsOverlay.classList.add('open');
+  /* ────────────────────────── Drucken: eigene statische Druckseite (neuer Tab) ────────────────────────── */
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
 
-  function printGantt(mode, customPct) {
-    var appEl = document.getElementById('app');
-    var listBodyEl = document.getElementById('listBody');
-    var range = getPrintRange();
-    var zoomCfg = ZOOMS[state.zoom];
-    var totalDays = diffDays(range.end, range.start);
-    var totalWidth = totalDays * zoomCfg.dayWidth;
-    var listW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--list-w'), 10) || 440;
-    var contentHeight = currentRows.length * ROW_H;
-    var contentWidth = totalWidth + listW;
-    var headerHeight = 56;
-    var totalContentHeight = headerHeight + contentHeight;
+  var PRINT_TABLE_CSS = '\
+    body{ margin:0; background:#f2f2f2; }\
+    .p-toolbar{ position:sticky; top:0; background:#1a1a1a; padding:12px 20px; display:flex; justify-content:flex-end; z-index:10; }\
+    .p-toolbar button{ appearance:none; border:none; background:#fff; color:#000; font-family:var(--font-family); font-size:13px; font-weight:500; padding:0 16px; height:36px; border-radius:3px; cursor:pointer; }\
+    .p-page{ max-width:1400px; margin:24px auto; background:#fff; padding:32px 40px; box-shadow:0 4px 24px rgba(0,0,0,.12); }\
+    .p-title{ font-size:22px; font-weight:600; margin:0 0 4px; color:var(--color-black); font-family:var(--font-family); }\
+    .p-subtitle{ font-size:13px; color:var(--g600); margin:0 0 24px; font-family:var(--font-family); text-transform:uppercase; letter-spacing:0.03em; }\
+    .p-gantt{ border-collapse:collapse; width:100%; font-family:var(--font-family); font-size:10px; table-layout:fixed; }\
+    .p-col-name{ width:160px; } .p-col-assignee{ width:90px; } .p-col-date{ width:60px; } .p-col-day{ width:16px; }\
+    .p-gantt th, .p-gantt td{ border:1px solid var(--g200); padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }\
+    .p-gantt thead th{ background:var(--g100); font-weight:600; text-align:center; }\
+    .p-month-row th{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--g600); }\
+    .p-day-row th{ font-size:9px; color:var(--g600); font-weight:500; }\
+    .p-day-row th.p-label-col{ text-align:left; padding-left:6px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600; }\
+    .p-weekend{ background:var(--g100); }\
+    .p-today{ background:var(--color-black) !important; color:#fff !important; }\
+    .p-name{ text-align:left; padding-left:6px !important; font-weight:500; }\
+    .p-phase-row td{ background:var(--g100); font-weight:600; padding:6px !important; text-align:left; }\
+    .p-bar-cell{ padding:0 !important; } .p-bar{ height:14px; border-radius:2px; margin:2px 1px; }\
+    .p-milestone-cell{ text-align:center; font-size:12px; }\
+    @media print{\
+      .p-toolbar{ display:none !important; }\
+      body{ background:#fff; }\
+      .p-page{ box-shadow:none; margin:0; padding:0; max-width:none; }\
+      @page{ size:landscape; margin:10mm; }\
+      .p-gantt thead{ display:table-header-group; }\
+      .p-phase-row{ break-inside:avoid; }\
+      .p-gantt tr{ break-inside:avoid; }\
+    }';
 
-    // A4 quer minus 10mm Rand pro Seite, ~96dpi (1mm ≈ 3.7795px)
-    var PAGE_WIDTH_PX = Math.round((297 - 20) * 3.7795);
-    var PAGE_HEIGHT_PX = Math.round((210 - 20) * 3.7795);
-    var scale;
-    if (mode === 'fit-width') scale = Math.min(1, PAGE_WIDTH_PX / contentWidth);
-    else if (mode === 'fit-height') scale = Math.min(1, PAGE_HEIGHT_PX / totalContentHeight);
-    else if (mode === 'fit-page') scale = Math.min(1, PAGE_WIDTH_PX / contentWidth, PAGE_HEIGHT_PX / totalContentHeight);
-    else if (mode === 'custom') scale = Math.max(0.1, (customPct || 100) / 100);
-    else scale = 1; // '100'
-
-    // Zeitstrahl vorübergehend auf den tatsächlichen Aufgaben-Zeitraum zuschneiden (keine leeren Bereiche)
-    renderTimelineHeader(range, zoomCfg, totalWidth);
-    renderTimelineRows(currentRows, range, zoomCfg, totalWidth);
-    renderTodayMarker(range, zoomCfg.dayWidth);
-
-    listBodyEl.style.height = contentHeight + 'px';
-    timelineBody.style.height = contentHeight + 'px';
-
-    document.body.classList.add('printing');
-    appEl.style.transform = 'scale(' + scale + ')';
-    appEl.style.transformOrigin = 'top left';
-
-    var cleaned = false;
-    function cleanup() {
-      if (cleaned) return;
-      cleaned = true;
-      window.removeEventListener('afterprint', cleanup);
-      document.body.classList.remove('printing');
-      appEl.style.transform = '';
-      appEl.style.transformOrigin = '';
-      listBodyEl.style.height = '';
-      timelineBody.style.height = '';
-      renderAll();
-      // Sicherheits-Repaint: manche Browser bleiben nach dem Druckdialog leer, bis neu gezeichnet wird
-      requestAnimationFrame(function () {
-        document.body.style.display = 'none';
-        void document.body.offsetHeight;
-        document.body.style.display = '';
-      });
+  function buildPrintTableHTML(range) {
+    var days = [];
+    var cur = new Date(range.start);
+    while (cur < range.end) {
+      days.push(new Date(cur));
+      cur = addDays(cur, 1);
     }
-    window.addEventListener('afterprint', cleanup);
-    window.print();
-    setTimeout(cleanup, 2000); // Fallback, falls afterprint in diesem Browser/Frame nicht feuert
+    var monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    var monthGroups = [];
+    days.forEach(function (d) {
+      var label = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+      if (monthGroups.length && monthGroups[monthGroups.length - 1].label === label) monthGroups[monthGroups.length - 1].span++;
+      else monthGroups.push({ label: label, span: 1 });
+    });
+    var todayMid = midnight(new Date());
+
+    var html = '<table class="p-gantt"><colgroup><col class="p-col-name"><col class="p-col-assignee"><col class="p-col-date"><col class="p-col-date">';
+    days.forEach(function () { html += '<col class="p-col-day">'; });
+    html += '</colgroup><thead><tr class="p-month-row"><th colspan="4"></th>';
+    monthGroups.forEach(function (g) { html += '<th colspan="' + g.span + '">' + escHtml(g.label) + '</th>'; });
+    html += '</tr><tr class="p-day-row"><th class="p-label-col">Aufgabe</th><th class="p-label-col">Verantw.</th><th class="p-label-col">Start</th><th class="p-label-col">Ende</th>';
+    days.forEach(function (d) {
+      var wknd = d.getDay() === 0 || d.getDay() === 6;
+      var isToday = diffDays(d, todayMid) === 0;
+      html += '<th class="' + (wknd ? 'p-weekend' : '') + (isToday ? ' p-today' : '') + '">' + d.getDate() + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    currentRows.forEach(function (row) {
+      if (row.type === 'add') return;
+      if (row.type === 'phase') {
+        html += '<tr class="p-phase-row"><td colspan="' + (4 + days.length) + '">' + escHtml(row.phase.name) + '</td></tr>';
+        return;
+      }
+      var task = row.task;
+      var s = fromISO(task.start), e = fromISO(task.end);
+      var colorIdx = resolveColorIdx(task, row.colorIdx);
+      var color = colorIdx === null ? 'var(--g400)' : phaseColor(colorIdx);
+      html += '<tr><td class="p-name">' + escHtml(task.name) + '</td><td>' + escHtml(task.assignee || '') + '</td><td>' + fmtDE(s) + '</td><td>' + (task.milestone ? '' : fmtDE(e)) + '</td>';
+      var startIdx = Math.max(0, diffDays(s, range.start));
+      var endIdx = Math.min(days.length - 1, diffDays(e, range.start));
+      var i = 0;
+      while (i < days.length) {
+        if (i === startIdx) {
+          if (task.milestone) {
+            html += '<td class="p-milestone-cell" style="color:' + color + '">◆</td>';
+            i++;
+          } else {
+            var span = Math.max(1, endIdx - startIdx + 1);
+            html += '<td class="p-bar-cell" colspan="' + span + '"><div class="p-bar" style="background:' + color + '"></div></td>';
+            i = endIdx + 1;
+          }
+        } else {
+          var wknd2 = days[i].getDay() === 0 || days[i].getDay() === 6;
+          html += '<td class="' + (wknd2 ? 'p-weekend' : '') + '"></td>';
+          i++;
+        }
+      }
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function openPrintDocument() {
+    var range = getPrintRange();
+    var styleText = document.querySelector('style').textContent;
+    var tableHtml = buildPrintTableHTML(range);
+    var title = state.projectTitle || 'Zeitplan';
+    var subtitle = state.projectSubtitle || '';
+
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(title) + '</title><style>' + styleText + '\n' + PRINT_TABLE_CSS + '</style></head><body>';
+    doc += '<div class="p-toolbar"><button onclick="window.print()">Drucken / Als PDF speichern</button></div>';
+    doc += '<div class="p-page"><h1 class="p-title">' + escHtml(title) + '</h1>';
+    if (subtitle) doc += '<p class="p-subtitle">' + escHtml(subtitle) + '</p>';
+    doc += tableHtml + '</div></body></html>';
+
+    var win = window.open('', '_blank');
+    if (!win) {
+      showConfirm('Pop-up wurde blockiert. Bitte Pop-ups für diese Seite erlauben und erneut versuchen.', function () {}, { okLabel: 'OK', hideCancel: true });
+      return;
+    }
+    win.document.write(doc);
+    win.document.close();
   }
 
   /* ────────────────────────── render orchestration ────────────────────────── */
@@ -1937,7 +1954,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'add-phase') addPhase();
       else if (action === 'today') scrollToToday();
       else if (action === 'export-pdf') exportPDF();
-      else if (action === 'print') openPrintOptions();
+      else if (action === 'print') openPrintDocument();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
       return;
@@ -1950,18 +1967,6 @@ button, input{ font-family:var(--font-family); }
   fileInputEl.addEventListener('change', function () {
     if (fileInputEl.files && fileInputEl.files[0]) openProjectFile(fileInputEl.files[0]);
     fileInputEl.value = '';
-  });
-  printOptionsCancel.addEventListener('click', function () {
-    printOptionsOverlay.classList.remove('open');
-  });
-  printOptionsOverlay.addEventListener('click', function (e) {
-    if (e.target === printOptionsOverlay) printOptionsOverlay.classList.remove('open');
-  });
-  printOptionsGo.addEventListener('click', function () {
-    var mode = document.querySelector('input[name="printScaleMode"]:checked').value;
-    var customPct = parseFloat(printCustomPctEl.value) || 100;
-    printOptionsOverlay.classList.remove('open');
-    printGantt(mode, customPct);
   });
 
 
