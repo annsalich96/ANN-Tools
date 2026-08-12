@@ -299,49 +299,6 @@ button, input{ font-family:var(--font-family); }
 .confirm-msg{ font-size:13px; color:var(--color-black); margin:0 0 var(--space-5) 0; line-height:1.5; }
 .confirm-actions{ display:flex; justify-content:flex-end; gap:var(--space-3); }
 
-.print-preview-overlay{
-  display:none; position:fixed; inset:0; background:var(--g100); z-index:200;
-}
-.print-preview-overlay.open{ display:flex; }
-.print-preview-sidebar{
-  flex:0 0 260px; background:var(--color-white); border-right:1px solid var(--g200);
-  padding:var(--space-6) var(--space-5); display:flex; flex-direction:column; overflow-y:auto;
-}
-.print-preview-sidebar h3{ font-size:16px; font-weight:600; margin:0 0 var(--space-5) 0; color:var(--color-black); }
-.print-preview-grid{ display:flex; flex-direction:column; gap:var(--space-4); flex:1 1 auto; }
-.print-option-field{
-  display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600;
-  text-transform:uppercase; letter-spacing:0.06em; color:var(--g600);
-}
-.print-option-field select, .print-option-field input{
-  border:1px solid var(--g200); border-radius:3px; padding:8px 10px; font-size:13px;
-  font-family:var(--font-family); font-weight:500; text-transform:none; letter-spacing:0;
-  color:var(--color-black); background:var(--color-white);
-}
-.print-preview-actions{ display:flex; flex-direction:column; gap:var(--space-3); margin-top:var(--space-6); }
-.print-preview-actions .btn{ width:100%; }
-.print-preview-main{ flex:1 1 auto; overflow:auto; padding:var(--space-8); display:flex; justify-content:center; }
-.print-preview-page-wrap{ height:max-content; }
-.print-preview-page{
-  background:var(--color-white); box-shadow:0 4px 24px rgba(0,0,0,.12); box-sizing:border-box;
-  padding:32px 40px; width:max-content; transform-origin:top left;
-}
-.p-title{ font-size:22px; font-weight:600; margin:0 0 4px; color:var(--color-black); font-family:var(--font-family); }
-.p-subtitle{ font-size:13px; color:var(--g600); margin:0 0 24px; font-family:var(--font-family); text-transform:uppercase; letter-spacing:0.03em; }
-.p-gantt{ border-collapse:collapse; font-family:var(--font-family); font-size:9px; table-layout:fixed; }
-.p-col-name{ width:140px; } .p-col-assignee{ width:75px; } .p-col-date{ width:50px; }
-.p-gantt th, .p-gantt td{ border:1px solid var(--g200); padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.p-name, .p-assignee{ white-space:normal; overflow-wrap:break-word; text-overflow:clip; }
-.p-gantt thead th{ background:var(--g100); font-weight:600; text-align:center; }
-.p-month-row th{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--g600); white-space:nowrap; }
-.p-day-row th{ font-size:8px; color:var(--g600); font-weight:500; }
-.p-day-row th.p-label-col{ text-align:left; padding-left:6px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600; font-size:9px; white-space:nowrap; }
-.p-weekend{ background:var(--g100); }
-.p-today{ background:var(--color-black) !important; color:#fff !important; }
-.p-name{ text-align:left; padding-left:6px !important; font-weight:500; }
-.p-phase-row td{ background:var(--g100); font-weight:600; padding:6px !important; text-align:left; }
-.p-bar-cell{ padding:0 !important; } .p-bar{ height:12px; border-radius:2px; margin:2px 1px; }
-.p-milestone-cell{ text-align:center; font-size:11px; }
 
 .col-resize{
   width:6px; flex:0 0 auto; cursor:col-resize; position:relative; background:transparent;
@@ -463,54 +420,6 @@ button, input{ font-family:var(--font-family); }
   </div>
 </div>
 
-<div class="print-preview-overlay" id="printPreviewOverlay">
-  <div class="print-preview-sidebar">
-    <h3>Drucken</h3>
-    <div class="print-preview-grid">
-      <label class="print-option-field">Papierformat
-        <select id="printPaperSize">
-          <option value="a4">A4</option>
-          <option value="a3">A3</option>
-          <option value="letter">US Letter</option>
-        </select>
-      </label>
-      <label class="print-option-field">Ausrichtung
-        <select id="printOrientation">
-          <option value="landscape" selected>Querformat</option>
-          <option value="portrait">Hochformat</option>
-        </select>
-      </label>
-      <label class="print-option-field">Skalierung
-        <select id="printScaleMode">
-          <option value="fit-width" selected>Optimale Breite</option>
-          <option value="fit-height">Optimale Höhe</option>
-          <option value="fit-page">An Seite anpassen</option>
-          <option value="100">Normal (100%)</option>
-          <option value="custom">Benutzerdefiniert</option>
-        </select>
-      </label>
-      <label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent
-        <input type="number" id="printCustomPct" value="100" min="10" max="400">
-      </label>
-      <label class="print-option-field">Ränder
-        <select id="printMargin">
-          <option value="10" selected>Standard</option>
-          <option value="5">Schmal</option>
-          <option value="20">Breit</option>
-        </select>
-      </label>
-    </div>
-    <div class="print-preview-actions">
-      <button class="btn primary" id="printPreviewDownload">PDF herunterladen</button>
-      <button class="btn" id="printPreviewClose">Schließen</button>
-    </div>
-  </div>
-  <div class="print-preview-main">
-    <div class="print-preview-page-wrap">
-      <div class="print-preview-page" id="printPreviewPage"></div>
-    </div>
-  </div>
-</div>
 
 
 <script>
@@ -668,16 +577,6 @@ button, input{ font-family:var(--font-family); }
   var confirmOk = $('#confirmOk');
   var confirmCancel = $('#confirmCancel');
   var fileInputEl = $('#fileInput');
-  var printPreviewOverlay = $('#printPreviewOverlay');
-  var printPreviewPageEl = $('#printPreviewPage');
-  var printPreviewClose = $('#printPreviewClose');
-  var printPreviewDownload = $('#printPreviewDownload');
-  var printPaperSizeEl = $('#printPaperSize');
-  var printOrientationEl = $('#printOrientation');
-  var printScaleModeEl = $('#printScaleMode');
-  var printCustomPctEl = $('#printCustomPct');
-  var printCustomPctRowEl = $('#printCustomPctRow');
-  var printMarginEl = $('#printMargin');
 
   function showConfirm(message, onYes, options) {
     options = options || {};
@@ -1620,10 +1519,28 @@ button, input{ font-family:var(--font-family); }
     }
   }
 
+  // Durchgehende Sync-Schleife statt nur auf das 'scroll'-Event zu reagieren: Safari feuert
+  // 'scroll' bei manchen Trackpad-/Momentum-Gesten seltener, als tatsächlich neu gezeichnet wird —
+  // dadurch hinkt die per transform synchronisierte linke Liste dem nativ scrollenden Zeitstrahl
+  // sichtbar hinterher ("links ruckelig, rechts glatt"). Diese Schleife hält beide jeden Frame exakt
+  // in Sync, unabhängig davon, wie oft/selten das Browser-eigene scroll-Event feuert.
+  var lastSyncedScrollLeft = null, lastSyncedScrollTop = null;
+  function syncScrollFrame() {
+    var sl = timelineBody.scrollLeft, st = timelineBody.scrollTop;
+    if (sl !== lastSyncedScrollLeft) {
+      timelineHeaderInner.style.transform = 'translateX(' + (-sl) + 'px)';
+      lastSyncedScrollLeft = sl;
+    }
+    if (st !== lastSyncedScrollTop) {
+      listBodyInner.style.transform = 'translateY(' + (-st) + 'px)';
+      lastSyncedScrollTop = st;
+    }
+    requestAnimationFrame(syncScrollFrame);
+  }
+  requestAnimationFrame(syncScrollFrame);
+
   var scrollExtendRafPending = false;
   timelineBody.addEventListener('scroll', function () {
-    timelineHeaderInner.style.transform = 'translateX(' + (-timelineBody.scrollLeft) + 'px)';
-    listBodyInner.style.transform = 'translateY(' + (-timelineBody.scrollTop) + 'px)';
     // maybeExtendRange() liest scrollWidth/clientWidth (erzwingt Layout) — auf höchstens
     // einmal pro Frame drosseln statt bei jedem einzelnen Scroll-Event, sonst ruckelt das
     // Scrollen bei jedem Tick spürbar.
@@ -2075,30 +1992,56 @@ button, input{ font-family:var(--font-family); }
     return html;
   }
 
-  function currentPrintSettings() {
-    return {
-      paper: printPaperSizeEl.value,
-      orientation: printOrientationEl.value,
-      scaleMode: printScaleModeEl.value,
-      customPct: parseFloat(printCustomPctEl.value) || 100,
-      marginMm: parseFloat(printMarginEl.value)
-    };
-  }
+  var PRINT_PREVIEW_TAB_CSS = '\
+    body{ margin:0; display:flex; height:100vh; background:var(--g100); font-family:var(--font-family); }\
+    .print-preview-sidebar{\
+      flex:0 0 260px; background:var(--color-white); border-right:1px solid var(--g200);\
+      padding:24px 20px; display:flex; flex-direction:column; overflow-y:auto;\
+    }\
+    .print-preview-sidebar h3{ font-size:16px; font-weight:600; margin:0 0 20px 0; color:var(--color-black); }\
+    .print-preview-grid{ display:flex; flex-direction:column; gap:16px; flex:1 1 auto; }\
+    .print-option-field{\
+      display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600;\
+      text-transform:uppercase; letter-spacing:0.06em; color:var(--g600);\
+    }\
+    .print-option-field select, .print-option-field input{\
+      border:1px solid var(--g200); border-radius:3px; padding:8px 10px; font-size:13px;\
+      font-family:var(--font-family); font-weight:500; text-transform:none; letter-spacing:0;\
+      color:var(--color-black); background:var(--color-white);\
+    }\
+    .print-preview-actions{ display:flex; flex-direction:column; gap:12px; margin-top:24px; }\
+    .print-preview-actions button{\
+      appearance:none; border:1px solid var(--color-black); background:var(--color-black); color:#fff;\
+      font-family:var(--font-family); font-size:13px; font-weight:500; padding:0 16px; height:36px;\
+      border-radius:3px; cursor:pointer; width:100%;\
+    }\
+    .print-preview-main{ flex:1 1 auto; overflow:auto; padding:32px; display:flex; justify-content:center; }\
+    .print-preview-page-wrap{ height:max-content; }\
+    .print-preview-page{\
+      background:var(--color-white); box-shadow:0 4px 24px rgba(0,0,0,.12); box-sizing:border-box;\
+      padding:32px 40px; width:max-content; transform-origin:top left;\
+    }\
+    .p-title{ font-size:22px; font-weight:600; margin:0 0 4px; color:var(--color-black); font-family:var(--font-family); }\
+    .p-subtitle{ font-size:13px; color:var(--g600); margin:0 0 24px; font-family:var(--font-family); text-transform:uppercase; letter-spacing:0.03em; }\
+    .p-gantt{ border-collapse:collapse; font-family:var(--font-family); font-size:9px; table-layout:fixed; }\
+    .p-col-name{ width:140px; } .p-col-assignee{ width:75px; } .p-col-date{ width:50px; }\
+    .p-gantt th, .p-gantt td{ border:1px solid var(--g200); padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }\
+    .p-name, .p-assignee{ white-space:normal; overflow-wrap:break-word; text-overflow:clip; }\
+    .p-gantt thead th{ background:var(--g100); font-weight:600; text-align:center; }\
+    .p-month-row th{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--g600); white-space:nowrap; }\
+    .p-day-row th{ font-size:8px; color:var(--g600); font-weight:500; }\
+    .p-day-row th.p-label-col{ text-align:left; padding-left:6px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600; font-size:9px; white-space:nowrap; }\
+    .p-weekend{ background:var(--g100); }\
+    .p-today{ background:var(--color-black) !important; color:#fff !important; }\
+    .p-name{ text-align:left; padding-left:6px !important; font-weight:500; }\
+    .p-phase-row td{ background:var(--g100); font-weight:600; padding:6px !important; text-align:left; }\
+    .p-bar-cell{ padding:0 !important; } .p-bar{ height:12px; border-radius:2px; margin:2px 1px; }\
+    .p-milestone-cell{ text-align:center; font-size:11px; }';
 
-  function openPrintPreview() {
-    printPreviewOverlay.classList.add('open');
-    renderPrintPreview();
-  }
-
-  function closePrintPreview() {
-    printPreviewOverlay.classList.remove('open');
-  }
-
-  // Baut die Vorschau direkt in der App (kein Popup-Fenster mehr) und skaliert sie live
-  // passend zu den gewaehlten Einstellungen - dieselbe Berechnung wie im echten PDF-Export,
-  // damit die Vorschau zeigt, was tatsaechlich herauskommt.
-  function renderPrintPreview() {
-    var settings = currentPrintSettings();
+  // Skaliert die Vorschau-Seite (in einem beliebigen Ziel-Element, im neuen Tab) passend zu den
+  // gewaehlten Einstellungen - dieselbe Berechnung wie im echten PDF-Export, damit die Vorschau
+  // zeigt, was tatsaechlich herauskommt.
+  function renderPrintPreviewInto(pageEl, settings) {
     var paper = PRINT_PAPER_SIZES_MM[settings.paper || 'a4'];
     var landscape = settings.orientation !== 'portrait';
     var pageWmm = landscape ? paper.h : paper.w;
@@ -2109,13 +2052,13 @@ button, input{ font-family:var(--font-family); }
     var title = state.projectTitle || 'Zeitplan';
     var subtitle = state.projectSubtitle || '';
 
-    printPreviewPageEl.style.zoom = 1;
-    printPreviewPageEl.innerHTML = '<h1 class="p-title">' + escHtml(title) + '</h1>' +
+    pageEl.style.zoom = 1;
+    pageEl.innerHTML = '<h1 class="p-title">' + escHtml(title) + '</h1>' +
       (subtitle ? '<p class="p-subtitle">' + escHtml(subtitle) + '</p>' : '') +
       buildPrintTableHTML(range);
 
-    var naturalW = printPreviewPageEl.scrollWidth;
-    var naturalH = printPreviewPageEl.scrollHeight;
+    var naturalW = pageEl.scrollWidth;
+    var naturalH = pageEl.scrollHeight;
     var pageWidthPx = (pageWmm - 2 * marginMm) * PX_PER_MM;
     var pageHeightPx = (pageHmm - 2 * marginMm) * PX_PER_MM;
 
@@ -2126,9 +2069,70 @@ button, input{ font-family:var(--font-family); }
     else if (settings.scaleMode === 'custom') scale = Math.max(0.1, settings.customPct / 100);
     else scale = 1;
 
-    printPreviewPageEl.style.zoom = scale;
-    printPreviewPageEl.style.minWidth = pageWidthPx + 'px';
-    printPreviewPageEl.style.minHeight = pageHeightPx + 'px';
+    pageEl.style.zoom = scale;
+    pageEl.style.minWidth = pageWidthPx + 'px';
+    pageEl.style.minHeight = pageHeightPx + 'px';
+  }
+
+  // "Drucken" oeffnet einen komplett neuen Browser-Tab mit der Einstellungs-/Vorschau-Seite
+  // (statt eines In-App-Overlays) — auf ausdruecklichen Wunsch, damit das eigentliche Tool
+  // sichtbar/erreichbar bleibt und die Druckseite sich wie eine eigenstaendige Seite anfuehlt.
+  function openPrintPreview() {
+    var fullStyle = document.querySelector('style').textContent;
+    var rootVarsMatch = fullStyle.match(/:root\{[^}]*\}/);
+    var rootVars = rootVarsMatch ? rootVarsMatch[0] : '';
+    var title = state.projectTitle || 'Zeitplan';
+
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Drucken — ' + escHtml(title) + '</title><style>' + rootVars + '\n' + PRINT_PREVIEW_TAB_CSS + '</style></head><body>';
+    doc += '<div class="print-preview-sidebar"><h3>Drucken</h3><div class="print-preview-grid">';
+    doc += '<label class="print-option-field">Papierformat<select id="printPaperSize"><option value="a4">A4</option><option value="a3">A3</option><option value="letter">US Letter</option></select></label>';
+    doc += '<label class="print-option-field">Ausrichtung<select id="printOrientation"><option value="landscape" selected>Querformat</option><option value="portrait">Hochformat</option></select></label>';
+    doc += '<label class="print-option-field">Skalierung<select id="printScaleMode"><option value="fit-width" selected>Optimale Breite</option><option value="fit-height">Optimale Höhe</option><option value="fit-page">An Seite anpassen</option><option value="100">Normal (100%)</option><option value="custom">Benutzerdefiniert</option></select></label>';
+    doc += '<label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent<input type="number" id="printCustomPct" value="100" min="10" max="400"></label>';
+    doc += '<label class="print-option-field">Ränder<select id="printMargin"><option value="10" selected>Standard</option><option value="5">Schmal</option><option value="20">Breit</option></select></label>';
+    doc += '</div><div class="print-preview-actions"><button id="printPreviewDownload">PDF herunterladen</button></div></div>';
+    doc += '<div class="print-preview-main"><div class="print-preview-page-wrap"><div class="print-preview-page" id="printPreviewPage"></div></div></div>';
+    doc += '</body></html>';
+
+    var win = window.open('', '_blank');
+    if (!win) {
+      showConfirm('Pop-up wurde blockiert. Bitte Pop-ups für diese Seite erlauben und erneut versuchen.', function () {}, { okLabel: 'OK', hideCancel: true });
+      return;
+    }
+    win.document.write(doc);
+    win.document.close();
+
+    var winPaperSizeEl = win.document.getElementById('printPaperSize');
+    var winOrientationEl = win.document.getElementById('printOrientation');
+    var winScaleModeEl = win.document.getElementById('printScaleMode');
+    var winCustomPctEl = win.document.getElementById('printCustomPct');
+    var winCustomPctRowEl = win.document.getElementById('printCustomPctRow');
+    var winMarginEl = win.document.getElementById('printMargin');
+    var winPreviewPageEl = win.document.getElementById('printPreviewPage');
+    var winDownloadBtn = win.document.getElementById('printPreviewDownload');
+
+    function winSettings() {
+      return {
+        paper: winPaperSizeEl.value,
+        orientation: winOrientationEl.value,
+        scaleMode: winScaleModeEl.value,
+        customPct: parseFloat(winCustomPctEl.value) || 100,
+        marginMm: parseFloat(winMarginEl.value)
+      };
+    }
+    function update() { renderPrintPreviewInto(winPreviewPageEl, winSettings()); }
+
+    winScaleModeEl.addEventListener('change', function () {
+      winCustomPctRowEl.style.display = winScaleModeEl.value === 'custom' ? '' : 'none';
+      update();
+    });
+    winPaperSizeEl.addEventListener('change', update);
+    winOrientationEl.addEventListener('change', update);
+    winMarginEl.addEventListener('change', update);
+    winCustomPctEl.addEventListener('input', update);
+    winDownloadBtn.addEventListener('click', function () { downloadGanttPDF(winSettings()); });
+
+    update();
   }
 
   /* Echter PDF-Export des Gantt-Charts (kein window.print(), kein Popup) */
@@ -2388,18 +2392,6 @@ button, input{ font-family:var(--font-family); }
   fileInputEl.addEventListener('change', function () {
     if (fileInputEl.files && fileInputEl.files[0]) openProjectFile(fileInputEl.files[0]);
     fileInputEl.value = '';
-  });
-  printScaleModeEl.addEventListener('change', function () {
-    printCustomPctRowEl.style.display = printScaleModeEl.value === 'custom' ? '' : 'none';
-    renderPrintPreview();
-  });
-  printPaperSizeEl.addEventListener('change', renderPrintPreview);
-  printOrientationEl.addEventListener('change', renderPrintPreview);
-  printMarginEl.addEventListener('change', renderPrintPreview);
-  printCustomPctEl.addEventListener('input', renderPrintPreview);
-  printPreviewClose.addEventListener('click', closePrintPreview);
-  printPreviewDownload.addEventListener('click', function () {
-    downloadGanttPDF(currentPrintSettings());
   });
 
 
