@@ -222,7 +222,7 @@ button, input{ font-family:var(--font-family); }
 .timeline-header-inner{ position:relative; height:100%; will-change:transform; }
 .th-top-seg{ position:absolute; top:0; height:26px; border-right:1px solid var(--g200); display:flex; align-items:center; padding-left:6px; font-size:10px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--g600); box-sizing:border-box; }
 .th-bottom-tick{ position:absolute; bottom:0; height:30px; border-right:1px solid var(--g200); display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box; }
-.tl-gridline{ position:absolute; top:0; width:1px; background:var(--g200); pointer-events:none; }
+.tl-gridline{ position:absolute; top:0; bottom:0; width:1px; background:var(--g200); pointer-events:none; }
 .th-bottom-tick .sub{ font-size:9px; color:var(--g600); line-height:1.2; }
 .th-bottom-tick .main{ font-size:11px; font-weight:600; color:var(--color-black); line-height:1.2; }
 .th-bottom-tick.weekend{ background:var(--g100); }
@@ -253,6 +253,18 @@ button, input{ font-family:var(--font-family); }
 .bar .handle{ position:absolute; top:0; bottom:0; width:7px; cursor:ew-resize; }
 .bar .handle.left{ left:0; }
 .bar .handle.right{ right:0; }
+.link-handle{
+  position:absolute; top:50%; width:10px; height:10px; margin-top:-5px; margin-left:-5px;
+  border-radius:50%; background:var(--color-white); border:2px solid var(--g400);
+  cursor:crosshair; opacity:0; z-index:6;
+}
+.tl-row:hover .link-handle{ opacity:1; }
+.link-handle:hover{ border-color:var(--color-black); }
+.dep-lines{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
+.dep-path{ fill:none; stroke:var(--g400); stroke-width:1.5; pointer-events:none; }
+.dep-path.hover{ stroke:var(--error); stroke-width:2; }
+.dep-hit{ fill:none; stroke:transparent; stroke-width:10; pointer-events:stroke; cursor:pointer; }
+.dep-temp-path{ fill:none; stroke:var(--g600); stroke-width:1.5; stroke-dasharray:4 3; pointer-events:none; }
 .bar-label-outside{
   position:absolute; top:50%; transform:translateY(-50%); font-size:11px; font-weight:500;
   color:var(--color-black); white-space:nowrap; pointer-events:none;
@@ -338,7 +350,7 @@ button, input{ font-family:var(--font-family); }
 
   <div class="toolbar">
     <div class="toolbar-group">
-      <button class="btn primary" data-action="add-phase">+ Phase</button>
+      <button class="btn primary" data-action="add-phase">+ Phase/Kategorie</button>
     </div>
     <div class="toolbar-group zoom-group">
       <button class="zoom-btn" data-zoom="week">Woche</button>
@@ -346,7 +358,7 @@ button, input{ font-family:var(--font-family); }
       <button class="zoom-btn" data-zoom="year">Jahr</button>
     </div>
     <div class="toolbar-group zoom-group">
-      <button class="zoom-btn colorby-btn active" data-colorby="phase">Farbe: Phase</button>
+      <button class="zoom-btn colorby-btn active" data-colorby="phase">Farbe: Phase/Kategorie</button>
       <button class="zoom-btn colorby-btn" data-colorby="assignee">Farbe: Verantwortlich</button>
     </div>
     <div class="toolbar-group">
@@ -767,10 +779,12 @@ button, input{ font-family:var(--font-family); }
     });
     el.appendChild(chev);
 
-    var sw = document.createElement('span');
-    sw.className = 'swatch' + (state.colorBy !== 'assignee' && phaseHatched(row.colorIdx) ? ' hatched' : '');
-    sw.style.background = state.colorBy === 'assignee' ? 'var(--g400)' : phaseColor(row.colorIdx);
-    el.appendChild(sw);
+    if (state.colorBy !== 'assignee') {
+      var sw = document.createElement('span');
+      sw.className = 'swatch' + (phaseHatched(row.colorIdx) ? ' hatched' : '');
+      sw.style.background = phaseColor(row.colorIdx);
+      el.appendChild(sw);
+    }
 
     var name = document.createElement('input');
     name.className = 'phase-name';
@@ -790,7 +804,11 @@ button, input{ font-family:var(--font-family); }
         ? 'Phase "' + phase.name + '" und alle ' + row.tasks.length + ' zugehörigen Aufgaben löschen?'
         : 'Phase "' + phase.name + '" löschen?';
       showConfirm(msg, function () {
+        var removedIds = state.tasks.filter(function (t) { return t.phaseId === phase.id; }).map(function (t) { return t.id; });
         state.tasks = state.tasks.filter(function (t) { return t.phaseId !== phase.id; });
+        state.tasks.forEach(function (t) {
+          if (t.dependsOn) t.dependsOn = t.dependsOn.filter(function (id) { return removedIds.indexOf(id) === -1; });
+        });
         state.phases = state.phases.filter(function (p) { return p.id !== phase.id; });
         save();
         renderAll();
@@ -831,6 +849,13 @@ button, input{ font-family:var(--font-family); }
     name.addEventListener('input', function () { task.name = name.value; save(); renderTimelineOnly(); });
     el.appendChild(name);
 
+    var assigneeColorIdx = state.colorBy === 'assignee' ? resolveColorIdx(task, row.colorIdx) : null;
+    var assigneeSw = document.createElement('span');
+    assigneeSw.className = 'swatch' + (assigneeColorIdx !== null && phaseHatched(assigneeColorIdx) ? ' hatched' : '');
+    assigneeSw.style.background = assigneeColorIdx === null ? 'var(--g400)' : phaseColor(assigneeColorIdx);
+    assigneeSw.style.visibility = state.colorBy === 'assignee' ? 'visible' : 'hidden';
+    el.appendChild(assigneeSw);
+
     var assignee = document.createElement('input');
     assignee.className = 'assignee-input';
     assignee.placeholder = 'Firma / Person';
@@ -851,6 +876,7 @@ button, input{ font-family:var(--font-family); }
       } else {
         task.start = startInput.value;
       }
+      applyDependencyConstraints(task.id);
       save();
       renderAll();
     });
@@ -859,11 +885,12 @@ button, input{ font-family:var(--font-family); }
     var endInput = document.createElement('input');
     endInput.type = 'date';
     endInput.value = task.end;
-    endInput.style.display = task.milestone ? 'none' : '';
+    endInput.style.visibility = task.milestone ? 'hidden' : 'visible';
     endInput.addEventListener('change', function () {
       var newEnd = fromISO(endInput.value);
       var start = fromISO(task.start);
       if (newEnd < start) { task.end = task.start; } else { task.end = endInput.value; }
+      applyDependencyConstraints(task.id);
       save();
       renderAll();
     });
@@ -875,6 +902,9 @@ button, input{ font-family:var(--font-family); }
     del.title = 'Löschen';
     del.addEventListener('click', function () {
       state.tasks = state.tasks.filter(function (t) { return t.id !== task.id; });
+      state.tasks.forEach(function (t) {
+        if (t.dependsOn) t.dependsOn = t.dependsOn.filter(function (id) { return id !== task.id; });
+      });
       save();
       renderAll();
     });
@@ -968,10 +998,10 @@ button, input{ font-family:var(--font-family); }
     timelineRowsInner.style.width = totalWidth + 'px';
     timelineRowsInner.style.height = (rows.length * ROW_H) + 'px';
     timelineRowEls = [];
+    taskGeom = {};
 
     var dayWidth = zoomCfg.dayWidth;
-
-    renderGridLines(range, zoomCfg, rows.length * ROW_H);
+    var gridXs = computeGridXs(range, zoomCfg);
 
     rows.forEach(function (row, i) {
       var rowEl = document.createElement('div');
@@ -988,6 +1018,13 @@ button, input{ font-family:var(--font-family); }
         rowEl.style.backgroundPositionX = wk.backgroundPositionX;
       }
 
+      gridXs.forEach(function (gx) {
+        var seg = document.createElement('div');
+        seg.className = 'tl-gridline';
+        seg.style.left = (gx - 1) + 'px';
+        rowEl.appendChild(seg);
+      });
+
       if (row.type === 'phase') {
         if (row.tasks.length > 0) {
           var minStart = row.tasks.reduce(function (m, t) { var s = fromISO(t.start); return s < m ? s : m; }, fromISO(row.tasks[0].start));
@@ -1002,32 +1039,32 @@ button, input{ font-family:var(--font-family); }
           rowEl.appendChild(rollup);
         }
       } else if (row.type === 'task') {
-        renderTaskMark(rowEl, row, range, dayWidth);
+        renderTaskMark(rowEl, row, range, dayWidth, i);
       }
 
       timelineRowsInner.appendChild(rowEl);
       timelineRowEls.push(rowEl);
       if (row.type === 'task') attachRowHover(rowEl, row);
     });
+
+    renderDependencyLines(rows, range, dayWidth);
   }
 
-  function renderGridLines(range, zoomCfg, totalHeight) {
+  function computeGridXs(range, zoomCfg) {
+    var xs = [];
     var x = 0;
     var cur = range.start;
     while (cur < range.end) {
-      var line = document.createElement('div');
-      line.className = 'tl-gridline';
-      line.style.left = (x - 1) + 'px';
-      line.style.height = totalHeight + 'px';
-      timelineRowsInner.appendChild(line);
+      xs.push(x);
       var next = zoomCfg.bottomBoundary(cur);
       if (next > range.end) next = range.end;
       x += diffDays(next, cur) * zoomCfg.dayWidth;
       cur = next;
     }
+    return xs;
   }
 
-  function renderTaskMark(rowEl, row, range, dayWidth) {
+  function renderTaskMark(rowEl, row, range, dayWidth, rowIndex) {
     var task = row.task;
     var colorIdx = resolveColorIdx(task, row.colorIdx);
     var color = colorIdx === null ? 'var(--g400)' : phaseColor(colorIdx);
@@ -1048,6 +1085,9 @@ button, input{ font-family:var(--font-family); }
       mLabel.style.left = (offset + 12) + 'px';
       mLabel.textContent = task.name;
       rowEl.appendChild(mLabel);
+
+      taskGeom[task.id] = { rowIndex: rowIndex, startX: offset, endX: offset, milestone: true };
+      attachLinkHandle(rowEl, offset, rowIndex, task);
       return;
     }
 
@@ -1082,6 +1122,9 @@ button, input{ font-family:var(--font-family); }
     attachDragBar(bar, hLeft, hRight, task, range, dayWidth);
     rowEl.appendChild(bar);
 
+    taskGeom[task.id] = { rowIndex: rowIndex, startX: left, endX: left + width, milestone: false };
+    attachLinkHandle(rowEl, left + width, rowIndex, task);
+
     if (width <= 90) {
       var outLabel = document.createElement('div');
       outLabel.className = 'bar-label-outside';
@@ -1089,6 +1132,145 @@ button, input{ font-family:var(--font-family); }
       outLabel.textContent = task.name;
       rowEl.appendChild(outLabel);
     }
+  }
+
+  /* ────────────────────────── Abhängigkeits-Pfeile & Verknüpfen ────────────────────────── */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function attachLinkHandle(rowEl, x, rowIndex, task) {
+    var handle = document.createElement('div');
+    handle.className = 'link-handle';
+    handle.style.left = x + 'px';
+    handle.title = 'Ziehen, um eine Abhängigkeit zu einer anderen Aufgabe zu erstellen';
+    handle.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      startLinkDrag(task);
+    });
+    rowEl.appendChild(handle);
+  }
+
+  function startLinkDrag(sourceTask) {
+    var startGeom = taskGeom[sourceTask.id];
+    if (!startGeom) return;
+    var startX = startGeom.endX;
+    var startY = startGeom.rowIndex * ROW_H + ROW_H / 2 - 13;
+
+    var tempPath = document.createElementNS(SVG_NS, 'path');
+    tempPath.setAttribute('class', 'dep-temp-path');
+    var svg = timelineRowsInner.querySelector('.dep-lines');
+    if (svg) svg.appendChild(tempPath);
+
+    function pathFor(curX, curY) {
+      var midX = (startX + curX) / 2;
+      return 'M ' + startX + ' ' + startY + ' C ' + midX + ' ' + startY + ' ' + midX + ' ' + curY + ' ' + curX + ' ' + curY;
+    }
+    tempPath.setAttribute('d', pathFor(startX, startY));
+
+    function onMove(ev) {
+      var r = timelineRowsInner.getBoundingClientRect();
+      tempPath.setAttribute('d', pathFor(ev.clientX - r.left, ev.clientY - r.top));
+    }
+    function onUp(ev) {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      if (tempPath.parentNode) tempPath.parentNode.removeChild(tempPath);
+
+      var r = timelineRowsInner.getBoundingClientRect();
+      var dropY = ev.clientY - r.top;
+      var dropRowIndex = Math.floor(dropY / ROW_H);
+      var targetId = null;
+      Object.keys(taskGeom).forEach(function (id) {
+        if (taskGeom[id].rowIndex === dropRowIndex) targetId = id;
+      });
+      var targetTask = targetId ? findTask(targetId) : null;
+      if (targetTask && targetTask.id !== sourceTask.id) {
+        targetTask.dependsOn = targetTask.dependsOn || [];
+        if (targetTask.dependsOn.indexOf(sourceTask.id) === -1 && !wouldCreateCycle(sourceTask.id, targetTask.id)) {
+          targetTask.dependsOn.push(sourceTask.id);
+          applyDependencyConstraints(targetTask.id);
+          save();
+          renderAll();
+        }
+      }
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function renderDependencyLines() {
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'dep-lines');
+    svg.setAttribute('width', timelineRowsInner.style.width);
+    svg.setAttribute('height', timelineRowsInner.style.height);
+
+    var defs = document.createElementNS(SVG_NS, 'defs');
+    var marker = document.createElementNS(SVG_NS, 'marker');
+    marker.setAttribute('id', 'depArrow');
+    marker.setAttribute('viewBox', '0 0 8 8');
+    marker.setAttribute('refX', '7');
+    marker.setAttribute('refY', '4');
+    marker.setAttribute('markerWidth', '7');
+    marker.setAttribute('markerHeight', '7');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    var arrowPath = document.createElementNS(SVG_NS, 'path');
+    arrowPath.setAttribute('d', 'M 0 0 L 8 4 L 0 8 z');
+    arrowPath.setAttribute('fill', 'var(--g400)');
+    marker.appendChild(arrowPath);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    state.tasks.forEach(function (t) {
+      if (!t.dependsOn || !t.dependsOn.length) return;
+      var succGeom = taskGeom[t.id];
+      if (!succGeom) return;
+      t.dependsOn.forEach(function (predId) {
+        var predGeom = taskGeom[predId];
+        if (!predGeom) return;
+        drawDependencyLine(svg, predGeom, succGeom, predId, t.id);
+      });
+    });
+
+    timelineRowsInner.appendChild(svg);
+  }
+
+  function drawDependencyLine(svg, predGeom, succGeom, predId, succId) {
+    var TOP_CLEARANCE = 13; // über der Textmitte des Balkens/der Raute andocken, nicht durch die Schrift
+    var x1 = predGeom.endX;
+    var y1 = predGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
+    var x2 = succGeom.startX;
+    var y2 = succGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
+    var elbowX = x2 >= x1 + 16 ? (x1 + x2) / 2 : x1 + 20;
+    var d = 'M ' + x1 + ' ' + y1 + ' L ' + elbowX + ' ' + y1 + ' L ' + elbowX + ' ' + y2 + ' L ' + (x2 - 6) + ' ' + y2;
+
+    var g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'dep-group');
+
+    var hit = document.createElementNS(SVG_NS, 'path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('class', 'dep-hit');
+    g.appendChild(hit);
+
+    var visible = document.createElementNS(SVG_NS, 'path');
+    visible.setAttribute('d', d);
+    visible.setAttribute('class', 'dep-path');
+    visible.setAttribute('marker-end', 'url(#depArrow)');
+    g.appendChild(visible);
+
+    g.addEventListener('mouseenter', function () { visible.classList.add('hover'); });
+    g.addEventListener('mouseleave', function () { visible.classList.remove('hover'); });
+    g.addEventListener('click', function () {
+      showConfirm('Abhängigkeit entfernen?', function () {
+        var succ = findTask(succId);
+        if (succ && succ.dependsOn) {
+          succ.dependsOn = succ.dependsOn.filter(function (id) { return id !== predId; });
+          save();
+          renderAll();
+        }
+      });
+    });
+
+    svg.appendChild(g);
   }
 
   /* ────────────────────────── dragging ────────────────────────── */
@@ -1140,6 +1322,7 @@ button, input{ font-family:var(--font-family); }
             task.end = bar.dataset.pendingEnd;
             delete bar.dataset.pendingStart;
             delete bar.dataset.pendingEnd;
+            applyDependencyConstraints(task.id);
             save();
             renderAll();
           }
@@ -1180,6 +1363,7 @@ button, input{ font-family:var(--font-family); }
           task.start = dia.dataset.pendingDate;
           task.end = dia.dataset.pendingDate;
           delete dia.dataset.pendingDate;
+          applyDependencyConstraints(task.id);
           save();
           renderAll();
         }
@@ -1187,6 +1371,57 @@ button, input{ font-family:var(--font-family); }
       dia.addEventListener('pointermove', onMove);
       dia.addEventListener('pointerup', onUp);
     });
+  }
+
+  /* ────────────────────────── Abhängigkeiten (Ende-Anfang) ────────────────────────── */
+  function findTask(id) {
+    return state.tasks.find(function (t) { return t.id === id; });
+  }
+
+  function wouldCreateCycle(predecessorId, successorId) {
+    // true, wenn predecessorId bereits (direkt/indirekt) von successorId abhängt
+    var visited = {};
+    function dfs(id) {
+      if (id === successorId) return true;
+      if (visited[id]) return false;
+      visited[id] = true;
+      var t = findTask(id);
+      if (!t || !t.dependsOn) return false;
+      return t.dependsOn.some(dfs);
+    }
+    return dfs(predecessorId);
+  }
+
+  function applyDependencyConstraints(changedTaskId) {
+    var visited = {};
+    function cascade(taskId) {
+      if (visited[taskId]) return;
+      visited[taskId] = true;
+      state.tasks.forEach(function (t) {
+        if (!t.dependsOn || t.dependsOn.indexOf(taskId) === -1) return;
+        var minStart = null;
+        t.dependsOn.forEach(function (predId) {
+          var pred = findTask(predId);
+          if (!pred) return;
+          var predEnd = fromISO(pred.end);
+          if (minStart === null || predEnd > minStart) minStart = predEnd;
+        });
+        if (minStart === null) return;
+        var curStart = fromISO(t.start);
+        if (curStart < minStart) {
+          if (t.milestone) {
+            t.start = toISO(minStart);
+            t.end = t.start;
+          } else {
+            var dur = diffDays(fromISO(t.end), curStart);
+            t.start = toISO(minStart);
+            t.end = toISO(addDays(minStart, dur));
+          }
+          cascade(t.id);
+        }
+      });
+    }
+    cascade(changedTaskId);
   }
 
   /* ────────────────────────── hover sync ────────────────────────── */
@@ -1256,6 +1491,7 @@ button, input{ font-family:var(--font-family); }
 
   /* ────────────────────────── actions ────────────────────────── */
   var currentRows = [];
+  var taskGeom = {};
 
   function addTask(phaseId) {
     var today = midnight(new Date());
