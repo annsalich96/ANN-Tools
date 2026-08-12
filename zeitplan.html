@@ -299,6 +299,22 @@ button, input{ font-family:var(--font-family); }
 .confirm-msg{ font-size:13px; color:var(--color-black); margin:0 0 var(--space-5) 0; line-height:1.5; }
 .confirm-actions{ display:flex; justify-content:flex-end; gap:var(--space-3); }
 
+.print-options-overlay{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100;
+  align-items:center; justify-content:center;
+}
+.print-options-overlay.open{ display:flex; }
+.print-options-box{
+  background:var(--color-white); border-radius:6px; padding:var(--space-6); width:380px;
+  box-shadow:0 12px 32px rgba(0,0,0,.2); font-family:var(--font-family);
+}
+.print-options-box h3{ font-size:15px; font-weight:600; margin:0 0 var(--space-4) 0; color:var(--color-black); }
+.print-options-list{ display:flex; flex-direction:column; gap:12px; margin-bottom:var(--space-5); }
+.print-option-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--color-black); cursor:pointer; }
+.print-option-row input[type="number"]{
+  width:56px; border:1px solid var(--g200); border-radius:3px; padding:3px 6px; font-size:13px; font-family:var(--font-family);
+}
+
 .col-resize{
   width:6px; flex:0 0 auto; cursor:col-resize; position:relative; background:transparent;
 }
@@ -324,7 +340,7 @@ button, input{ font-family:var(--font-family); }
 
 @media print{
   @page{ size: landscape; margin: 10mm; }
-  .toolbar, .app-footer, .confirm-overlay{ display:none !important; }
+  .toolbar, .app-footer, .confirm-overlay, .print-options-overlay{ display:none !important; }
   html, body{ height:auto !important; overflow:visible !important; }
   body.printing .app{ height:auto !important; }
   body.printing .board{ display:flex; overflow:visible !important; }
@@ -419,6 +435,23 @@ button, input{ font-family:var(--font-family); }
     <div class="confirm-actions">
       <button class="btn" id="confirmCancel">Abbrechen</button>
       <button class="btn primary" id="confirmOk">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="print-options-overlay" id="printOptionsOverlay">
+  <div class="print-options-box">
+    <h3>Druckskalierung</h3>
+    <div class="print-options-list">
+      <label class="print-option-row"><input type="radio" name="printScaleMode" value="fit-width" checked> Optimale Breite (gut lesbar, ggf. mehrere Seiten)</label>
+      <label class="print-option-row"><input type="radio" name="printScaleMode" value="fit-page"> Ganzer Zeitplan auf einer Seite</label>
+      <label class="print-option-row"><input type="radio" name="printScaleMode" value="fit-height"> Optimale Höhe</label>
+      <label class="print-option-row"><input type="radio" name="printScaleMode" value="100"> Normal (100%)</label>
+      <label class="print-option-row"><input type="radio" name="printScaleMode" value="custom"> Benutzerdefiniert: <input type="number" id="printCustomPct" value="100" min="10" max="400">%</label>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn" id="printOptionsCancel">Abbrechen</button>
+      <button class="btn primary" id="printOptionsGo">Drucken</button>
     </div>
   </div>
 </div>
@@ -578,6 +611,10 @@ button, input{ font-family:var(--font-family); }
   var confirmOk = $('#confirmOk');
   var confirmCancel = $('#confirmCancel');
   var fileInputEl = $('#fileInput');
+  var printOptionsOverlay = $('#printOptionsOverlay');
+  var printOptionsCancel = $('#printOptionsCancel');
+  var printOptionsGo = $('#printOptionsGo');
+  var printCustomPctEl = $('#printCustomPct');
 
   function showConfirm(message, onYes, options) {
     options = options || {};
@@ -1800,7 +1837,11 @@ button, input{ font-family:var(--font-family); }
     setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
   }
 
-  function printGantt() {
+  function openPrintOptions() {
+    printOptionsOverlay.classList.add('open');
+  }
+
+  function printGantt(mode, customPct) {
     var appEl = document.getElementById('app');
     var listBodyEl = document.getElementById('listBody');
     var range = getPrintRange();
@@ -1816,7 +1857,12 @@ button, input{ font-family:var(--font-family); }
     // A4 quer minus 10mm Rand pro Seite, ~96dpi (1mm ≈ 3.7795px)
     var PAGE_WIDTH_PX = Math.round((297 - 20) * 3.7795);
     var PAGE_HEIGHT_PX = Math.round((210 - 20) * 3.7795);
-    var scale = Math.min(1, PAGE_WIDTH_PX / contentWidth, PAGE_HEIGHT_PX / totalContentHeight);
+    var scale;
+    if (mode === 'fit-width') scale = Math.min(1, PAGE_WIDTH_PX / contentWidth);
+    else if (mode === 'fit-height') scale = Math.min(1, PAGE_HEIGHT_PX / totalContentHeight);
+    else if (mode === 'fit-page') scale = Math.min(1, PAGE_WIDTH_PX / contentWidth, PAGE_HEIGHT_PX / totalContentHeight);
+    else if (mode === 'custom') scale = Math.max(0.1, (customPct || 100) / 100);
+    else scale = 1; // '100'
 
     // Zeitstrahl vorübergehend auf den tatsächlichen Aufgaben-Zeitraum zuschneiden (keine leeren Bereiche)
     renderTimelineHeader(range, zoomCfg, totalWidth);
@@ -1829,15 +1875,28 @@ button, input{ font-family:var(--font-family); }
     document.body.classList.add('printing');
     appEl.style.transform = 'scale(' + scale + ')';
     appEl.style.transformOrigin = 'top left';
-    window.print();
-    setTimeout(function () {
+
+    var cleaned = false;
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      window.removeEventListener('afterprint', cleanup);
       document.body.classList.remove('printing');
       appEl.style.transform = '';
       appEl.style.transformOrigin = '';
       listBodyEl.style.height = '';
       timelineBody.style.height = '';
       renderAll();
-    }, 500);
+      // Sicherheits-Repaint: manche Browser bleiben nach dem Druckdialog leer, bis neu gezeichnet wird
+      requestAnimationFrame(function () {
+        document.body.style.display = 'none';
+        void document.body.offsetHeight;
+        document.body.style.display = '';
+      });
+    }
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+    setTimeout(cleanup, 2000); // Fallback, falls afterprint in diesem Browser/Frame nicht feuert
   }
 
   /* ────────────────────────── render orchestration ────────────────────────── */
@@ -1878,7 +1937,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'add-phase') addPhase();
       else if (action === 'today') scrollToToday();
       else if (action === 'export-pdf') exportPDF();
-      else if (action === 'print') printGantt();
+      else if (action === 'print') openPrintOptions();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
       return;
@@ -1891,6 +1950,18 @@ button, input{ font-family:var(--font-family); }
   fileInputEl.addEventListener('change', function () {
     if (fileInputEl.files && fileInputEl.files[0]) openProjectFile(fileInputEl.files[0]);
     fileInputEl.value = '';
+  });
+  printOptionsCancel.addEventListener('click', function () {
+    printOptionsOverlay.classList.remove('open');
+  });
+  printOptionsOverlay.addEventListener('click', function (e) {
+    if (e.target === printOptionsOverlay) printOptionsOverlay.classList.remove('open');
+  });
+  printOptionsGo.addEventListener('click', function () {
+    var mode = document.querySelector('input[name="printScaleMode"]:checked').value;
+    var customPct = parseFloat(printCustomPctEl.value) || 100;
+    printOptionsOverlay.classList.remove('open');
+    printGantt(mode, customPct);
   });
 
 
