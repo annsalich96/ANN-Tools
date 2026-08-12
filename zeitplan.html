@@ -299,6 +299,27 @@ button, input{ font-family:var(--font-family); }
 .confirm-msg{ font-size:13px; color:var(--color-black); margin:0 0 var(--space-5) 0; line-height:1.5; }
 .confirm-actions{ display:flex; justify-content:flex-end; gap:var(--space-3); }
 
+.print-options-overlay{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100;
+  align-items:center; justify-content:center;
+}
+.print-options-overlay.open{ display:flex; }
+.print-options-box{
+  background:var(--color-white); border-radius:6px; padding:var(--space-6); width:340px;
+  box-shadow:0 12px 32px rgba(0,0,0,.2); font-family:var(--font-family);
+}
+.print-options-box h3{ font-size:15px; font-weight:600; margin:0 0 var(--space-5) 0; color:var(--color-black); }
+.print-options-grid{ display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-5); }
+.print-option-field{
+  display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600;
+  text-transform:uppercase; letter-spacing:0.06em; color:var(--g600);
+}
+.print-option-field select, .print-option-field input{
+  border:1px solid var(--g200); border-radius:3px; padding:8px 10px; font-size:13px;
+  font-family:var(--font-family); font-weight:500; text-transform:none; letter-spacing:0;
+  color:var(--color-black); background:var(--color-white);
+}
+
 .col-resize{
   width:6px; flex:0 0 auto; cursor:col-resize; position:relative; background:transparent;
 }
@@ -411,6 +432,50 @@ button, input{ font-family:var(--font-family); }
     <div class="confirm-actions">
       <button class="btn" id="confirmCancel">Abbrechen</button>
       <button class="btn primary" id="confirmOk">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="print-options-overlay" id="printOptionsOverlay">
+  <div class="print-options-box">
+    <h3>Drucken</h3>
+    <div class="print-options-grid">
+      <label class="print-option-field">Papierformat
+        <select id="printPaperSize">
+          <option value="a4">A4</option>
+          <option value="a3">A3</option>
+          <option value="letter">US Letter</option>
+        </select>
+      </label>
+      <label class="print-option-field">Ausrichtung
+        <select id="printOrientation">
+          <option value="landscape" selected>Querformat</option>
+          <option value="portrait">Hochformat</option>
+        </select>
+      </label>
+      <label class="print-option-field">Skalierung
+        <select id="printScaleMode">
+          <option value="fit-width" selected>Optimale Breite</option>
+          <option value="fit-height">Optimale Höhe</option>
+          <option value="fit-page">An Seite anpassen</option>
+          <option value="100">Normal (100%)</option>
+          <option value="custom">Benutzerdefiniert</option>
+        </select>
+      </label>
+      <label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent
+        <input type="number" id="printCustomPct" value="100" min="10" max="400">
+      </label>
+      <label class="print-option-field">Ränder
+        <select id="printMargin">
+          <option value="10" selected>Standard</option>
+          <option value="5">Schmal</option>
+          <option value="20">Breit</option>
+        </select>
+      </label>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn" id="printOptionsCancel">Abbrechen</button>
+      <button class="btn primary" id="printOptionsGo">Weiter</button>
     </div>
   </div>
 </div>
@@ -571,6 +636,15 @@ button, input{ font-family:var(--font-family); }
   var confirmOk = $('#confirmOk');
   var confirmCancel = $('#confirmCancel');
   var fileInputEl = $('#fileInput');
+  var printOptionsOverlay = $('#printOptionsOverlay');
+  var printOptionsCancel = $('#printOptionsCancel');
+  var printOptionsGo = $('#printOptionsGo');
+  var printPaperSizeEl = $('#printPaperSize');
+  var printOrientationEl = $('#printOrientation');
+  var printScaleModeEl = $('#printScaleMode');
+  var printCustomPctEl = $('#printCustomPct');
+  var printCustomPctRowEl = $('#printCustomPctRow');
+  var printMarginEl = $('#printMargin');
 
   function showConfirm(message, onYes, options) {
     options = options || {};
@@ -842,7 +916,7 @@ button, input{ font-family:var(--font-family); }
     var name = document.createElement('input');
     name.className = 'task-name';
     name.value = task.name;
-    name.addEventListener('input', function () { task.name = name.value; save(); renderTimelineOnly(); });
+    name.addEventListener('input', function () { task.name = name.value; save(); updateTaskLabelOnly(task); });
     el.appendChild(name);
 
     var assigneeColorIdx = state.colorBy === 'assignee' ? resolveColorIdx(task, row.colorIdx) : null;
@@ -856,7 +930,13 @@ button, input{ font-family:var(--font-family); }
     assignee.className = 'assignee-input';
     assignee.placeholder = 'Firma / Person';
     assignee.value = task.assignee || '';
-    assignee.addEventListener('input', function () { task.assignee = assignee.value; save(); renderTimelineOnly(); });
+    assignee.addEventListener('input', function () {
+      task.assignee = assignee.value;
+      save();
+      // Verantwortlich beeinflusst den Zeitstrahl nur im Modus "Farbe: Verantwortlich" —
+      // im Standard-Modus "Farbe: Phase" hat der Text keine visuelle Auswirkung, also nichts neu rendern.
+      if (state.colorBy === 'assignee') renderTimelineOnly();
+    });
     el.appendChild(assignee);
 
     var startInput = document.createElement('input');
@@ -1070,6 +1150,7 @@ button, input{ font-family:var(--font-family); }
       var offset = diffDays(fromISO(task.start), range.start) * dayWidth;
       var dia = document.createElement('div');
       dia.className = 'milestone';
+      dia.dataset.taskId = task.id;
       dia.style.left = offset + 'px';
       dia.style.background = color;
       dia.title = task.name + (task.assignee ? ' (' + task.assignee + ')' : '') + ' — ' + fmtDE(fromISO(task.start));
@@ -1078,6 +1159,7 @@ button, input{ font-family:var(--font-family); }
 
       var mLabel = document.createElement('div');
       mLabel.className = 'bar-label-outside';
+      mLabel.dataset.taskId = task.id;
       mLabel.style.left = (offset + 12) + 'px';
       mLabel.textContent = task.name;
       rowEl.appendChild(mLabel);
@@ -1092,6 +1174,7 @@ button, input{ font-family:var(--font-family); }
 
     var bar = document.createElement('div');
     bar.className = 'bar';
+    bar.dataset.taskId = task.id;
     bar.style.left = left + 'px';
     bar.style.width = width + 'px';
     bar.style.background = color;
@@ -1103,6 +1186,7 @@ button, input{ font-family:var(--font-family); }
     if (width > 90) {
       var label = document.createElement('div');
       label.className = 'bar-label';
+      label.dataset.taskId = task.id;
       label.style.color = colorIdx === null ? 'var(--color-black)' : phaseTextColor(colorIdx);
       label.textContent = task.name;
       bar.appendChild(label);
@@ -1124,9 +1208,25 @@ button, input{ font-family:var(--font-family); }
     if (width <= 90) {
       var outLabel = document.createElement('div');
       outLabel.className = 'bar-label-outside';
+      outLabel.dataset.taskId = task.id;
       outLabel.style.left = (left + width + 8) + 'px';
       outLabel.textContent = task.name;
       rowEl.appendChild(outLabel);
+    }
+  }
+
+  // Aktualisiert nur das Namens-Label + Tooltip einer einzelnen Aufgabe im Zeitstrahl,
+  // ohne den kompletten Zeitstrahl (alle Zeilen, Gitterlinien, Abhängigkeitspfeile) neu aufzubauen —
+  // sonst fühlt sich Tippen im Namensfeld bei vielen Aufgaben spürbar ruckelig an.
+  function updateTaskLabelOnly(task) {
+    var labelEl = timelineRowsInner.querySelector('.bar-label[data-task-id="' + task.id + '"], .bar-label-outside[data-task-id="' + task.id + '"]');
+    if (labelEl) labelEl.textContent = task.name;
+    if (task.milestone) {
+      var dia = timelineRowsInner.querySelector('.milestone[data-task-id="' + task.id + '"]');
+      if (dia) dia.title = task.name + (task.assignee ? ' (' + task.assignee + ')' : '') + ' — ' + fmtDE(fromISO(task.start));
+    } else {
+      var bar = timelineRowsInner.querySelector('.bar[data-task-id="' + task.id + '"]');
+      if (bar) bar.title = task.name + (task.assignee ? '\n' + task.assignee : '') + '\n' + fmtDE(fromISO(task.start)) + ' – ' + fmtDE(fromISO(task.end));
     }
   }
 
@@ -1804,7 +1904,7 @@ button, input{ font-family:var(--font-family); }
     .p-toolbar{ background:#1a1a1a; padding:12px 20px; display:flex; justify-content:flex-end; }\
     .p-toolbar button{ appearance:none; border:none; background:#fff; color:#000; font-family:var(--font-family); font-size:13px; font-weight:500; padding:0 16px; height:36px; border-radius:3px; cursor:pointer; }\
     .p-page-wrap{ overflow-x:auto; padding:24px; }\
-    .p-page{ width:max-content; min-width:100%; margin:0 auto; background:#fff; padding:32px 40px; box-shadow:0 4px 24px rgba(0,0,0,.12); box-sizing:border-box; }\
+    .p-page{ width:max-content; margin:0 auto; background:#fff; padding:32px 40px; box-shadow:0 4px 24px rgba(0,0,0,.12); box-sizing:border-box; transform-origin:top left; }\
     .p-title{ font-size:22px; font-weight:600; margin:0 0 4px; color:var(--color-black); font-family:var(--font-family); }\
     .p-subtitle{ font-size:13px; color:var(--g600); margin:0 0 24px; font-family:var(--font-family); text-transform:uppercase; letter-spacing:0.03em; }\
     .p-gantt{ border-collapse:collapse; font-family:var(--font-family); font-size:9px; table-layout:fixed; }\
@@ -1825,12 +1925,14 @@ button, input{ font-family:var(--font-family); }
       .p-toolbar{ display:none !important; }\
       body{ background:#fff; }\
       .p-page-wrap{ overflow:visible; padding:0; }\
-      .p-page{ box-shadow:none; margin:0; padding:0; width:auto; min-width:0; }\
-      @page{ size:landscape; margin:10mm; }\
+      .p-page{ box-shadow:none; margin:0; padding:0; }\
       .p-gantt thead{ display:table-header-group; }\
       .p-phase-row{ break-inside:avoid; }\
       .p-gantt tr{ break-inside:avoid; }\
     }';
+
+  var PRINT_PAPER_SIZES_MM = { a4: { w: 210, h: 297 }, a3: { w: 297, h: 420 }, letter: { w: 215.9, h: 279.4 } };
+  var PX_PER_MM = 96 / 25.4;
 
   function buildPrintTableHTML(range) {
     var days = [];
@@ -1839,11 +1941,7 @@ button, input{ font-family:var(--font-family); }
       days.push(new Date(cur));
       cur = addDays(cur, 1);
     }
-    // Tagesspalten-Breite passt sich der Zeitraum-Länge an, damit die Tabelle immer
-    // auf eine druckbare Breite passt (statt bei langen Zeiträumen über die Seite zu laufen)
-    var DAY_COLS_BUDGET = 950;
-    var dayColWidth = Math.max(3, Math.min(16, Math.floor(DAY_COLS_BUDGET / Math.max(1, days.length))));
-    var showDayNumbers = dayColWidth >= 8;
+    var dayColWidth = 14; // natürliche Breite — die Skalierung aufs Papierformat übernimmt später zoom()
 
     var monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
     var monthGroups = [];
@@ -1854,7 +1952,7 @@ button, input{ font-family:var(--font-family); }
     });
     var todayMid = midnight(new Date());
 
-    var html = '<table class="p-gantt"><colgroup><col class="p-col-name"><col class="p-col-assignee"><col class="p-col-date"><col class="p-col-date">';
+    var html = '<table class="p-gantt" id="pGanttTable"><colgroup><col class="p-col-name"><col class="p-col-assignee"><col class="p-col-date"><col class="p-col-date">';
     days.forEach(function () { html += '<col style="width:' + dayColWidth + 'px">'; });
     html += '</colgroup><thead><tr class="p-month-row"><th colspan="4"></th>';
     monthGroups.forEach(function (g) { html += '<th colspan="' + g.span + '">' + escHtml(g.label) + '</th>'; });
@@ -1862,7 +1960,7 @@ button, input{ font-family:var(--font-family); }
     days.forEach(function (d) {
       var wknd = d.getDay() === 0 || d.getDay() === 6;
       var isToday = diffDays(d, todayMid) === 0;
-      html += '<th class="' + (wknd ? 'p-weekend' : '') + (isToday ? ' p-today' : '') + '">' + (showDayNumbers ? d.getDate() : '') + '</th>';
+      html += '<th class="' + (wknd ? 'p-weekend' : '') + (isToday ? ' p-today' : '') + '">' + d.getDate() + '</th>';
     });
     html += '</tr></thead><tbody>';
 
@@ -1903,16 +2001,36 @@ button, input{ font-family:var(--font-family); }
     return html;
   }
 
-  function openPrintDocument() {
+  function openPrintOptions() {
+    printOptionsOverlay.classList.add('open');
+  }
+
+  function openPrintDocument(settings) {
+    settings = settings || {};
+    var paper = PRINT_PAPER_SIZES_MM[settings.paper || 'a4'];
+    var landscape = (settings.orientation || 'landscape') === 'landscape';
+    var pageWmm = landscape ? paper.h : paper.w;
+    var pageHmm = landscape ? paper.w : paper.h;
+    var marginMm = settings.marginMm != null ? settings.marginMm : 10;
+    var scaleMode = settings.scaleMode || 'fit-width';
+    var customPct = settings.customPct || 100;
+
     var range = getPrintRange();
-    var styleText = document.querySelector('style').textContent;
+    // Nur die :root-Variablen (Farben etc.) übernehmen, NICHT die riesigen base64-Schriftarten
+    // (@font-face) der Haupt-App — die sind mehrere hundert KB groß und können bei einer frisch
+    // geöffneten neuen Seite dazu führen, dass der Druck/PDF-Export leer bleibt, weil der Browser
+    // noch mit dem Laden der Fonts beschäftigt ist, wenn window.print() greift.
+    var fullStyle = document.querySelector('style').textContent;
+    var rootVarsMatch = fullStyle.match(/:root\{[^}]*\}/);
+    var styleText = rootVarsMatch ? rootVarsMatch[0] : '';
     var tableHtml = buildPrintTableHTML(range);
     var title = state.projectTitle || 'Zeitplan';
     var subtitle = state.projectSubtitle || '';
+    var pageCss = '@page{ size:' + (landscape ? 'landscape' : 'portrait') + '; margin:' + marginMm + 'mm; }';
 
-    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(title) + '</title><style>' + styleText + '\n' + PRINT_TABLE_CSS + '</style></head><body>';
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(title) + '</title><style>' + styleText + '\n' + PRINT_TABLE_CSS + '\n' + pageCss + '</style></head><body>';
     doc += '<div class="p-toolbar"><button onclick="window.print()">Drucken / Als PDF speichern</button></div>';
-    doc += '<div class="p-page-wrap"><div class="p-page"><h1 class="p-title">' + escHtml(title) + '</h1>';
+    doc += '<div class="p-page-wrap"><div class="p-page" id="pPage"><h1 class="p-title">' + escHtml(title) + '</h1>';
     if (subtitle) doc += '<p class="p-subtitle">' + escHtml(subtitle) + '</p>';
     doc += tableHtml + '</div></div></body></html>';
 
@@ -1923,6 +2041,25 @@ button, input{ font-family:var(--font-family); }
     }
     win.document.write(doc);
     win.document.close();
+
+    // Reale (unskalierte) Größe der Druckseite messen und dann auf das gewählte Papierformat/
+    // die gewählte Skalierung anwenden — genau wie Google Sheets' "Skalierung"-Optionen.
+    var pageEl = win.document.getElementById('pPage');
+    var naturalW = pageEl.scrollWidth;
+    var naturalH = pageEl.scrollHeight;
+    var pageWidthPx = (pageWmm - 2 * marginMm) * PX_PER_MM;
+    var pageHeightPx = (pageHmm - 2 * marginMm) * PX_PER_MM;
+
+    var scale;
+    if (scaleMode === 'fit-width') scale = Math.min(1, pageWidthPx / naturalW);
+    else if (scaleMode === 'fit-height') scale = Math.min(1, pageHeightPx / naturalH);
+    else if (scaleMode === 'fit-page') scale = Math.min(1, pageWidthPx / naturalW, pageHeightPx / naturalH);
+    else if (scaleMode === 'custom') scale = Math.max(0.1, customPct / 100);
+    else scale = 1; // '100' = Normal
+
+    // zoom() statt transform:scale() — zoom verändert auch die Layout-Größe, wodurch die
+    // Seiten-Paginierung beim Drucken korrekt erkennt, wie viele Druckseiten nötig sind.
+    pageEl.style.zoom = scale;
   }
 
   /* ────────────────────────── render orchestration ────────────────────────── */
@@ -1963,7 +2100,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'add-phase') addPhase();
       else if (action === 'today') scrollToToday();
       else if (action === 'export-pdf') exportPDF();
-      else if (action === 'print') openPrintDocument();
+      else if (action === 'print') openPrintOptions();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
       return;
@@ -1976,6 +2113,25 @@ button, input{ font-family:var(--font-family); }
   fileInputEl.addEventListener('change', function () {
     if (fileInputEl.files && fileInputEl.files[0]) openProjectFile(fileInputEl.files[0]);
     fileInputEl.value = '';
+  });
+  printScaleModeEl.addEventListener('change', function () {
+    printCustomPctRowEl.style.display = printScaleModeEl.value === 'custom' ? '' : 'none';
+  });
+  printOptionsCancel.addEventListener('click', function () {
+    printOptionsOverlay.classList.remove('open');
+  });
+  printOptionsOverlay.addEventListener('click', function (e) {
+    if (e.target === printOptionsOverlay) printOptionsOverlay.classList.remove('open');
+  });
+  printOptionsGo.addEventListener('click', function () {
+    printOptionsOverlay.classList.remove('open');
+    openPrintDocument({
+      paper: printPaperSizeEl.value,
+      orientation: printOrientationEl.value,
+      scaleMode: printScaleModeEl.value,
+      customPct: parseFloat(printCustomPctEl.value) || 100,
+      marginMm: parseFloat(printMarginEl.value)
+    });
   });
 
 
