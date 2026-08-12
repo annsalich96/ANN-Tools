@@ -143,21 +143,26 @@ button, input{ font-family:var(--font-family); }
 .swatch.hatched{ background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 2px, transparent 2px 4px); }
 
 /* ── Board ────────────────────────────── */
-.board{ flex:1 1 auto; min-height:0; display:flex; overflow:hidden; }
+/* .board ist jetzt der EINE gemeinsame native Scroll-Container für die Vertikale — Liste und
+   Zeitstrahl scrollen dadurch zwangsläufig exakt synchron (kein JS-Abgleich, kein Frame-Versatz
+   mehr möglich). Horizontal bleibt ausschließlich der Zeitstrahl (.timeline-body) scrollbar. */
+.board{ flex:1 1 auto; min-height:0; display:flex; overflow-y:auto; overflow-x:hidden; }
 
 .list-col{ width:var(--list-w); flex:0 0 var(--list-w); display:flex; flex-direction:column; min-width:0; }
 .list-header{
   flex:0 0 auto; display:flex; align-items:center; height:56px; gap:8px;
   padding:0 var(--space-4) 0 var(--space-6); border-bottom:1px solid var(--g200); background:var(--g100);
   font-size:10px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--g600);
+  position:sticky; top:0; z-index:10;
 }
 .list-header .col-spacer-lead{ width:14px; flex:0 0 auto; }
 .list-header .col-spacer-trail{ width:20px; flex:0 0 auto; }
 .list-header .col-name{ flex:1 1 auto; }
 .list-header .col-assignee{ width:110px; text-align:left; }
 .list-header .col-date{ width:100px; text-align:left; }
-.list-body{ flex:1 1 auto; overflow:hidden; position:relative; }
-.list-body-inner{ position:relative; will-change:transform; }
+.list-header .col-duration{ width:56px; text-align:left; }
+.list-body{ flex:0 0 auto; position:relative; }
+.list-body-inner{ position:relative; }
 
 .phase-row{
   display:flex; align-items:center; height:var(--row-h);
@@ -200,6 +205,12 @@ button, input{ font-family:var(--font-family); }
   border-radius:2px;
 }
 .task-row input[type=date]:hover, .task-row input[type=date]:focus{ border-color:var(--g200); color:var(--color-black); background:var(--color-white); }
+.task-row .duration-input{
+  border:1px solid transparent; background:transparent; outline:none; font-size:11px;
+  color:var(--g600); width:56px; flex:0 0 56px; font-family:var(--font-family); padding:2px;
+  border-radius:2px; text-align:right;
+}
+.task-row .duration-input:hover, .task-row .duration-input:focus{ border-color:var(--g200); color:var(--color-black); background:var(--color-white); }
 .row-del{
   appearance:none; border:none; background:transparent; color:var(--g400); cursor:pointer;
   font-size:15px; line-height:1; padding:2px 4px; opacity:0; flex:0 0 auto;
@@ -218,7 +229,7 @@ button, input{ font-family:var(--font-family); }
 .add-inline-btn:hover{ color:var(--color-black); border-color:var(--g400); background:var(--g100); }
 
 .timeline-col{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; }
-.timeline-header-wrap{ flex:0 0 auto; overflow:hidden; border-bottom:1px solid var(--g200); background:var(--g100); height:56px; }
+.timeline-header-wrap{ flex:0 0 auto; overflow:hidden; border-bottom:1px solid var(--g200); background:var(--g100); height:56px; position:sticky; top:0; z-index:10; }
 .timeline-header-inner{ position:relative; height:100%; will-change:transform; }
 .th-top-seg{ position:absolute; top:0; height:26px; border-right:1px solid var(--g200); display:flex; align-items:center; padding-left:6px; font-size:10px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--g600); box-sizing:border-box; }
 .th-bottom-tick{ position:absolute; bottom:0; height:30px; border-right:1px solid var(--g200); display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box; }
@@ -228,7 +239,7 @@ button, input{ font-family:var(--font-family); }
 .th-bottom-tick.weekend{ background:var(--g100); }
 .th-bottom-tick.weekend .main{ color:var(--g600); }
 
-.timeline-body{ flex:1 1 auto; overflow:auto; position:relative; }
+.timeline-body{ flex:0 0 auto; overflow-x:auto; overflow-y:hidden; position:relative; }
 .timeline-rows-inner{ position:relative; }
 .tl-row{ position:relative; height:var(--row-h); border-bottom:1px solid var(--g200); }
 .tl-row.phase-row-bg{ background:var(--g100); }
@@ -381,6 +392,7 @@ button, input{ font-family:var(--font-family); }
         <div class="col-assignee">Verantwortlich</div>
         <div class="col-date">Start</div>
         <div class="col-date">Ende</div>
+        <div class="col-duration">Dauer</div>
         <div class="col-spacer-trail"></div>
       </div>
       <div class="list-body" id="listBody">
@@ -883,13 +895,15 @@ button, input{ font-family:var(--font-family); }
     startInput.value = task.start;
     startInput.addEventListener('change', function () {
       var newStart = fromISO(startInput.value);
-      var end = fromISO(task.end);
       if (task.milestone) {
         task.start = startInput.value; task.end = startInput.value;
-      } else if (newStart > end) {
-        task.start = startInput.value; task.end = startInput.value;
       } else {
+        // Dauer bleibt erhalten, wenn der Start verschoben wird — das Ende wandert mit,
+        // damit man wahlweise mit konkreten Daten oder mit der Dauer planen kann.
+        var oldStart = fromISO(task.start);
+        var durationDiff = diffDays(fromISO(task.end), oldStart);
         task.start = startInput.value;
+        task.end = toISO(addDays(newStart, durationDiff));
       }
       applyDependencyConstraints(task.id);
       save();
@@ -910,6 +924,25 @@ button, input{ font-family:var(--font-family); }
       renderAll();
     });
     el.appendChild(endInput);
+
+    // Alternative Eingabe zum Enddatum: Dauer in Tagen (inkl. Start- und Endtag).
+    // Ändert man die Dauer, wird das Enddatum daraus neu berechnet — und umgekehrt zeigt
+    // das Feld nach jeder Änderung von Start/Ende immer die tatsächlich aktuelle Dauer.
+    var durationInput = document.createElement('input');
+    durationInput.type = 'number';
+    durationInput.min = '1';
+    durationInput.className = 'duration-input';
+    durationInput.value = diffDays(fromISO(task.end), fromISO(task.start)) + 1;
+    durationInput.title = 'Dauer in Tagen (inkl. Start- und Endtag) — alternative Eingabe zum Enddatum';
+    durationInput.style.visibility = task.milestone ? 'hidden' : 'visible';
+    durationInput.addEventListener('change', function () {
+      var dur = Math.max(1, parseInt(durationInput.value, 10) || 1);
+      task.end = toISO(addDays(fromISO(task.start), dur - 1));
+      applyDependencyConstraints(task.id);
+      save();
+      renderAll();
+    });
+    el.appendChild(durationInput);
 
     var del = document.createElement('button');
     del.className = 'row-del';
@@ -1519,21 +1552,16 @@ button, input{ font-family:var(--font-family); }
     }
   }
 
-  // Durchgehende Sync-Schleife statt nur auf das 'scroll'-Event zu reagieren: Safari feuert
-  // 'scroll' bei manchen Trackpad-/Momentum-Gesten seltener, als tatsächlich neu gezeichnet wird —
-  // dadurch hinkt die per transform synchronisierte linke Liste dem nativ scrollenden Zeitstrahl
-  // sichtbar hinterher ("links ruckelig, rechts glatt"). Diese Schleife hält beide jeden Frame exakt
-  // in Sync, unabhängig davon, wie oft/selten das Browser-eigene scroll-Event feuert.
-  var lastSyncedScrollLeft = null, lastSyncedScrollTop = null;
+  // Vertikales Scrollen läuft jetzt komplett nativ über .board (siehe CSS) — Liste und
+  // Zeitstrahl scrollen dadurch zwangsläufig exakt synchron, kein JS-Abgleich mehr nötig/möglich
+  // auseinanderzulaufen. Nur der horizontale Zeitstrahl-Header braucht noch einen Sync (er ist ein
+  // separates Element, das per Transform der Breite von .timeline-body folgt).
+  var lastSyncedScrollLeft = null;
   function syncScrollFrame() {
-    var sl = timelineBody.scrollLeft, st = timelineBody.scrollTop;
+    var sl = timelineBody.scrollLeft;
     if (sl !== lastSyncedScrollLeft) {
       timelineHeaderInner.style.transform = 'translateX(' + (-sl) + 'px)';
       lastSyncedScrollLeft = sl;
-    }
-    if (st !== lastSyncedScrollTop) {
-      listBodyInner.style.transform = 'translateY(' + (-st) + 'px)';
-      lastSyncedScrollTop = st;
     }
     requestAnimationFrame(syncScrollFrame);
   }
@@ -1922,76 +1950,6 @@ button, input{ font-family:var(--font-family); }
     });
   }
 
-  var PRINT_PAPER_SIZES_MM = { a4: { w: 210, h: 297 }, a3: { w: 297, h: 420 }, letter: { w: 215.9, h: 279.4 } };
-  var PX_PER_MM = 96 / 25.4;
-
-  function buildPrintTableHTML(range) {
-    var days = [];
-    var cur = new Date(range.start);
-    while (cur < range.end) {
-      days.push(new Date(cur));
-      cur = addDays(cur, 1);
-    }
-    var dayColWidth = 14; // natürliche Breite — die Skalierung aufs Papierformat übernimmt später zoom()
-
-    var monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-    var monthGroups = [];
-    days.forEach(function (d) {
-      var label = monthNames[d.getMonth()] + ' ' + d.getFullYear();
-      if (monthGroups.length && monthGroups[monthGroups.length - 1].label === label) monthGroups[monthGroups.length - 1].span++;
-      else monthGroups.push({ label: label, span: 1 });
-    });
-    var todayMid = midnight(new Date());
-
-    var html = '<table class="p-gantt" id="pGanttTable"><colgroup><col class="p-col-name"><col class="p-col-assignee"><col class="p-col-date"><col class="p-col-date">';
-    days.forEach(function () { html += '<col style="width:' + dayColWidth + 'px">'; });
-    html += '</colgroup><thead><tr class="p-month-row"><th colspan="4"></th>';
-    monthGroups.forEach(function (g) { html += '<th colspan="' + g.span + '">' + escHtml(g.label) + '</th>'; });
-    html += '</tr><tr class="p-day-row"><th class="p-label-col">Aufgabe</th><th class="p-label-col">Verantw.</th><th class="p-label-col">Start</th><th class="p-label-col">Ende</th>';
-    days.forEach(function (d) {
-      var wknd = d.getDay() === 0 || d.getDay() === 6;
-      var isToday = diffDays(d, todayMid) === 0;
-      html += '<th class="' + (wknd ? 'p-weekend' : '') + (isToday ? ' p-today' : '') + '">' + d.getDate() + '</th>';
-    });
-    html += '</tr></thead><tbody>';
-
-    currentRows.forEach(function (row) {
-      if (row.type === 'add') return;
-      if (row.type === 'phase') {
-        html += '<tr class="p-phase-row"><td colspan="' + (4 + days.length) + '">' + escHtml(row.phase.name) + '</td></tr>';
-        return;
-      }
-      var task = row.task;
-      var s = fromISO(task.start), e = fromISO(task.end);
-      var colorIdx = resolveColorIdx(task, row.colorIdx);
-      var color = colorIdx === null ? 'var(--g400)' : phaseColor(colorIdx);
-      html += '<tr><td class="p-name">' + escHtml(task.name) + '</td><td class="p-assignee">' + escHtml(task.assignee || '') + '</td><td>' + fmtDE(s) + '</td><td>' + (task.milestone ? '' : fmtDE(e)) + '</td>';
-      var startIdx = Math.max(0, diffDays(s, range.start));
-      var endIdx = Math.min(days.length - 1, diffDays(e, range.start));
-      var i = 0;
-      while (i < days.length) {
-        if (i === startIdx) {
-          if (task.milestone) {
-            html += '<td class="p-milestone-cell" style="color:' + color + '">◆</td>';
-            i++;
-          } else {
-            var span = Math.max(1, endIdx - startIdx + 1);
-            html += '<td class="p-bar-cell" colspan="' + span + '"><div class="p-bar" style="background:' + color + '"></div></td>';
-            i = endIdx + 1;
-          }
-        } else {
-          var wknd2 = days[i].getDay() === 0 || days[i].getDay() === 6;
-          html += '<td class="' + (wknd2 ? 'p-weekend' : '') + '"></td>';
-          i++;
-        }
-      }
-      html += '</tr>';
-    });
-
-    html += '</tbody></table>';
-    return html;
-  }
-
   var PRINT_PREVIEW_TAB_CSS = '\
     body{ margin:0; display:flex; height:100vh; background:var(--g100); font-family:var(--font-family); }\
     .print-preview-sidebar{\
@@ -2015,68 +1973,14 @@ button, input{ font-family:var(--font-family); }
       font-family:var(--font-family); font-size:13px; font-weight:500; padding:0 16px; height:36px;\
       border-radius:3px; cursor:pointer; width:100%;\
     }\
-    .print-preview-main{ flex:1 1 auto; overflow:auto; padding:32px; display:flex; justify-content:center; }\
-    .print-preview-page-wrap{ height:max-content; }\
-    .print-preview-page{\
-      background:var(--color-white); box-shadow:0 4px 24px rgba(0,0,0,.12); box-sizing:border-box;\
-      padding:32px 40px; width:max-content; transform-origin:top left;\
-    }\
-    .p-title{ font-size:22px; font-weight:600; margin:0 0 4px; color:var(--color-black); font-family:var(--font-family); }\
-    .p-subtitle{ font-size:13px; color:var(--g600); margin:0 0 24px; font-family:var(--font-family); text-transform:uppercase; letter-spacing:0.03em; }\
-    .p-gantt{ border-collapse:collapse; font-family:var(--font-family); font-size:9px; table-layout:fixed; }\
-    .p-col-name{ width:140px; } .p-col-assignee{ width:75px; } .p-col-date{ width:50px; }\
-    .p-gantt th, .p-gantt td{ border:1px solid var(--g200); padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }\
-    .p-name, .p-assignee{ white-space:normal; overflow-wrap:break-word; text-overflow:clip; }\
-    .p-gantt thead th{ background:var(--g100); font-weight:600; text-align:center; }\
-    .p-month-row th{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--g600); white-space:nowrap; }\
-    .p-day-row th{ font-size:8px; color:var(--g600); font-weight:500; }\
-    .p-day-row th.p-label-col{ text-align:left; padding-left:6px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600; font-size:9px; white-space:nowrap; }\
-    .p-weekend{ background:var(--g100); }\
-    .p-today{ background:var(--color-black) !important; color:#fff !important; }\
-    .p-name{ text-align:left; padding-left:6px !important; font-weight:500; }\
-    .p-phase-row td{ background:var(--g100); font-weight:600; padding:6px !important; text-align:left; }\
-    .p-bar-cell{ padding:0 !important; } .p-bar{ height:12px; border-radius:2px; margin:2px 1px; }\
-    .p-milestone-cell{ text-align:center; font-size:11px; }';
+    .print-preview-main{ flex:1 1 auto; background:var(--g200); }\
+    .print-preview-embed{ width:100%; height:100%; border:none; display:block; }';
 
-  // Skaliert die Vorschau-Seite (in einem beliebigen Ziel-Element, im neuen Tab) passend zu den
-  // gewaehlten Einstellungen - dieselbe Berechnung wie im echten PDF-Export, damit die Vorschau
-  // zeigt, was tatsaechlich herauskommt.
-  function renderPrintPreviewInto(pageEl, settings) {
-    var paper = PRINT_PAPER_SIZES_MM[settings.paper || 'a4'];
-    var landscape = settings.orientation !== 'portrait';
-    var pageWmm = landscape ? paper.h : paper.w;
-    var pageHmm = landscape ? paper.w : paper.h;
-    var marginMm = settings.marginMm != null ? settings.marginMm : 10;
-
-    var range = getPrintRange();
-    var title = state.projectTitle || 'Zeitplan';
-    var subtitle = state.projectSubtitle || '';
-
-    pageEl.style.zoom = 1;
-    pageEl.innerHTML = '<h1 class="p-title">' + escHtml(title) + '</h1>' +
-      (subtitle ? '<p class="p-subtitle">' + escHtml(subtitle) + '</p>' : '') +
-      buildPrintTableHTML(range);
-
-    var naturalW = pageEl.scrollWidth;
-    var naturalH = pageEl.scrollHeight;
-    var pageWidthPx = (pageWmm - 2 * marginMm) * PX_PER_MM;
-    var pageHeightPx = (pageHmm - 2 * marginMm) * PX_PER_MM;
-
-    var scale;
-    if (settings.scaleMode === 'fit-width') scale = Math.min(1, pageWidthPx / naturalW);
-    else if (settings.scaleMode === 'fit-height') scale = Math.min(1, pageHeightPx / naturalH);
-    else if (settings.scaleMode === 'fit-page') scale = Math.min(1, pageWidthPx / naturalW, pageHeightPx / naturalH);
-    else if (settings.scaleMode === 'custom') scale = Math.max(0.1, settings.customPct / 100);
-    else scale = 1;
-
-    pageEl.style.zoom = scale;
-    pageEl.style.minWidth = pageWidthPx + 'px';
-    pageEl.style.minHeight = pageHeightPx + 'px';
-  }
-
-  // "Drucken" oeffnet einen komplett neuen Browser-Tab mit der Einstellungs-/Vorschau-Seite
-  // (statt eines In-App-Overlays) — auf ausdruecklichen Wunsch, damit das eigentliche Tool
-  // sichtbar/erreichbar bleibt und die Druckseite sich wie eine eigenstaendige Seite anfuehlt.
+  // "Drucken" oeffnet einen komplett neuen Browser-Tab mit der Einstellungs-Sidebar und einer
+  // eingebetteten Vorschau des ECHTEN PDFs (nicht mehr einer HTML-Annäherung) — dadurch kann die
+  // Vorschau nie vom tatsächlichen Druckergebnis abweichen: es ist exakt dieselbe Datei, per
+  // Blob-URL direkt im nativen PDF-Viewer des Browsers angezeigt, inkl. echter Seitengrenzen und
+  // Seitenumbrüchen.
   function openPrintPreview() {
     var fullStyle = document.querySelector('style').textContent;
     var rootVarsMatch = fullStyle.match(/:root\{[^}]*\}/);
@@ -2091,7 +1995,7 @@ button, input{ font-family:var(--font-family); }
     doc += '<label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent<input type="number" id="printCustomPct" value="100" min="10" max="400"></label>';
     doc += '<label class="print-option-field">Ränder<select id="printMargin"><option value="10" selected>Standard</option><option value="5">Schmal</option><option value="20">Breit</option></select></label>';
     doc += '</div><div class="print-preview-actions"><button id="printPreviewDownload">PDF herunterladen</button></div></div>';
-    doc += '<div class="print-preview-main"><div class="print-preview-page-wrap"><div class="print-preview-page" id="printPreviewPage"></div></div></div>';
+    doc += '<div class="print-preview-main"><embed class="print-preview-embed" id="printPreviewEmbed" type="application/pdf"></div>';
     doc += '</body></html>';
 
     var win = window.open('', '_blank');
@@ -2108,8 +2012,9 @@ button, input{ font-family:var(--font-family); }
     var winCustomPctEl = win.document.getElementById('printCustomPct');
     var winCustomPctRowEl = win.document.getElementById('printCustomPctRow');
     var winMarginEl = win.document.getElementById('printMargin');
-    var winPreviewPageEl = win.document.getElementById('printPreviewPage');
+    var winEmbedEl = win.document.getElementById('printPreviewEmbed');
     var winDownloadBtn = win.document.getElementById('printPreviewDownload');
+    var currentBlobUrl = null;
 
     function winSettings() {
       return {
@@ -2120,7 +2025,15 @@ button, input{ font-family:var(--font-family); }
         marginMm: parseFloat(winMarginEl.value)
       };
     }
-    function update() { renderPrintPreviewInto(winPreviewPageEl, winSettings()); }
+    function update() {
+      var pdfBytes = buildGanttPDFBytes(winSettings());
+      var blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      var url = URL.createObjectURL(blob);
+      var oldUrl = currentBlobUrl;
+      currentBlobUrl = url;
+      winEmbedEl.setAttribute('src', url);
+      if (oldUrl) setTimeout(function () { URL.revokeObjectURL(oldUrl); }, 1000);
+    }
 
     winScaleModeEl.addEventListener('change', function () {
       winCustomPctRowEl.style.display = winScaleModeEl.value === 'custom' ? '' : 'none';
@@ -2209,6 +2122,24 @@ button, input{ font-family:var(--font-family); }
       return c.r.toFixed(3) + ' ' + c.g.toFixed(3) + ' ' + c.b.toFixed(3);
     }
 
+    var gridColorOp = (function () { var c = hexToRgbFrac('#E2E2E2'); return c.r.toFixed(3) + ' ' + c.g.toFixed(3) + ' ' + c.b.toFixed(3) + ' RG'; })();
+    function hLine(x1, x2, yy) {
+      cur2.push(x1.toFixed(2) + ' ' + yy.toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + yy.toFixed(2) + ' l S');
+    }
+    function vLine(xx, y1, y2) {
+      cur2.push(xx.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + xx.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
+    }
+    // Zeichnet die senkrechten Spaltentrenner (Aufgabe/Verantw./Start/Ende + jeder Tag) für den
+    // Höhenbereich [yTop, yBottom] einer Kopf- oder Datenzeile.
+    function drawColumnGrid(yTop, yBottom) {
+      vLine(MARGIN, yTop, yBottom);
+      vLine(MARGIN + nameW, yTop, yBottom);
+      vLine(MARGIN + nameW + assigneeW, yTop, yBottom);
+      vLine(MARGIN + nameW + assigneeW + dateW, yTop, yBottom);
+      vLine(MARGIN + labelW, yTop, yBottom);
+      for (var i = 0; i <= days.length; i++) vLine(MARGIN + labelW + i * dayW, yTop, yBottom);
+    }
+
     function drawHeaderRow() {
       var monthGroups = [];
       days.forEach(function (d) {
@@ -2216,6 +2147,7 @@ button, input{ font-family:var(--font-family); }
         if (monthGroups.length && monthGroups[monthGroups.length - 1].label === label) monthGroups[monthGroups.length - 1].span++;
         else monthGroups.push({ label: label, span: 1 });
       });
+      var headerTop = y;
       cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - headerH).toFixed(2) + ' ' + (labelW + days.length * dayW).toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
       cur2.push('0 0 0 rg'); // Füllfarbe für Text zurücksetzen — sonst erbt der Text die zuletzt gesetzte Balken-/Flächenfarbe
       var mx = MARGIN + labelW;
@@ -2226,11 +2158,16 @@ button, input{ font-family:var(--font-family); }
       });
       cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y - headerH + 3).toFixed(2) + ' Tm (Aufgabe) Tj ET');
       y -= headerH;
+      hLine(MARGIN, MARGIN + labelW + days.length * dayW, headerTop);
+      hLine(MARGIN, MARGIN + labelW + days.length * dayW, y);
+      drawColumnGrid(headerTop, y);
     }
 
     function newPage() {
       if (cur2.length) pages.push(cur2);
       cur2 = [];
+      cur2.push(gridColorOp);
+      cur2.push('0.5 w');
       y = PAGE_H - MARGIN;
       if (isFirstPage) {
         var title = state.projectTitle || 'Zeitplan';
@@ -2253,11 +2190,13 @@ button, input{ font-family:var(--font-family); }
 
     rows.forEach(function (row) {
       ensureSpace();
+      var rowTop = y;
       if (row.type === 'phase') {
         cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - rowH).toFixed(2) + ' ' + (labelW + days.length * dayW).toFixed(2) + ' ' + rowH.toFixed(2) + ' re f');
         cur2.push('0 0 0 rg');
         cur2.push('BT /F2 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y - rowH * 0.7).toFixed(2) + ' Tm (' + pdfEsc(row.phase.name) + ') Tj ET');
         y -= rowH;
+        hLine(MARGIN, MARGIN + labelW + days.length * dayW, y);
         return;
       }
       var task = row.task;
@@ -2288,6 +2227,8 @@ button, input{ font-family:var(--font-family); }
         cur2.push(colorOp(hex) + ' rg ' + barX.toFixed(2) + ' ' + (y - rowH / 2 - barH / 2).toFixed(2) + ' ' + barW.toFixed(2) + ' ' + barH.toFixed(2) + ' re f');
       }
       y -= rowH;
+      hLine(MARGIN, MARGIN + labelW + days.length * dayW, y);
+      drawColumnGrid(rowTop, y);
     });
 
     pages.push(cur2);
@@ -2326,11 +2267,15 @@ button, input{ font-family:var(--font-family); }
     return out;
   }
 
-  function downloadGanttPDF(settings) {
+  function buildGanttPDFBytes(settings) {
     var pdfText = buildGanttPDF(settings);
     var bytes = new Uint8Array(pdfText.length);
     for (var i = 0; i < pdfText.length; i++) bytes[i] = pdfText.charCodeAt(i) & 0xff;
-    var blob = new Blob([bytes], { type: 'application/pdf' });
+    return bytes;
+  }
+
+  function downloadGanttPDF(settings) {
+    var blob = new Blob([buildGanttPDFBytes(settings)], { type: 'application/pdf' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -2365,7 +2310,6 @@ button, input{ font-family:var(--font-family); }
     renderTimelineHeader(range, zoomCfg, totalWidth);
     renderTimelineRows(currentRows, range, zoomCfg, totalWidth);
     renderTodayMarker(range, zoomCfg.dayWidth);
-    listBodyInner.style.transform = 'translateY(' + (-timelineBody.scrollTop) + 'px)';
     timelineHeaderInner.style.transform = 'translateX(' + (-timelineBody.scrollLeft) + 'px)';
   }
 
