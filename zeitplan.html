@@ -1303,9 +1303,12 @@ button, input{ font-family:var(--font-family); }
     }
     tempPath.setAttribute('d', pathFor(startX, startY));
 
+    // Bounding-Rect einmal vor dem Ziehen holen statt bei jeder Mausbewegung neu abzufragen —
+    // getBoundingClientRect() erzwingt einen Layout-Reflow, bei jedem pointermove spürbar ruckelig.
+    var dragRect = timelineRowsInner.getBoundingClientRect();
+
     function onMove(ev) {
-      var r = timelineRowsInner.getBoundingClientRect();
-      tempPath.setAttribute('d', pathFor(ev.clientX - r.left, ev.clientY - r.top));
+      tempPath.setAttribute('d', pathFor(ev.clientX - dragRect.left, ev.clientY - dragRect.top));
     }
     function onUp(ev) {
       document.removeEventListener('pointermove', onMove);
@@ -1617,10 +1620,20 @@ button, input{ font-family:var(--font-family); }
     }
   }
 
+  var scrollExtendRafPending = false;
   timelineBody.addEventListener('scroll', function () {
     timelineHeaderInner.style.transform = 'translateX(' + (-timelineBody.scrollLeft) + 'px)';
     listBodyInner.style.transform = 'translateY(' + (-timelineBody.scrollTop) + 'px)';
-    maybeExtendRange();
+    // maybeExtendRange() liest scrollWidth/clientWidth (erzwingt Layout) — auf höchstens
+    // einmal pro Frame drosseln statt bei jedem einzelnen Scroll-Event, sonst ruckelt das
+    // Scrollen bei jedem Tick spürbar.
+    if (!scrollExtendRafPending) {
+      scrollExtendRafPending = true;
+      requestAnimationFrame(function () {
+        scrollExtendRafPending = false;
+        maybeExtendRange();
+      });
+    }
   });
   listColEl.addEventListener('wheel', function (e) {
     timelineBody.scrollTop += e.deltaY;
@@ -2163,22 +2176,26 @@ button, input{ font-family:var(--font-family); }
     var availH = PAGE_H - 2 * MARGIN;
     var titleReserve = 30;
 
-    var scale;
-    if (scaleMode === 'fit-width') scale = Math.min(1, availW / naturalW);
-    else if (scaleMode === 'fit-height') scale = Math.min(1, (availH - titleReserve) / naturalH);
-    else if (scaleMode === 'fit-page') scale = Math.min(1, availW / naturalW, (availH - titleReserve) / naturalH);
-    else if (scaleMode === 'custom') scale = Math.max(0.1, customPct / 100);
-    else scale = 1;
+    // scaleW skaliert nur die Tagesspalten-Breite (Zeitstrahl), scaleH die Zeilenhöhe/Schrift.
+    // Bei "Optimale Breite" bleiben Zeilen/Text bewusst lesbar (nur der Zeitstrahl wird schmaler,
+    // die Tabelle wächst stattdessen über mehrere Seiten nach unten) — sonst macht ein langer
+    // Zeitraum (viele Tagesspalten) den kompletten Text unlesbar klein, nicht nur den Zeitstrahl.
+    var scaleW, scaleH;
+    if (scaleMode === 'fit-width') { scaleW = Math.min(1, availW / naturalW); scaleH = 1; }
+    else if (scaleMode === 'fit-height') { scaleW = 1; scaleH = Math.min(1, (availH - titleReserve) / naturalH); }
+    else if (scaleMode === 'fit-page') { var s = Math.min(1, availW / naturalW, (availH - titleReserve) / naturalH); scaleW = s; scaleH = s; }
+    else if (scaleMode === 'custom') { var c = Math.max(0.1, customPct / 100); scaleW = c; scaleH = c; }
+    else { scaleW = 1; scaleH = 1; }
 
-    var dayW = Math.max(0.4, BASE_DAY_W * scale);
-    var rowH = Math.max(5, BASE_ROW_H * scale);
-    var nameW = BASE_NAME_W * scale;
-    var assigneeW = BASE_ASSIGNEE_W * scale;
-    var dateW = BASE_DATE_W * scale;
+    var dayW = Math.max(0.4, BASE_DAY_W * scaleW);
+    var rowH = Math.max(7, BASE_ROW_H * scaleH);
+    var nameW = BASE_NAME_W * scaleH;
+    var assigneeW = BASE_ASSIGNEE_W * scaleH;
+    var dateW = BASE_DATE_W * scaleH;
     var labelW = nameW + assigneeW + 2 * dateW;
-    var headerH = Math.max(9, BASE_HEADER_H * scale);
-    var fontSize = Math.max(3.5, 7.5 * scale);
-    var headerFontSize = Math.max(3.5, 6.5 * scale);
+    var headerH = Math.max(9, BASE_HEADER_H * scaleH);
+    var fontSize = Math.max(4.5, 7.5 * scaleH);
+    var headerFontSize = Math.max(4.5, 6.5 * scaleH);
     var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
     var pages = [], cur2 = [], y, isFirstPage = true;
@@ -2196,6 +2213,7 @@ button, input{ font-family:var(--font-family); }
         else monthGroups.push({ label: label, span: 1 });
       });
       cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - headerH).toFixed(2) + ' ' + (labelW + days.length * dayW).toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
+      cur2.push('0 0 0 rg'); // Füllfarbe für Text zurücksetzen — sonst erbt der Text die zuletzt gesetzte Balken-/Flächenfarbe
       var mx = MARGIN + labelW;
       monthGroups.forEach(function (g) {
         var w = g.span * dayW;
@@ -2212,6 +2230,7 @@ button, input{ font-family:var(--font-family); }
       y = PAGE_H - MARGIN;
       if (isFirstPage) {
         var title = state.projectTitle || 'Zeitplan';
+        cur2.push('0 0 0 rg');
         cur2.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + (y - 12) + ' Tm (' + pdfEsc(title) + ') Tj ET');
         y -= 16;
         if (state.projectSubtitle) {
@@ -2232,6 +2251,7 @@ button, input{ font-family:var(--font-family); }
       ensureSpace();
       if (row.type === 'phase') {
         cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - rowH).toFixed(2) + ' ' + (labelW + days.length * dayW).toFixed(2) + ' ' + rowH.toFixed(2) + ' re f');
+        cur2.push('0 0 0 rg');
         cur2.push('BT /F2 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y - rowH * 0.7).toFixed(2) + ' Tm (' + pdfEsc(row.phase.name) + ') Tj ET');
         y -= rowH;
         return;
@@ -2242,6 +2262,7 @@ button, input{ font-family:var(--font-family); }
       var hex = resolvePhaseHex(colorIdx);
       var tx = MARGIN;
       var textY = (y - rowH * 0.7).toFixed(2);
+      cur2.push('0 0 0 rg'); // Füllfarbe für Text zurücksetzen — sonst erbt der Text die Balkenfarbe der vorherigen Zeile
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + pdfEsc(pdfTruncate(task.name, Math.max(6, Math.floor(nameW / (fontSize * 0.55))))) + ') Tj ET');
       tx += nameW;
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + pdfEsc(pdfTruncate(task.assignee || '', Math.max(4, Math.floor(assigneeW / (fontSize * 0.55))))) + ') Tj ET');
