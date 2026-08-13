@@ -165,8 +165,9 @@ button, input{ font-family:var(--font-family); }
 .list-header .col-spacer-trail{ width:20px; flex:0 0 auto; }
 .list-header .col-name{ flex:1 1 auto; }
 .list-header .col-assignee{ width:110px; text-align:left; }
-.list-header .col-date{ width:100px; text-align:left; }
-.list-header .col-duration{ width:56px; text-align:left; }
+.list-header .col-date{ width:84px; text-align:left; }
+.list-header .col-duration{ width:42px; text-align:left; }
+.list-header .col-predecessors{ width:64px; text-align:left; }
 .list-body{ flex:0 0 auto; position:relative; }
 .list-body-inner{ position:relative; }
 
@@ -207,16 +208,23 @@ button, input{ font-family:var(--font-family); }
 .task-row .assignee-input:hover, .task-row .assignee-input:focus{ border-color:var(--g200); color:var(--color-black); background:var(--color-white); }
 .task-row input[type=date]{
   border:1px solid transparent; background:transparent; outline:none; font-size:11px;
-  color:var(--g600); width:100px; flex:0 0 100px; font-family:var(--font-family); padding:2px;
+  color:var(--g600); width:84px; flex:0 0 84px; font-family:var(--font-family); padding:2px;
   border-radius:2px;
 }
 .task-row input[type=date]:hover, .task-row input[type=date]:focus{ border-color:var(--g200); color:var(--color-black); background:var(--color-white); }
 .task-row .duration-input{
   border:1px solid transparent; background:transparent; outline:none; font-size:11px;
-  color:var(--g600); width:56px; flex:0 0 56px; font-family:var(--font-family); padding:2px;
+  color:var(--g600); width:42px; flex:0 0 42px; font-family:var(--font-family); padding:2px;
   border-radius:2px; text-align:right;
 }
 .task-row .duration-input:hover, .task-row .duration-input:focus{ border-color:var(--g200); color:var(--color-black); background:var(--color-white); }
+.task-row .predecessors-input{
+  border:1px solid transparent; background:transparent; outline:none; font-size:11px;
+  color:var(--g600); width:64px; flex:0 0 64px; font-family:var(--font-family); padding:2px;
+  border-radius:2px;
+}
+.task-row .predecessors-input:hover, .task-row .predecessors-input:focus{ border-color:var(--g200); color:var(--color-black); background:var(--color-white); }
+.task-row .predecessors-input.invalid{ color:#C0392B; }
 .row-del{
   appearance:none; border:none; background:transparent; color:var(--g400); cursor:pointer;
   font-size:15px; line-height:1; padding:2px 4px; opacity:0; flex:0 0 auto;
@@ -277,8 +285,13 @@ button, input{ font-family:var(--font-family); }
 }
 .tl-row:hover .link-handle{ opacity:1; }
 .link-handle:hover{ border-color:var(--color-black); }
+/* Start-Griff (parallele/SS-Abhängigkeit) farblich vom Ende-Griff (sequenziell/FS) abgesetzt,
+   passend zur gestrichelten Darstellung paralleler Abhängigkeitspfeile weiter unten. */
+.link-handle-start{ border-color:#8B6FE0; }
+.link-handle-start:hover{ border-color:var(--color-black); }
 .dep-lines{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
 .dep-path{ fill:none; stroke:var(--g400); stroke-width:1.5; pointer-events:none; }
+.dep-path-parallel{ stroke:#8B6FE0; stroke-dasharray:4 3; }
 .dep-path.hover{ stroke:var(--error); stroke-width:2; }
 .dep-hit{ fill:none; stroke:transparent; stroke-width:10; pointer-events:stroke; cursor:pointer; }
 .dep-temp-path{ fill:none; stroke:var(--g600); stroke-width:1.5; stroke-dasharray:4 3; pointer-events:none; }
@@ -404,6 +417,7 @@ button, input{ font-family:var(--font-family); }
         <div class="col-date">Start</div>
         <div class="col-date">Ende</div>
         <div class="col-duration">Dauer</div>
+        <div class="col-predecessors">Vorgänger</div>
         <div class="col-spacer-trail"></div>
       </div>
       <div class="list-body" id="listBody">
@@ -864,6 +878,7 @@ button, input{ font-family:var(--font-family); }
         state.tasks = state.tasks.filter(function (t) { return t.phaseId !== phase.id; });
         state.tasks.forEach(function (t) {
           if (t.dependsOn) t.dependsOn = t.dependsOn.filter(function (id) { return removedIds.indexOf(id) === -1; });
+          if (t.dependsOnParallel) t.dependsOnParallel = t.dependsOnParallel.filter(function (id) { return removedIds.indexOf(id) === -1; });
         });
         state.phases = state.phases.filter(function (p) { return p.id !== phase.id; });
         save();
@@ -950,21 +965,21 @@ button, input{ font-family:var(--font-family); }
     startInput.value = task.start;
     startInput.addEventListener('change', function () {
       var newStart = fromISO(startInput.value);
+      var oldStart = fromISO(task.start);
       var oldEnd = fromISO(task.end);
       if (task.milestone) {
         task.start = startInput.value; task.end = startInput.value;
       } else {
         // Dauer bleibt erhalten, wenn der Start verschoben wird — das Ende wandert mit,
         // damit man wahlweise mit konkreten Daten oder mit der Dauer planen kann.
-        var oldStart = fromISO(task.start);
         var durationDiff = diffDays(fromISO(task.end), oldStart);
         task.start = startInput.value;
         task.end = toISO(addDays(newStart, durationDiff));
       }
-      // Abhängige Folgeaufgaben werden um genau das Delta verschoben, um das sich DIESES Ende
-      // verändert hat — das erhält eine eventuell eingeplante "Pause" zum Nachfolger, statt sie
-      // beim Kürzen/Verlängern auf 0 zu setzen (siehe applyDependencyConstraints).
-      applyDependencyConstraints(task.id, diffDays(fromISO(task.end), oldEnd));
+      // Abhängige Folgeaufgaben werden um genau das Delta verschoben, um das sich Start bzw. Ende
+      // DIESER Aufgabe verändert haben — das erhält eine eventuell eingeplante "Pause" zum
+      // Nachfolger, statt sie beim Kürzen/Verlängern auf 0 zu setzen (siehe applyDependencyConstraints).
+      applyDependencyConstraints(task.id, diffDays(fromISO(task.start), oldStart), diffDays(fromISO(task.end), oldEnd));
       save();
       renderAll();
     });
@@ -979,7 +994,7 @@ button, input{ font-family:var(--font-family); }
       var start = fromISO(task.start);
       var oldEnd = fromISO(task.end);
       if (newEnd < start) { task.end = task.start; } else { task.end = endInput.value; }
-      applyDependencyConstraints(task.id, diffDays(fromISO(task.end), oldEnd));
+      applyDependencyConstraints(task.id, 0, diffDays(fromISO(task.end), oldEnd));
       save();
       renderAll();
     });
@@ -1000,7 +1015,7 @@ button, input{ font-family:var(--font-family); }
       var dur = Math.max(1, parseInt(durationInput.value, 10) || 1);
       var oldEnd = fromISO(task.end);
       task.end = toISO(addDays(fromISO(task.start), dur - 1));
-      applyDependencyConstraints(task.id, diffDays(fromISO(task.end), oldEnd));
+      applyDependencyConstraints(task.id, 0, diffDays(fromISO(task.end), oldEnd));
       save();
       // Die Auf/Ab-Pfeile des Zahlenfelds feuern "change" bei jedem Auto-Repeat-Tick, solange man
       // sie gedrückt hält — ein volles renderAll() (kompletter DOM-Rebuild von Liste, Zeitstrahl und
@@ -1014,6 +1029,28 @@ button, input{ font-family:var(--font-family); }
     });
     el.appendChild(durationInput);
 
+    // Vorgänger-Feld: Zeilennummer(n) der Aufgabe(n), von denen diese abhängt, MS-Project-Syntax
+    // ("3" = sequenziell/FS, "3SS" = parallel/SS, mehrere kommagetrennt: "3, 5SS"). Alternative
+    // Eingabe zum Ziehen der Verknüpfungs-Griffe im Zeitstrahl — beide Wege bleiben synchron, da
+    // dieses Feld bei jedem Rendern aus den tatsächlichen dependsOn/dependsOnParallel-Arrays neu
+    // aufgebaut wird.
+    var predecessorsInput = document.createElement('input');
+    predecessorsInput.className = 'predecessors-input';
+    predecessorsInput.title = 'Vorgänger: Zeilennummer(n), z.B. "3" (startet nach Zeile 3) oder "3SS" (startet parallel mit Zeile 3)';
+    var predMap = buildTaskNumMap();
+    predecessorsInput.value = formatPredecessors(task, predMap.idToNum);
+    predecessorsInput.addEventListener('change', function () {
+      var freshMap = buildTaskNumMap();
+      var parsed = parsePredecessors(predecessorsInput.value, task, freshMap.numToId);
+      task.dependsOn = parsed.fs;
+      task.dependsOnParallel = parsed.ss;
+      predecessorsInput.value = formatPredecessors(task, freshMap.idToNum);
+      parsed.fs.concat(parsed.ss).forEach(function (predId) { applyDependencyConstraints(predId); });
+      save();
+      renderAll();
+    });
+    el.appendChild(predecessorsInput);
+
     var del = document.createElement('button');
     del.className = 'row-del';
     del.textContent = '×';
@@ -1022,6 +1059,7 @@ button, input{ font-family:var(--font-family); }
       state.tasks = state.tasks.filter(function (t) { return t.id !== task.id; });
       state.tasks.forEach(function (t) {
         if (t.dependsOn) t.dependsOn = t.dependsOn.filter(function (id) { return id !== task.id; });
+        if (t.dependsOnParallel) t.dependsOnParallel = t.dependsOnParallel.filter(function (id) { return id !== task.id; });
       });
       save();
       renderAll();
@@ -1274,24 +1312,25 @@ button, input{ font-family:var(--font-family); }
 
   /* ────────────────────────── Abhängigkeits-Pfeile & Verknüpfen ────────────────────────── */
   var SVG_NS = 'http://www.w3.org/2000/svg';
-
-  function attachLinkHandle(rowEl, x, rowIndex, task) {
+  function attachLinkHandle(rowEl, x, rowIndex, task, linkType) {
     var handle = document.createElement('div');
-    handle.className = 'link-handle';
+    handle.className = 'link-handle' + (linkType === 'SS' ? ' link-handle-start' : '');
     handle.style.left = x + 'px';
-    handle.title = 'Ziehen, um eine Abhängigkeit zu einer anderen Aufgabe zu erstellen';
+    handle.title = linkType === 'SS'
+      ? 'Ziehen, um eine parallele Abhängigkeit zu erstellen (Nachfolger startet zusammen mit dieser Aufgabe)'
+      : 'Ziehen, um eine Abhängigkeit zu einer anderen Aufgabe zu erstellen (Nachfolger startet, wenn diese Aufgabe endet)';
     handle.addEventListener('pointerdown', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      startLinkDrag(task);
+      startLinkDrag(task, linkType);
     });
     rowEl.appendChild(handle);
   }
 
-  function startLinkDrag(sourceTask) {
+  function startLinkDrag(sourceTask, linkType) {
     var startGeom = taskGeom[sourceTask.id];
     if (!startGeom) return;
-    var startX = startGeom.endX;
+    var startX = linkType === 'SS' ? startGeom.startX : startGeom.endX;
     var startY = startGeom.rowIndex * ROW_H + ROW_H / 2 - 13;
 
     var tempPath = document.createElementNS(SVG_NS, 'path');
@@ -1326,9 +1365,12 @@ button, input{ font-family:var(--font-family); }
       });
       var targetTask = targetId ? findTask(targetId) : null;
       if (targetTask && targetTask.id !== sourceTask.id) {
-        targetTask.dependsOn = targetTask.dependsOn || [];
-        if (targetTask.dependsOn.indexOf(sourceTask.id) === -1 && !wouldCreateCycle(sourceTask.id, targetTask.id)) {
-          targetTask.dependsOn.push(sourceTask.id);
+        var listKey = linkType === 'SS' ? 'dependsOnParallel' : 'dependsOn';
+        targetTask[listKey] = targetTask[listKey] || [];
+        var alreadyLinked = (targetTask.dependsOn || []).indexOf(sourceTask.id) !== -1
+          || (targetTask.dependsOnParallel || []).indexOf(sourceTask.id) !== -1;
+        if (!alreadyLinked && !wouldCreateCycle(sourceTask.id, targetTask.id)) {
+          targetTask[listKey].push(sourceTask.id);
           // cascade() sucht Aufgaben, die von der übergebenen ID ABHÄNGEN — hier also mit der
           // neuen Vorgänger-ID (sourceTask) aufrufen, damit targetTask (der Nachfolger) selbst
           // auf die neue Abhängigkeit geprüft/eingerastet wird.
@@ -1349,8 +1391,31 @@ button, input{ font-family:var(--font-family); }
     svg.setAttribute('height', timelineRowsInner.style.height);
 
     var defs = document.createElementNS(SVG_NS, 'defs');
+    defs.appendChild(makeArrowMarker('depArrow', 'var(--g400)'));
+    defs.appendChild(makeArrowMarker('depArrowParallel', '#8B6FE0'));
+    svg.appendChild(defs);
+
+    state.tasks.forEach(function (t) {
+      var succGeom = taskGeom[t.id];
+      if (!succGeom) return;
+      (t.dependsOn || []).forEach(function (predId) {
+        var predGeom = taskGeom[predId];
+        if (!predGeom) return;
+        drawDependencyLine(svg, predGeom, succGeom, predId, t.id, 'FS');
+      });
+      (t.dependsOnParallel || []).forEach(function (predId) {
+        var predGeom = taskGeom[predId];
+        if (!predGeom) return;
+        drawDependencyLine(svg, predGeom, succGeom, predId, t.id, 'SS');
+      });
+    });
+
+    timelineRowsInner.appendChild(svg);
+  }
+
+  function makeArrowMarker(id, fill) {
     var marker = document.createElementNS(SVG_NS, 'marker');
-    marker.setAttribute('id', 'depArrow');
+    marker.setAttribute('id', id);
     marker.setAttribute('viewBox', '0 0 8 8');
     marker.setAttribute('refX', '7');
     marker.setAttribute('refY', '4');
@@ -1359,33 +1424,25 @@ button, input{ font-family:var(--font-family); }
     marker.setAttribute('orient', 'auto-start-reverse');
     var arrowPath = document.createElementNS(SVG_NS, 'path');
     arrowPath.setAttribute('d', 'M 0 0 L 8 4 L 0 8 z');
-    arrowPath.setAttribute('fill', 'var(--g400)');
+    arrowPath.setAttribute('fill', fill);
     marker.appendChild(arrowPath);
-    defs.appendChild(marker);
-    svg.appendChild(defs);
-
-    state.tasks.forEach(function (t) {
-      if (!t.dependsOn || !t.dependsOn.length) return;
-      var succGeom = taskGeom[t.id];
-      if (!succGeom) return;
-      t.dependsOn.forEach(function (predId) {
-        var predGeom = taskGeom[predId];
-        if (!predGeom) return;
-        drawDependencyLine(svg, predGeom, succGeom, predId, t.id);
-      });
-    });
-
-    timelineRowsInner.appendChild(svg);
+    return marker;
   }
 
-  function drawDependencyLine(svg, predGeom, succGeom, predId, succId) {
+    function drawDependencyLine(svg, predGeom, succGeom, predId, succId, depType) {
     var TOP_CLEARANCE = 13; // über der Textmitte des Balkens/der Raute andocken, nicht durch die Schrift
-    var x1 = predGeom.endX;
+    var x1 = depType === 'SS' ? predGeom.startX : predGeom.endX;
     var y1 = predGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
     var x2 = succGeom.startX;
     var y2 = succGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
-    var elbowX = x2 >= x1 + 16 ? (x1 + x2) / 2 : x1 + 20;
-    var d = 'M ' + x1 + ' ' + y1 + ' L ' + elbowX + ' ' + y1 + ' L ' + elbowX + ' ' + y2 + ' L ' + (x2 - 6) + ' ' + y2;
+    // Der Eck-Versatz richtet sich nach der tatsächlichen Distanz/Richtung zwischen den beiden
+    // Ankerpunkten, statt (wie vorher) bei kleinem/negativem Abstand immer weit nach rechts
+    // auszuholen — das erzeugte bei direkt aufeinanderfolgenden Aufgaben einen unschönen
+    // Rückwärts-Zickzack. Ein kurzer, fester Schritt in die tatsächliche Richtung reicht.
+    var STEP = 10;
+    var elbowX = Math.abs(x2 - x1) < STEP * 2 ? x1 + (x2 >= x1 ? STEP : -STEP) : (x1 + x2) / 2;
+    var endX = x2 >= x1 ? x2 - 6 : x2 + 6; // Pfeilspitze nähert sich aus der Richtung, aus der die Linie kommt
+    var d = 'M ' + x1 + ' ' + y1 + ' L ' + elbowX + ' ' + y1 + ' L ' + elbowX + ' ' + y2 + ' L ' + endX + ' ' + y2;
 
     var g = document.createElementNS(SVG_NS, 'g');
     g.setAttribute('class', 'dep-group');
@@ -1397,8 +1454,8 @@ button, input{ font-family:var(--font-family); }
 
     var visible = document.createElementNS(SVG_NS, 'path');
     visible.setAttribute('d', d);
-    visible.setAttribute('class', 'dep-path');
-    visible.setAttribute('marker-end', 'url(#depArrow)');
+    visible.setAttribute('class', 'dep-path' + (depType === 'SS' ? ' dep-path-parallel' : ''));
+    visible.setAttribute('marker-end', 'url(#' + (depType === 'SS' ? 'depArrowParallel' : 'depArrow') + ')');
     g.appendChild(visible);
 
     g.addEventListener('mouseenter', function () { visible.classList.add('hover'); });
@@ -1406,8 +1463,9 @@ button, input{ font-family:var(--font-family); }
     g.addEventListener('click', function () {
       showConfirm('Abhängigkeit entfernen?', function () {
         var succ = findTask(succId);
-        if (succ && succ.dependsOn) {
-          succ.dependsOn = succ.dependsOn.filter(function (id) { return id !== predId; });
+        var listKey = depType === 'SS' ? 'dependsOnParallel' : 'dependsOn';
+        if (succ && succ[listKey]) {
+          succ[listKey] = succ[listKey].filter(function (id) { return id !== predId; });
           save();
           renderAll();
         }
@@ -1521,7 +1579,39 @@ button, input{ font-family:var(--font-family); }
   function findTask(id) {
     return state.tasks.find(function (t) { return t.id === id; });
   }
+  function buildTaskNumMap() {
+    var numToId = {}, idToNum = {};
+    currentRows.forEach(function (r) {
+      if (r.type === 'task') { numToId[r.num] = r.task.id; idToNum[r.task.id] = r.num; }
+    });
+    return { numToId: numToId, idToNum: idToNum };
+  }
 
+  
+  function formatPredecessors(task, idToNum) {
+    var parts = [];
+    (task.dependsOn || []).forEach(function (id) { var n = idToNum[id]; if (n) parts.push(String(n)); });
+    (task.dependsOnParallel || []).forEach(function (id) { var n = idToNum[id]; if (n) parts.push(n + 'SS'); });
+    return parts.join(', ');
+  }
+
+    function parsePredecessors(text, task, numToId) {
+    var fs = [], ss = [];
+    (text || '').split(',').forEach(function (part) {
+      part = part.trim();
+      if (!part) return;
+      var m = /^(\d+)\s*(SS|FS)?$/i.exec(part);
+      if (!m) return;
+      var id = numToId[parseInt(m[1], 10)];
+      if (!id || id === task.id) return;
+      if (fs.indexOf(id) !== -1 || ss.indexOf(id) !== -1) return;
+      if (wouldCreateCycle(id, task.id)) return;
+      if ((m[2] || 'FS').toUpperCase() === 'SS') ss.push(id); else fs.push(id);
+    });
+    return { fs: fs, ss: ss };
+  }
+
+  
   function wouldCreateCycle(predecessorId, successorId) {
     // true, wenn predecessorId bereits (direkt/indirekt) von successorId abhängt
     var visited = {};
@@ -1530,8 +1620,9 @@ button, input{ font-family:var(--font-family); }
       if (visited[id]) return false;
       visited[id] = true;
       var t = findTask(id);
-      if (!t || !t.dependsOn) return false;
-      return t.dependsOn.some(dfs);
+      if (!t) return false;
+      var preds = (t.dependsOn || []).concat(t.dependsOnParallel || []);
+      return preds.some(dfs);
     }
     return dfs(predecessorId);
   }
@@ -1545,26 +1636,36 @@ button, input{ font-family:var(--font-family); }
   // Als Sicherheitsnetz darf ein Nachfolger trotzdem nie vor dem spätesten Vorgänger-Ende
   // beginnen — verletzt die Verschiebung das, wird stattdessen exakt ans Vorgänger-Ende gekoppelt
   // (z.B. beim erstmaligen Verknüpfen zweier Aufgaben, wo es noch keine Pause zu erhalten gibt).
-  function applyDependencyConstraints(changedTaskId, deltaDays) {
+  function applyDependencyConstraints(changedTaskId, startDelta, endDelta) {
     var visited = {};
-    function cascade(taskId, delta) {
+    function cascade(taskId, sDelta, eDelta) {
       if (visited[taskId]) return;
       visited[taskId] = true;
       state.tasks.forEach(function (t) {
-        if (!t.dependsOn || t.dependsOn.indexOf(taskId) === -1) return;
+        var isFS = t.dependsOn && t.dependsOn.indexOf(taskId) !== -1;
+        var isSS = t.dependsOnParallel && t.dependsOnParallel.indexOf(taskId) !== -1;
+        if (!isFS && !isSS) return;
         var oldStart = fromISO(t.start);
         var oldEnd = fromISO(t.end);
+        var delta = isFS ? eDelta : sDelta;
         var proposedStart = delta ? addDays(oldStart, delta) : oldStart;
         var minStart = null;
-        t.dependsOn.forEach(function (predId) {
+        (t.dependsOn || []).forEach(function (predId) {
           var pred = findTask(predId);
           if (!pred) return;
           var predEnd = fromISO(pred.end);
           if (minStart === null || predEnd > minStart) minStart = predEnd;
         });
+        (t.dependsOnParallel || []).forEach(function (predId) {
+          var pred = findTask(predId);
+          if (!pred) return;
+          var predStart = fromISO(pred.start);
+          if (minStart === null || predStart > minStart) minStart = predStart;
+        });
         var newStart = proposedStart;
         if (minStart !== null && newStart < minStart) newStart = minStart;
         if (newStart.getTime() === oldStart.getTime()) return;
+        var shiftDelta = diffDays(newStart, oldStart);
         if (t.milestone) {
           t.start = toISO(newStart);
           t.end = t.start;
@@ -1573,10 +1674,10 @@ button, input{ font-family:var(--font-family); }
           t.start = toISO(newStart);
           t.end = toISO(addDays(newStart, dur));
         }
-        cascade(t.id, diffDays(newStart, oldStart));
+        cascade(t.id, shiftDelta, shiftDelta);
       });
     }
-    cascade(changedTaskId, deltaDays || 0);
+    cascade(changedTaskId, startDelta || 0, endDelta || 0);
   }
 
   /* ────────────────────────── hover sync ────────────────────────── */
@@ -2305,7 +2406,7 @@ button, input{ font-family:var(--font-family); }
       }
 
       var headerCols = [
-        { x: 0, label: '#' },
+        { x: 0, label: 'Nr.' },
         { x: numW, label: 'Aufgabe' },
         { x: numW + nameW, label: 'Verantw.' },
         { x: numW + nameW + assigneeW, label: 'Start' },
@@ -2396,7 +2497,9 @@ button, input{ font-family:var(--font-family); }
         y -= rowH;
         hLine(MARGIN, MARGIN + fullW, y);
         cur2.push('0 0 0 rg');
-        cur2.push('BT /F2 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y + rowH * 0.3).toFixed(2) + ' Tm (' + pdfEsc(row.phase.name) + ') Tj ET');
+        // Phasen-/Kategorie-Titel beginnt linksbündig mit der Aufgaben-Spalte (nicht der
+        // Nr.-Spalte), damit er optisch mit den Aufgaben-Namen darunter fluchtet.
+        cur2.push('BT /F2 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + numW + 2).toFixed(2) + ' ' + (y + rowH * 0.3).toFixed(2) + ' Tm (' + pdfEsc(row.phase.name) + ') Tj ET');
         return;
       }
       var task = row.task;
@@ -2466,29 +2569,50 @@ button, input{ font-family:var(--font-family); }
     }
 
     // Abhängigkeitspfeile NACH allen Zeilen zeichnen (Geometrie aller Aufgaben ist jetzt bekannt) —
-    // nur innerhalb derselben Seite, seitenübergreifende Pfeile werden ausgelassen.
+    // nur innerhalb derselben Seite, seitenübergreifende Pfeile werden ausgelassen. FS (sequenziell,
+    // Standard) läuft vom Vorgänger-ENDE zum Nachfolger-Anfang, grau/durchgezogen. SS (parallel)
+    // läuft vom Vorgänger-ANFANG zum Nachfolger-Anfang, violett/gestrichelt — genau wie im
+    // Live-Zeitstrahl, damit Druck und Bildschirm optisch übereinstimmen.
     function pageArrFor(pageIndex) { return pageIndex === pages.length ? cur2 : pages[pageIndex]; }
     var arrowC = hexToRgbFrac('#C7C7C7');
     var arrowStrokeOp = arrowC.r.toFixed(3) + ' ' + arrowC.g.toFixed(3) + ' ' + arrowC.b.toFixed(3) + ' RG';
     var arrowFillOp = arrowC.r.toFixed(3) + ' ' + arrowC.g.toFixed(3) + ' ' + arrowC.b.toFixed(3) + ' rg';
+    var arrowParC = hexToRgbFrac('#8B6FE0');
+    var arrowParStrokeOp = arrowParC.r.toFixed(3) + ' ' + arrowParC.g.toFixed(3) + ' ' + arrowParC.b.toFixed(3) + ' RG';
+    var arrowParFillOp = arrowParC.r.toFixed(3) + ' ' + arrowParC.g.toFixed(3) + ' ' + arrowParC.b.toFixed(3) + ' rg';
+    function drawPdfArrow(pageArr, predGeom, succGeom, depType) {
+      var clearance = rowH * 0.28;
+      var x1 = depType === 'SS' ? predGeom.x1 : predGeom.x2;
+      var y1 = predGeom.rowTop - clearance;
+      var x2 = succGeom.x1, y2 = succGeom.rowTop - clearance;
+      // Gleiche adaptive Eck-Logik wie im Live-Zeitstrahl (siehe drawDependencyLine): kurzer, fester
+      // Schritt in die tatsächliche Richtung statt bei kleinem/negativem Abstand weit auszuholen.
+      var STEP = Math.max(6, rowH * 0.5);
+      var elbowX = Math.abs(x2 - x1) < STEP * 2 ? x1 + (x2 >= x1 ? STEP : -STEP) : (x1 + x2) / 2;
+      var arrowSize = Math.max(2, rowH * 0.22);
+      var endX = x2 >= x1 ? x2 - arrowSize : x2 + arrowSize;
+      pageArr.push(depType === 'SS' ? arrowParStrokeOp : arrowStrokeOp);
+      pageArr.push('0.75 w');
+      if (depType === 'SS') pageArr.push('[3 2] 0 d');
+      pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + endX.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
+      if (depType === 'SS') pageArr.push('[] 0 d');
+      pageArr.push(depType === 'SS' ? arrowParFillOp : arrowFillOp);
+      var tipX = x2 >= x1 ? x2 : x2;
+      var backX = x2 >= x1 ? x2 - arrowSize : x2 + arrowSize;
+      pageArr.push(backX.toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + tipX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + backX.toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
+    }
     state.tasks.forEach(function (t) {
-      if (!t.dependsOn || !t.dependsOn.length) return;
       var succGeom = pdfTaskGeom[t.id];
       if (!succGeom) return;
-      t.dependsOn.forEach(function (predId) {
+      (t.dependsOn || []).forEach(function (predId) {
         var predGeom = pdfTaskGeom[predId];
         if (!predGeom || predGeom.page !== succGeom.page) return;
-        var pageArr = pageArrFor(predGeom.page);
-        var clearance = rowH * 0.28;
-        var x1 = predGeom.x2, y1 = predGeom.rowTop - clearance;
-        var x2 = succGeom.x1, y2 = succGeom.rowTop - clearance;
-        var elbowX = x2 >= x1 + 10 ? (x1 + x2) / 2 : x1 + 14;
-        var arrowSize = Math.max(2, rowH * 0.22);
-        pageArr.push(arrowStrokeOp);
-        pageArr.push('0.75 w');
-        pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + (x2 - arrowSize).toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
-        pageArr.push(arrowFillOp);
-        pageArr.push((x2 - arrowSize).toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + (x2 - arrowSize).toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
+        drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, 'FS');
+      });
+      (t.dependsOnParallel || []).forEach(function (predId) {
+        var predGeom = pdfTaskGeom[predId];
+        if (!predGeom || predGeom.page !== succGeom.page) return;
+        drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, 'SS');
       });
     });
 
