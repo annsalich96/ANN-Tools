@@ -178,7 +178,7 @@ button, input{ font-family:var(--font-family); }
 }
 .pred-legend-btn:hover{ border-color:var(--color-black); color:var(--color-black); }
 .pred-legend-panel{
-  position:absolute; top:26px; left:0; z-index:30; width:300px; background:var(--color-white);
+  position:fixed; z-index:150; width:300px; background:var(--color-white);
   border:1px solid var(--g200); border-radius:6px; box-shadow:0 4px 16px rgba(0,0,0,.14);
   padding:var(--space-4); text-transform:none; letter-spacing:normal; font-weight:400; color:var(--color-black);
   cursor:default;
@@ -1588,16 +1588,13 @@ button, input{ font-family:var(--font-family); }
     var y1 = predGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
     var x2 = (depType === 'FF' || depType === 'SF') ? succGeom.endX : succGeom.startX;
     var y2 = succGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
-    // Die Pfeilspitze muss IMMER von links kommend nach rechts zeigen (Leserichtung), auch wenn
-    // der Vorgänger-Ankerpunkt weiter rechts liegt als der Nachfolger-Start (wenig/kein Abstand
-    // oder eine "rückwärts" verlaufende Verknüpfung) — sonst wirkt der Pfeil, als zeige er nach
-    // hinten. Ein fester, kurzer Schluss-Abschnitt (NUB) direkt vor dem Ziel bleibt deshalb IMMER
-    // nach rechts gerichtet; jede nötige Rückwärts-Bewegung passiert davor, wo kein Pfeilkopf sitzt.
-    var NUB = 10;
-    var approachX = x2 - NUB;
-    var MIN_GAP = 14;
-    var elbowX = (approachX - x1 >= MIN_GAP) ? (x1 + approachX) / 2 : approachX;
-    var d = 'M ' + x1 + ' ' + y1 + ' L ' + elbowX + ' ' + y1 + ' L ' + elbowX + ' ' + y2 + ' L ' + x2 + ' ' + y2;
+    // Der Pfeil setzt oben am Ziel an (senkrechter Schluss-Abschnitt von oben in die Aufgabe
+    // hinein) statt seitlich hineinzulaufen: erst waagrecht auf Höhe des Vorgängers bis über den
+    // Ankerpunkt des Nachfolgers, dann senkrecht hinein. Dadurch bleibt die Linie auch bei sehr
+    // wenig oder keinem horizontalem Abstand zwischen Vorgänger und Nachfolger sauber — der
+    // Schluss-Abschnitt ist immer senkrecht und deutet nie eine "falsche" Zeitrichtung an, egal
+    // wie nah Start/Ende beieinander liegen.
+    var d = 'M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y1 + ' L ' + x2 + ' ' + y2;
 
     var g = document.createElementNS(SVG_NS, 'g');
     g.setAttribute('class', 'dep-group');
@@ -2893,21 +2890,20 @@ button, input{ font-family:var(--font-family); }
       var x2 = (depType === 'FF' || depType === 'SF') ? succGeom.x2 : succGeom.x1;
       var y2 = succGeom.rowTop - clearance;
       var arrowSize = Math.max(2, rowH * 0.22);
-      // Die Pfeilspitze muss IMMER von links kommend nach rechts zeigen (Leserichtung), auch wenn
-      // der Vorgänger-Ankerpunkt weiter rechts liegt als der Nachfolger-Start — sonst wirkt der
-      // Pfeil, als zeige er nach hinten. Ein fester, kurzer Schluss-Abschnitt (arrowSize) direkt
-      // vor dem Ziel bleibt deshalb IMMER nach rechts gerichtet; jede nötige Rückwärts-Bewegung
-      // passiert davor, wo kein Pfeilkopf sitzt. Gleiche Logik wie im Live-Zeitstrahl.
-      var approachX = x2 - arrowSize;
-      var MIN_GAP = Math.max(10, rowH * 0.6);
-      var elbowX = (approachX - x1 >= MIN_GAP) ? (x1 + approachX) / 2 : approachX;
+      // Der Pfeil setzt oben am Ziel an (senkrechter Schluss-Abschnitt) statt seitlich hinein zu
+      // laufen: erst waagrecht auf Höhe des Vorgängers bis über den Ankerpunkt des Nachfolgers,
+      // dann senkrecht hinein — bleibt dadurch auch bei sehr wenig horizontalem Abstand sauber.
+      // Gleiche Logik wie im Live-Zeitstrahl.
       pageArr.push(style.strokeOp);
       pageArr.push('0.75 w');
       if (style.dash) pageArr.push(style.dash + ' 0 d');
-      pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
+      pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
       if (style.dash) pageArr.push('[] 0 d');
+      // Pfeilspitze zeigt senkrecht in Richtung y1→y2 (PDF-Koordinaten: y wächst nach oben).
+      var dir = y2 > y1 ? 1 : -1;
+      var approachY = y2 - dir * arrowSize;
       pageArr.push(style.fillOp);
-      pageArr.push(approachX.toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + approachX.toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
+      pageArr.push((x2 - arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + (x2 + arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' l f');
     }
     state.tasks.forEach(function (t) {
       var succGeom = pdfTaskGeom[t.id];
@@ -3122,7 +3118,19 @@ button, input{ font-family:var(--font-family); }
   if (predLegendBtn && predLegendPanel) {
     predLegendBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      predLegendPanel.hidden = !predLegendPanel.hidden;
+      var willShow = predLegendPanel.hidden;
+      predLegendPanel.hidden = !willShow;
+      if (willShow) {
+        // position:fixed statt absolute, damit das Panel nicht vom overflow-x:clip der
+        // Listen-Spalte (siehe Scroll-Sync-Fix) abgeschnitten wird — Position wird deshalb
+        // hier per JS relativ zum Viewport gesetzt statt rein per CSS.
+        var btnRect = predLegendBtn.getBoundingClientRect();
+        var panelW = 300;
+        var left = Math.min(btnRect.left, window.innerWidth - panelW - 8);
+        left = Math.max(8, left);
+        predLegendPanel.style.left = left + 'px';
+        predLegendPanel.style.top = (btnRect.bottom + 6) + 'px';
+      }
     });
     predLegendPanel.addEventListener('click', function (e) { e.stopPropagation(); });
     document.addEventListener('click', function () { predLegendPanel.hidden = true; });
