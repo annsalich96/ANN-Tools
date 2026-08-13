@@ -1320,6 +1320,16 @@ button, input{ font-family:var(--font-family); }
       parsed.forEach(function (dep) { applyDependencyConstraints(dep.id); });
       save();
       renderAll();
+      // Eine neue Abhängigkeit verschiebt das Datum dieser Zeile und damit meist auch ihre Position
+      // in der (nach Startdatum sortierten) Liste — ohne sichtbares Feedback wirkt das wie
+      // "die Eingabe hat nichts gemacht". Zeile deshalb danach automatisch markieren und ins
+      // Sichtfeld scrollen, damit klar wird, wohin sie gerade gerückt ist. Die angezeigte
+      // Vorgänger-Nummer kann sich dabei ändern, wenn auch die referenzierte Zeile selbst ihre
+      // Nummer wechselt (Liste ist sortiert, keine festen Positionen) — die Verknüpfung an sich
+      // bleibt davon unberührt korrekt.
+      selectRow(task.phaseId, task.id);
+      var newIdx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === task.id; });
+      if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
     });
     el.appendChild(predecessorsInput);
 
@@ -1673,6 +1683,12 @@ button, input{ font-family:var(--font-family); }
           applyDependencyConstraints(sourceTask.id);
           save();
           renderAll();
+          // Siehe gleiche Begründung wie im Vorgänger-Textfeld: die Zeile kann durch die neue
+          // Abhängigkeit ihre sortierte Position wechseln — danach markieren und ins Sichtfeld
+          // scrollen, damit sichtbar bleibt, wohin sie gerückt ist.
+          selectRow(targetTask.phaseId, targetTask.id);
+          var newIdx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === targetTask.id; });
+          if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
         }
       }
     }
