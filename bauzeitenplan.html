@@ -117,6 +117,7 @@ button, input{ font-family:var(--font-family); }
 .btn.primary{ background:var(--color-black); color:var(--color-white); border-color:var(--color-black); height:35px; }
 .btn.primary:hover{ background:#242424; }
 .btn.danger-text{ color:var(--error); border-color:var(--g200); }
+.btn:disabled{ opacity:.4; cursor:default; pointer-events:none; }
 .zoom-group{ background:var(--g100); border-radius:4px; padding:3px; gap:0; height:36px; box-sizing:border-box; }
 .zoom-btn{
   appearance:none; border:none; background:transparent; color:var(--g600);
@@ -403,6 +404,10 @@ button, input{ font-family:var(--font-family); }
 
   <div class="toolbar">
     <div class="toolbar-group">
+      <button class="btn" data-action="undo" id="undoBtn" title="Rückgängig (Cmd/Ctrl+Z)" disabled>↶ Rückgängig</button>
+      <button class="btn" data-action="redo" id="redoBtn" title="Wiederholen (Cmd/Ctrl+Shift+Z)" disabled>↷ Wiederholen</button>
+    </div>
+    <div class="toolbar-group">
       <button class="btn primary" data-action="add-phase">+ Phase/Kategorie</button>
     </div>
     <div class="toolbar-group zoom-group">
@@ -656,13 +661,102 @@ button, input{ font-family:var(--font-family); }
   var state = migrateDependencies(load());
   if (!state.colorBy) state.colorBy = 'phase';
   var saveScheduled = false;
-  function save() {
+  function persistToStorage() {
     if (saveScheduled) return;
     saveScheduled = true;
     requestAnimationFrame(function () {
       saveScheduled = false;
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
     });
+  }
+
+  // Undo/Redo: hängt sich an save() (schon an praktisch jeder Zustandsänderung im Code vorhanden),
+  // statt an jeder einzelnen Mutationsstelle einzeln Historie mitzuführen. Ein Checkpoint wird erst
+  // committet, wenn 500ms lang keine weitere save()-Anfrage mehr kam (HISTORY_DEBOUNCE_MS) — dadurch
+  // fasst eine zusammenhängende Eingabe (Tippen, Ziehen) einen Undo-Schritt, statt pro Tastendruck/
+  // Frame einen eigenen zu erzeugen.
+  var undoStack = [];
+  var redoStack = [];
+  var HISTORY_LIMIT = 60;
+  var HISTORY_DEBOUNCE_MS = 500;
+  var lastSnapshot = JSON.stringify(state);
+  var historyTimer = null;
+  function commitHistorySnapshot() {
+    var current = JSON.stringify(state);
+    if (current === lastSnapshot) return;
+    undoStack.push(lastSnapshot);
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack = [];
+    lastSnapshot = current;
+    updateUndoRedoButtons();
+  }
+  function scheduleHistorySnapshot() {
+    if (historyTimer) clearTimeout(historyTimer);
+    historyTimer = setTimeout(function () {
+      historyTimer = null;
+      commitHistorySnapshot();
+    }, HISTORY_DEBOUNCE_MS);
+  }
+  function flushHistorySnapshot() {
+    if (historyTimer) { clearTimeout(historyTimer); historyTimer = null; }
+    commitHistorySnapshot();
+  }
+  function updateUndoRedoButtons() {
+    if (undoBtnEl) undoBtnEl.disabled = undoStack.length === 0;
+    if (redoBtnEl) redoBtnEl.disabled = redoStack.length === 0;
+  }
+  function undo() {
+    flushHistorySnapshot();
+    if (!undoStack.length) return;
+    var current = JSON.stringify(state);
+    redoStack.push(current);
+    if (redoStack.length > HISTORY_LIMIT) redoStack.shift();
+    var prev = undoStack.pop();
+    state = JSON.parse(prev);
+    lastSnapshot = prev;
+    afterHistoryRestore();
+  }
+  function redo() {
+    if (!redoStack.length) return;
+    var current = JSON.stringify(state);
+    undoStack.push(current);
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    var next = redoStack.pop();
+    state = JSON.parse(next);
+    lastSnapshot = next;
+    afterHistoryRestore();
+  }
+  function afterHistoryRestore() {
+    selectedPhaseId = null;
+    selectedTaskId = null;
+    applyStateToUI();
+    persistToStorage();
+    renderAll();
+    updateUndoRedoButtons();
+  }
+  function save() {
+    scheduleHistorySnapshot();
+    persistToStorage();
+  }
+
+  // Synct alle UI-Elemente, die an state-Felder gebunden sind, aber NICHT über den normalen
+  // renderAll()-Pfad neu aufgebaut werden (Titel-Eingaben, Zoom-/Farbmodus-Button-Aktivzustand,
+  // Listenspaltenbreite) — gebraucht überall dort, wo `state` komplett ersetzt wird: beim Öffnen
+  // einer Projektdatei UND bei Undo/Redo.
+  function applyStateToUI() {
+    if (!state.colorBy) state.colorBy = 'phase';
+    if (state.listWidth) {
+      document.documentElement.style.setProperty('--list-w', Math.max(320, Math.min(900, state.listWidth)) + 'px');
+    }
+    projectTitleEl.value = state.projectTitle || '';
+    projectSubtitleEl.value = state.projectSubtitle || '';
+    document.querySelectorAll('.zoom-btn[data-zoom]').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.zoom === state.zoom);
+    });
+    document.querySelectorAll('.colorby-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.colorby === state.colorBy);
+    });
+    rebuildAssigneeIndex();
   }
 
   /* ────────────────────────── zoom config ────────────────────────── */
@@ -740,6 +834,8 @@ button, input{ font-family:var(--font-family); }
   var scheduleStartInput = $('#scheduleStartInput');
   var scheduleOk = $('#scheduleOk');
   var scheduleCancel = $('#scheduleCancel');
+  var undoBtnEl = $('#undoBtn');
+  var redoBtnEl = $('#redoBtn');
 
   function openAutoScheduleDialog() {
     var earliest = null;
@@ -2072,25 +2168,44 @@ button, input{ font-family:var(--font-family); }
     return state.phases[state.phases.length - 1].id;
   }
 
-  
+  // Zeilen sind innerhalb einer Phase immer nach Startdatum sortiert (siehe buildRows) — eine neue
+  // Aufgabe landet also nur dann sichtbar "unter" der angeklickten Zeile, wenn ihr Startdatum auch
+  // tatsächlich später liegt als das der angeklickten Aufgabe. Ist eine Aufgabe (nicht nur eine
+  // Phase) ausgewählt und gehört sie zur Ziel-Phase, startet die neue Zeile deshalb direkt nach
+  // deren Ende statt immer bei "heute" — das sortiert sie zuverlässig direkt darunter ein.
+  function defaultNewTaskStart(phaseId) {
+    if (selectedTaskId) {
+      var refTask = findTask(selectedTaskId);
+      if (refTask && refTask.phaseId === phaseId) return addDays(fromISO(refTask.end), 1);
+    }
+    return midnight(new Date());
+  }
+
   function addTask(phaseId) {
-    var today = midnight(new Date());
     if (!phaseId) phaseId = defaultPhaseId();
-    state.tasks.push({
+    var start = defaultNewTaskStart(phaseId);
+    var newTask = {
       id: uid(), phaseId: phaseId, name: 'Neue Aufgabe', assignee: '',
-      start: toISO(today), end: toISO(addDays(today, 7)), progress: 0, milestone: false
-    });
+      start: toISO(start), end: toISO(addDays(start, 7)), progress: 0, milestone: false, dependencies: []
+    };
+    state.tasks.push(newTask);
+    // Auswahl folgt der neu angelegten Zeile — so hängt ein wiederholter Klick auf "+Aufgabe" die
+    // nächste Aufgabe jeweils direkt an die zuletzt angelegte an, statt immer wieder an dieselbe
+    // Stelle zurückzuspringen.
+    selectRow(phaseId, newTask.id);
     save();
     renderAll();
   }
 
   function addMilestone(phaseId) {
-    var today = midnight(new Date());
     if (!phaseId) phaseId = defaultPhaseId();
-    state.tasks.push({
+    var start = defaultNewTaskStart(phaseId);
+    var newTask = {
       id: uid(), phaseId: phaseId, name: 'Neuer Meilenstein', assignee: '',
-      start: toISO(today), end: toISO(today), progress: 0, milestone: true
-    });
+      start: toISO(start), end: toISO(start), progress: 0, milestone: true, dependencies: []
+    };
+    state.tasks.push(newTask);
+    selectRow(phaseId, newTask.id);
     save();
     renderAll();
   }
@@ -3039,20 +3154,14 @@ button, input{ font-family:var(--font-family); }
         return;
       }
       state = migrateDependencies(parsed);
-      if (!state.colorBy) state.colorBy = 'phase';
-      if (state.listWidth) {
-        document.documentElement.style.setProperty('--list-w', Math.max(320, Math.min(900, state.listWidth)) + 'px');
-      }
-      projectTitleEl.value = state.projectTitle || '';
-      projectSubtitleEl.value = state.projectSubtitle || '';
-      document.querySelectorAll('.zoom-btn[data-zoom]').forEach(function (b) {
-        b.classList.toggle('active', b.dataset.zoom === state.zoom);
-      });
-      document.querySelectorAll('.colorby-btn').forEach(function (b) {
-        b.classList.toggle('active', b.dataset.colorby === state.colorBy);
-      });
-      rebuildAssigneeIndex();
-      save();
+      applyStateToUI();
+      // Neu geöffnetes Projekt ist eine neue Baseline — Undo/Redo-Historie des vorherigen
+      // Projekts ist hier irrelevant und würde nur verwirren.
+      undoStack = [];
+      redoStack = [];
+      lastSnapshot = JSON.stringify(state);
+      updateUndoRedoButtons();
+      persistToStorage();
       renderAll();
       scrollToToday();
     };
@@ -3095,6 +3204,8 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'add-milestone') addMilestone(null);
       else if (action === 'add-phase') addPhase();
       else if (action === 'today') scrollToToday();
+      else if (action === 'undo') undo();
+      else if (action === 'redo') redo();
       else if (action === 'auto-schedule') openAutoScheduleDialog();
       else if (action === 'export-pdf') exportPDF();
       else if (action === 'print') openPrintPreview();
@@ -3149,6 +3260,18 @@ button, input{ font-family:var(--font-family); }
   });
   document.querySelectorAll('.colorby-btn').forEach(function (b) {
     b.classList.toggle('active', b.dataset.colorby === state.colorBy);
+  });
+  updateUndoRedoButtons();
+  document.addEventListener('keydown', function (e) {
+    // Innerhalb von Text-/Datumsfeldern greift das native Feld-eigene Undo (Cmd/Ctrl+Z) — App-weites
+    // Undo/Redo per Tastatur nur außerhalb von Eingabefeldern, die Toolbar-Buttons bleiben davon
+    // unabhängig immer nutzbar.
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (!(e.metaKey || e.ctrlKey)) return;
+    var key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
   });
   renderAll();
   requestAnimationFrame(scrollToToday);
