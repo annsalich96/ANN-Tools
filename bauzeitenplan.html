@@ -2839,11 +2839,17 @@ button, input{ font-family:var(--font-family); }
     var legendItems = state.colorBy === 'assignee'
       ? assigneeOrder.map(function (name, idx) { return { name: name, hex: resolvePhaseHex(idx) }; })
       : state.phases.map(function (p, idx) { return { name: p.name, hex: resolvePhaseHex(idx) }; });
+    // Breiten-Schätzung je Legenden-Eintrag (Swatch + Label + Abstand zum nächsten Eintrag) — an
+    // EINER Stelle definiert und sowohl hier (Vorab-Berechnung der reservierten Höhe) als auch beim
+    // tatsächlichen Zeichnen weiter unten verwendet, damit beide garantiert dieselbe Umbruch-Logik
+    // ergeben. Bewusst mit etwas Sicherheitsabstand (4.3pt/Zeichen statt der knapperen 3.6pt), da
+    // längere/breitere Wörter sonst vom Swatch des nächsten Eintrags überdeckt wurden.
+    function legendItemWidth(name) { return 18 + pdfTruncate(name, 30).length * 4.3; }
     var legendBlockH = 0;
     if (legendItems.length) {
       var legendLx0 = MARGIN, legendLines0 = 1;
       legendItems.forEach(function (item) {
-        var itemW0 = 16 + pdfTruncate(item.name, 30).length * 3.6;
+        var itemW0 = legendItemWidth(item.name);
         if (legendLx0 + itemW0 > MARGIN + availW && legendLx0 > MARGIN) { legendLx0 = MARGIN; legendLines0++; }
         legendLx0 += itemW0;
       });
@@ -2981,11 +2987,16 @@ button, input{ font-family:var(--font-family); }
       // Bauvorhaben, direkt daneben), oben rechts NUR das Logo ohne Namenszug.
       cur2.push('0 0 0 rg');
       cur2.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + (y - 12) + ' Tm (' + pdfEsc(title) + ') Tj ET');
-      // Logo oben rechts: oben UND unten bündig mit dem GESAMTEN Kopf-Textblock (Titel +
-      // Bauvorhaben/Datum-Zeile), nicht nur mit der Titelzeile allein.
+      // Logo oben rechts: oben bündig mit dem Titel, unten bündig mit der Bauvorhaben/Datum-Zeile
+      // darunter. Die Zeilenhöhen (HEADER_TITLE_H/HEADER_SUBTITLE_H) enthalten etwas Leerraum
+      // über/unter den tatsächlichen Buchstaben (Zeilen-Durchschuss) — ein kleiner Einzug oben/unten
+      // orientiert das Logo an der SICHTBAREN Textkante statt an der reinen Zeilenbox, sonst wirkt
+      // es größer als der Textblock, den es einrahmen soll.
       var headerBlockH = HEADER_TITLE_H + HEADER_SUBTITLE_H;
-      var headerLogoH = headerBlockH, headerLogoW = headerLogoH * (PDF_LOGO_W / PDF_LOGO_H);
-      var headerLogoX = PAGE_W - MARGIN - headerLogoW, headerLogoY = y - headerBlockH;
+      var LOGO_INSET_TOP = 2, LOGO_INSET_BOTTOM = 3;
+      var headerLogoH = Math.max(10, headerBlockH - LOGO_INSET_TOP - LOGO_INSET_BOTTOM);
+      var headerLogoW = headerLogoH * (PDF_LOGO_W / PDF_LOGO_H);
+      var headerLogoX = PAGE_W - MARGIN - headerLogoW, headerLogoY = (y - headerBlockH) + LOGO_INSET_BOTTOM;
       cur2.push('q ' + headerLogoW.toFixed(2) + ' 0 0 ' + headerLogoH.toFixed(2) + ' ' + headerLogoX.toFixed(2) + ' ' + headerLogoY.toFixed(2) + ' cm /Logo Do Q');
       y -= HEADER_TITLE_H;
       if (state.projectSubtitle) {
@@ -3001,7 +3012,7 @@ button, input{ font-family:var(--font-family); }
         var subtitleW = pdfEsc(state.projectSubtitle).length * 5.6;
         // Exakt gleiche Schrift/Größe/Farbe wie der Bauvorhaben-Untertitel (F1 8pt schwarz) — kein
         // eigener Grauton mehr.
-        var createdLabel = 'Erstellt am ' + fmtDE(new Date());
+        var createdLabel = fmtDE(new Date());
         cur2.push('BT /F1 8 Tf 1 0 0 1 ' + (MARGIN + subtitleW + 14).toFixed(2) + ' ' + (y - 8).toFixed(2) + ' Tm (' + pdfEsc(createdLabel) + ') Tj ET');
         y -= HEADER_SUBTITLE_H;
       }
@@ -3053,9 +3064,13 @@ button, input{ font-family:var(--font-family); }
           var rStartIdx = Math.max(0, diffDays(rMinStart, range.start));
           var rEndIdx = Math.min(days.length - 1, diffDays(rMaxEnd, range.start));
           if (rEndIdx >= rStartIdx) {
-            var rHex = state.colorBy === 'assignee' ? '#C7C7C7' : resolvePhaseHex(row.colorIdx);
+            // Der neutrale graue Sammelbalken (Modus "Farbe: Verantwortlich") wirkte gegen den
+            // weißen Hintergrund zu blass — dunklerer Grauton plus etwas höhere Deckkraft als bei
+            // den farbigen Phasen-Sammelbalken, die durch ihren Farbton schon von selbst genug
+            // Kontrast haben.
+            var rHex = state.colorBy === 'assignee' ? '#9A9A9A' : resolvePhaseHex(row.colorIdx);
             var rC = hexToRgbFrac(rHex);
-            var rAlpha = 0.55;
+            var rAlpha = state.colorBy === 'assignee' ? 0.75 : 0.55;
             var rR = rC.r * rAlpha + (1 - rAlpha), rG = rC.g * rAlpha + (1 - rAlpha), rB = rC.b * rAlpha + (1 - rAlpha);
             var rBarX0 = MARGIN + labelW + rStartIdx * dayW;
             var rBarW = Math.max(1, (rEndIdx - rStartIdx + 1) * dayW);
@@ -3133,8 +3148,14 @@ button, input{ font-family:var(--font-family); }
           if (!labelText) return;
           var labelEsc = pdfEsc(labelText);
           var labelTextW = labelEsc.length * fontSize * 0.5;
+          // Weicht automatisch auf die andere Seite DIESES Balkens aus, wenn die bevorzugte Seite
+          // über den Blattrand hinauslaufen würde (Ann: "die fallen manchmal rechts raus aus dem
+          // Blatt") — betrifft vor allem Aufgaben nahe dem rechten/linken Rand des Zeitraums.
+          var side = bl.side;
+          if (side === 'right' && barRightX + rightStack + labelTextW > MARGIN + fullW) side = 'left';
+          else if (side === 'left' && barLeftX - leftStack - labelTextW < MARGIN) side = 'right';
           cur2.push('0 0 0 rg');
-          if (bl.side === 'left') {
+          if (side === 'left') {
             cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barLeftX - leftStack - labelTextW).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
             leftStack += labelTextW + 6;
           } else {
@@ -3231,7 +3252,7 @@ button, input{ font-family:var(--font-family); }
       var lx = MARGIN, ly = legendY - 18;
       legendItems.forEach(function (item) {
         var label = pdfTruncate(item.name, 30);
-        var itemW = 16 + label.length * 3.6;
+        var itemW = legendItemWidth(item.name);
         if (lx + itemW > MARGIN + availW && lx > MARGIN) { lx = MARGIN; ly -= 14; }
         cur2.push(colorOp(item.hex) + ' rg ' + lx.toFixed(2) + ' ' + (ly - 8).toFixed(2) + ' 8.00 8.00 re f');
         cur2.push('0 0 0 rg');
