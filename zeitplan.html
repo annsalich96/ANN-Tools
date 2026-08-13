@@ -316,6 +316,7 @@ button, input{ font-family:var(--font-family); }
 }
 
 .hover-highlight{ background:var(--g100) !important; }
+.row-selected{ background:var(--phase-selected-bg, #EEF1FF) !important; box-shadow:inset 3px 0 0 var(--color-black); }
 
 .confirm-overlay{
   display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100;
@@ -815,6 +816,16 @@ button, input{ font-family:var(--font-family); }
   /* ────────────────────────── list pane ────────────────────────── */
   var listRowEls = [];
   var timelineRowEls = [];
+  // Aktuell ausgewählte Kategorie/Aufgabe (Klick auf eine Zeile) — bestimmt, in welche Phase
+  // "+Aufgabe"/"+Meilenstein" im Toolbar eine neue Zeile einfügen (statt immer in die letzte Phase).
+  // selectedTaskId ist null, wenn eine Kategorie-Zeile selbst (statt einer Aufgabe darin) gewählt wurde.
+  var selectedPhaseId = null;
+  var selectedTaskId = null;
+  function selectRow(phaseId, taskId) {
+    selectedPhaseId = phaseId;
+    selectedTaskId = taskId || null;
+    renderList(currentRows);
+  }
 
   function renderList(rows) {
     listBodyInner.innerHTML = '';
@@ -847,7 +858,7 @@ button, input{ font-family:var(--font-family); }
   function renderPhaseRow(row) {
     var phase = row.phase;
     var el = document.createElement('div');
-    el.className = 'phase-row';
+    el.className = 'phase-row' + (phase.id === selectedPhaseId && !selectedTaskId ? ' row-selected' : '');
 
     var dragHandle = document.createElement('span');
     dragHandle.className = 'drag-handle';
@@ -907,6 +918,13 @@ button, input{ font-family:var(--font-family); }
 
     attachPhaseDrag(dragHandle, el, phase);
 
+    // Klick auf eine (nicht-interaktive Fläche der) Kategorie-Zeile wählt sie aus — "+Aufgabe" im
+    // Toolbar legt die neue Aufgabe dann dort an, statt immer in der letzten Phase.
+    el.addEventListener('click', function (e) {
+      if (e.target.closest('input, button, .drag-handle, .chevron')) return;
+      selectRow(phase.id, null);
+    });
+
     return el;
   }
 
@@ -921,7 +939,7 @@ button, input{ font-family:var(--font-family); }
   function renderTaskRow(row) {
     var task = row.task;
     var el = document.createElement('div');
-    el.className = 'task-row';
+    el.className = 'task-row' + (task.id === selectedTaskId ? ' row-selected' : '');
 
     var taskDragHandle = document.createElement('span');
     taskDragHandle.className = 'drag-handle';
@@ -1086,6 +1104,14 @@ button, input{ font-family:var(--font-family); }
     el.appendChild(del);
 
     attachRowHover(el, row);
+
+    // Klick auf eine (nicht-interaktive Fläche der) Aufgaben-Zeile wählt ihre Kategorie/Phase aus —
+    // "+Aufgabe" im Toolbar legt die neue Aufgabe dann dort an, statt immer in der letzten Phase.
+    el.addEventListener('click', function (e) {
+      if (e.target.closest('input, button, .drag-handle, .link-handle')) return;
+      selectRow(task.phaseId, task.id);
+    });
+
     return el;
   }
 
@@ -1470,14 +1496,16 @@ button, input{ font-family:var(--font-family); }
     var y1 = predGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
     var x2 = succGeom.startX;
     var y2 = succGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
-    // Der Eck-Versatz richtet sich nach der tatsächlichen Distanz/Richtung zwischen den beiden
-    // Ankerpunkten, statt (wie vorher) bei kleinem/negativem Abstand immer weit nach rechts
-    // auszuholen — das erzeugte bei direkt aufeinanderfolgenden Aufgaben einen unschönen
-    // Rückwärts-Zickzack. Ein kurzer, fester Schritt in die tatsächliche Richtung reicht.
-    var STEP = 10;
-    var elbowX = Math.abs(x2 - x1) < STEP * 2 ? x1 + (x2 >= x1 ? STEP : -STEP) : (x1 + x2) / 2;
-    var endX = x2 >= x1 ? x2 - 6 : x2 + 6; // Pfeilspitze nähert sich aus der Richtung, aus der die Linie kommt
-    var d = 'M ' + x1 + ' ' + y1 + ' L ' + elbowX + ' ' + y1 + ' L ' + elbowX + ' ' + y2 + ' L ' + endX + ' ' + y2;
+    // Die Pfeilspitze muss IMMER von links kommend nach rechts zeigen (Leserichtung), auch wenn
+    // der Vorgänger-Ankerpunkt weiter rechts liegt als der Nachfolger-Start (wenig/kein Abstand
+    // oder eine "rückwärts" verlaufende Verknüpfung) — sonst wirkt der Pfeil, als zeige er nach
+    // hinten. Ein fester, kurzer Schluss-Abschnitt (NUB) direkt vor dem Ziel bleibt deshalb IMMER
+    // nach rechts gerichtet; jede nötige Rückwärts-Bewegung passiert davor, wo kein Pfeilkopf sitzt.
+    var NUB = 10;
+    var approachX = x2 - NUB;
+    var MIN_GAP = 14;
+    var elbowX = (approachX - x1 >= MIN_GAP) ? (x1 + approachX) / 2 : approachX;
+    var d = 'M ' + x1 + ' ' + y1 + ' L ' + elbowX + ' ' + y1 + ' L ' + elbowX + ' ' + y2 + ' L ' + x2 + ' ' + y2;
 
     var g = document.createElementNS(SVG_NS, 'g');
     g.setAttribute('class', 'dep-group');
@@ -1817,12 +1845,19 @@ button, input{ font-family:var(--font-family); }
   var currentRows = [];
   var taskGeom = {};
 
+  // Ohne explizit übergebene phaseId (z.B. Klick auf "+Aufgabe"/"+Meilenstein" im Toolbar statt
+  // in einer bestimmten Kategorie-Zeile) landet die neue Zeile in der zuletzt angeklickten
+  // Kategorie/Aufgabe — fällt auf die letzte Phase zurück, wenn noch nichts ausgewählt wurde oder
+  // die Auswahl inzwischen gelöscht ist.
+  function defaultPhaseId() {
+    if (selectedPhaseId && state.phases.some(function (p) { return p.id === selectedPhaseId; })) return selectedPhaseId;
+    if (state.phases.length === 0) addPhase();
+    return state.phases[state.phases.length - 1].id;
+  }
+
   function addTask(phaseId) {
     var today = midnight(new Date());
-    if (!phaseId) {
-      if (state.phases.length === 0) addPhase();
-      phaseId = state.phases[state.phases.length - 1].id;
-    }
+    if (!phaseId) phaseId = defaultPhaseId();
     state.tasks.push({
       id: uid(), phaseId: phaseId, name: 'Neue Aufgabe', assignee: '',
       start: toISO(today), end: toISO(addDays(today, 7)), progress: 0, milestone: false
@@ -1833,10 +1868,7 @@ button, input{ font-family:var(--font-family); }
 
   function addMilestone(phaseId) {
     var today = midnight(new Date());
-    if (!phaseId) {
-      if (state.phases.length === 0) addPhase();
-      phaseId = state.phases[state.phases.length - 1].id;
-    }
+    if (!phaseId) phaseId = defaultPhaseId();
     state.tasks.push({
       id: uid(), phaseId: phaseId, name: 'Neuer Meilenstein', assignee: '',
       start: toISO(today), end: toISO(today), progress: 0, milestone: true
@@ -2683,21 +2715,22 @@ button, input{ font-family:var(--font-family); }
       var x1 = depType === 'SS' ? predGeom.x1 : predGeom.x2;
       var y1 = predGeom.rowTop - clearance;
       var x2 = succGeom.x1, y2 = succGeom.rowTop - clearance;
-      // Gleiche adaptive Eck-Logik wie im Live-Zeitstrahl (siehe drawDependencyLine): kurzer, fester
-      // Schritt in die tatsächliche Richtung statt bei kleinem/negativem Abstand weit auszuholen.
-      var STEP = Math.max(6, rowH * 0.5);
-      var elbowX = Math.abs(x2 - x1) < STEP * 2 ? x1 + (x2 >= x1 ? STEP : -STEP) : (x1 + x2) / 2;
       var arrowSize = Math.max(2, rowH * 0.22);
-      var endX = x2 >= x1 ? x2 - arrowSize : x2 + arrowSize;
+      // Die Pfeilspitze muss IMMER von links kommend nach rechts zeigen (Leserichtung), auch wenn
+      // der Vorgänger-Ankerpunkt weiter rechts liegt als der Nachfolger-Start — sonst wirkt der
+      // Pfeil, als zeige er nach hinten. Ein fester, kurzer Schluss-Abschnitt (arrowSize) direkt
+      // vor dem Ziel bleibt deshalb IMMER nach rechts gerichtet; jede nötige Rückwärts-Bewegung
+      // passiert davor, wo kein Pfeilkopf sitzt. Gleiche Logik wie im Live-Zeitstrahl.
+      var approachX = x2 - arrowSize;
+      var MIN_GAP = Math.max(10, rowH * 0.6);
+      var elbowX = (approachX - x1 >= MIN_GAP) ? (x1 + approachX) / 2 : approachX;
       pageArr.push(depType === 'SS' ? arrowParStrokeOp : arrowStrokeOp);
       pageArr.push('0.75 w');
       if (depType === 'SS') pageArr.push('[3 2] 0 d');
-      pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + endX.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
+      pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
       if (depType === 'SS') pageArr.push('[] 0 d');
       pageArr.push(depType === 'SS' ? arrowParFillOp : arrowFillOp);
-      var tipX = x2 >= x1 ? x2 : x2;
-      var backX = x2 >= x1 ? x2 - arrowSize : x2 + arrowSize;
-      pageArr.push(backX.toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + tipX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + backX.toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
+      pageArr.push(approachX.toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + approachX.toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
     }
     state.tasks.forEach(function (t) {
       var succGeom = pdfTaskGeom[t.id];
