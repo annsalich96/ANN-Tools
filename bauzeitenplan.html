@@ -167,9 +167,30 @@ button, input{ font-family:var(--font-family); }
 .list-header .col-assignee{ width:110px; text-align:left; }
 .list-header .col-date{ width:84px; text-align:left; }
 .list-header .col-duration{ width:42px; text-align:left; }
-.list-header .col-predecessors{ width:64px; text-align:left; }
+.list-header .col-predecessors{ width:64px; text-align:left; display:flex; align-items:center; gap:4px; position:relative; }
 .list-body{ flex:0 0 auto; position:relative; }
 .list-body-inner{ position:relative; }
+
+.pred-legend-btn{
+  width:14px; height:14px; border-radius:50%; border:1px solid var(--g400); background:var(--color-white);
+  color:var(--g600); font-size:9px; font-weight:700; line-height:1; cursor:pointer; padding:0;
+  display:flex; align-items:center; justify-content:center; text-transform:none; letter-spacing:0;
+}
+.pred-legend-btn:hover{ border-color:var(--color-black); color:var(--color-black); }
+.pred-legend-panel{
+  position:absolute; top:26px; left:0; z-index:30; width:300px; background:var(--color-white);
+  border:1px solid var(--g200); border-radius:6px; box-shadow:0 4px 16px rgba(0,0,0,.14);
+  padding:var(--space-4); text-transform:none; letter-spacing:normal; font-weight:400; color:var(--color-black);
+  cursor:default;
+}
+.pred-legend-panel[hidden]{ display:none; }
+.pred-legend-panel h4{ margin:0 0 6px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--g600); }
+.pred-legend-panel table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+.pred-legend-panel td{ padding:3px 0; vertical-align:top; }
+.pred-legend-panel td:first-child{ width:64px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:600; white-space:nowrap; padding-right:8px; }
+.pred-legend-panel td.pred-legend-swatch{ width:14px; padding-right:0; }
+.pred-legend-panel .pred-legend-dot{ display:inline-block; width:9px; height:9px; border-radius:2px; }
+.pred-legend-panel hr{ border:none; border-top:1px solid var(--g200); margin:8px 0; }
 
 .phase-row{
   display:flex; align-items:center; height:var(--row-h);
@@ -292,6 +313,8 @@ button, input{ font-family:var(--font-family); }
 .dep-lines{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
 .dep-path{ fill:none; stroke:var(--g400); stroke-width:1.5; pointer-events:none; }
 .dep-path-parallel{ stroke:#8B6FE0; stroke-dasharray:4 3; }
+.dep-path-ff{ stroke:#22A699; stroke-dasharray:2 2; }
+.dep-path-sf{ stroke:#F2994A; stroke-dasharray:1 3; }
 .dep-path.hover{ stroke:var(--error); stroke-width:2; }
 .dep-hit{ fill:none; stroke:transparent; stroke-width:10; pointer-events:stroke; cursor:pointer; }
 .dep-temp-path{ fill:none; stroke:var(--g600); stroke-width:1.5; stroke-dasharray:4 3; pointer-events:none; }
@@ -393,6 +416,7 @@ button, input{ font-family:var(--font-family); }
     </div>
     <div class="toolbar-group">
       <button class="btn" data-action="today">Heute</button>
+      <button class="btn" data-action="auto-schedule" title="Alle Termine anhand von Vorgänger-Abhängigkeiten und Dauer neu berechnen — Vorgänger/Dauer zuerst festlegen, dann hier ein Startdatum eingeben">Termine automatisch setzen</button>
     </div>
     <div class="toolbar-spacer"></div>
     <div class="toolbar-group">
@@ -418,7 +442,25 @@ button, input{ font-family:var(--font-family); }
         <div class="col-date">Start</div>
         <div class="col-date">Ende</div>
         <div class="col-duration">Dauer</div>
-        <div class="col-predecessors">Vorgänger</div>
+        <div class="col-predecessors">
+          Vorgänger
+          <button type="button" class="pred-legend-btn" id="predLegendBtn" title="Syntax-Hilfe anzeigen">?</button>
+          <div class="pred-legend-panel" id="predLegendPanel" hidden>
+            <h4>Vorgänger-Syntax</h4>
+            <table>
+              <tr><td class="pred-legend-swatch"><span class="pred-legend-dot" style="background:#C7C7C7"></span></td><td colspan="2">3 <span style="font-weight:400;color:var(--g600)">— Ende-Anfang (FS, Standard): startet, wenn Zeile 3 endet</span></td></tr>
+              <tr><td class="pred-legend-swatch"><span class="pred-legend-dot" style="background:#8B6FE0"></span></td><td colspan="2">3SS <span style="font-weight:400;color:var(--g600)">— Anfang-Anfang: startet zusammen mit Zeile 3</span></td></tr>
+              <tr><td class="pred-legend-swatch"><span class="pred-legend-dot" style="background:#22A699"></span></td><td colspan="2">3FF <span style="font-weight:400;color:var(--g600)">— Ende-Ende: endet zusammen mit Zeile 3</span></td></tr>
+              <tr><td class="pred-legend-swatch"><span class="pred-legend-dot" style="background:#F2994A"></span></td><td colspan="2">3SF <span style="font-weight:400;color:var(--g600)">— Anfang-Ende (selten): endet, wenn Zeile 3 startet</span></td></tr>
+            </table>
+            <hr>
+            <table>
+              <tr><td>3FS+2d</td><td>2 Arbeitstage Verzug nach Zeile 3</td></tr>
+              <tr><td>3SS-1d</td><td>1 Tag Vorlauf/Überlappung</td></tr>
+              <tr><td>3, 5SS</td><td>Mehrere Vorgänger, kommagetrennt</td></tr>
+            </table>
+          </div>
+        </div>
         <div class="col-spacer-trail"></div>
       </div>
       <div class="list-body" id="listBody">
@@ -454,6 +496,17 @@ button, input{ font-family:var(--font-family); }
     <div class="confirm-actions">
       <button class="btn" id="confirmCancel">Abbrechen</button>
       <button class="btn primary" id="confirmOk">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="scheduleOverlay">
+  <div class="confirm-box">
+    <p class="confirm-msg">Termine automatisch setzen: Alle Aufgaben werden anhand ihrer Vorgänger-Abhängigkeiten (siehe Legende bei „Vorgänger“) und ihrer aktuellen Dauer neu berechnet. Aufgaben ohne Vorgänger starten am unten gewählten Datum, alle anderen folgen daraus.</p>
+    <p class="confirm-msg" style="margin-bottom:var(--space-3)"><label for="scheduleStartInput" style="display:block;font-size:11px;font-weight:600;color:var(--g600);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.08em;">Projektstart</label><input type="date" id="scheduleStartInput" class="predecessors-input" style="width:100%;box-sizing:border-box;padding:6px 8px;"></p>
+    <div class="confirm-actions">
+      <button class="btn" id="scheduleCancel">Abbrechen</button>
+      <button class="btn primary" id="scheduleOk">Termine setzen</button>
     </div>
   </div>
 </div>
@@ -583,7 +636,24 @@ button, input{ font-family:var(--font-family); }
     return seedData();
   }
 
-  var state = load();
+  // Migration: alte Abhängigkeits-Arrays (dependsOn = FS-Liste, dependsOnParallel = SS-Liste) auf
+  // das neue vereinheitlichte Modell task.dependencies = [{id, type, lag}] überführen, das jetzt
+  // alle vier MS-Project-Typen (FS/SS/FF/SF) plus Verzug/Vorlauf in Tagen unterstützt. Wird sowohl
+  // beim Laden aus localStorage als auch beim Öffnen einer älteren exportierten Projektdatei angewandt.
+  function migrateDependencies(st) {
+    (st.tasks || []).forEach(function (t) {
+      if (t.dependencies) return;
+      var deps = [];
+      (t.dependsOn || []).forEach(function (id) { deps.push({ id: id, type: 'FS', lag: 0 }); });
+      (t.dependsOnParallel || []).forEach(function (id) { deps.push({ id: id, type: 'SS', lag: 0 }); });
+      t.dependencies = deps;
+      delete t.dependsOn;
+      delete t.dependsOnParallel;
+    });
+    return st;
+  }
+
+  var state = migrateDependencies(load());
   if (!state.colorBy) state.colorBy = 'phase';
   var saveScheduled = false;
   function save() {
@@ -666,6 +736,31 @@ button, input{ font-family:var(--font-family); }
   var confirmOk = $('#confirmOk');
   var confirmCancel = $('#confirmCancel');
   var fileInputEl = $('#fileInput');
+  var scheduleOverlay = $('#scheduleOverlay');
+  var scheduleStartInput = $('#scheduleStartInput');
+  var scheduleOk = $('#scheduleOk');
+  var scheduleCancel = $('#scheduleCancel');
+
+  function openAutoScheduleDialog() {
+    var earliest = null;
+    state.tasks.forEach(function (t) {
+      if (!t.start) return;
+      var s = fromISO(t.start);
+      if (earliest === null || s < earliest) earliest = s;
+    });
+    scheduleStartInput.value = toISO(earliest || midnight(new Date()));
+    scheduleOverlay.classList.add('open');
+  }
+  function closeAutoScheduleDialog() { scheduleOverlay.classList.remove('open'); }
+  scheduleOk.addEventListener('click', function () {
+    if (!scheduleStartInput.value) return;
+    autoScheduleAll(scheduleStartInput.value);
+    closeAutoScheduleDialog();
+    save();
+    renderAll();
+  });
+  scheduleCancel.addEventListener('click', closeAutoScheduleDialog);
+  scheduleOverlay.addEventListener('click', function (e) { if (e.target === scheduleOverlay) closeAutoScheduleDialog(); });
 
   function showConfirm(message, onYes, options) {
     options = options || {};
@@ -917,8 +1012,7 @@ button, input{ font-family:var(--font-family); }
         var removedIds = state.tasks.filter(function (t) { return t.phaseId === phase.id; }).map(function (t) { return t.id; });
         state.tasks = state.tasks.filter(function (t) { return t.phaseId !== phase.id; });
         state.tasks.forEach(function (t) {
-          if (t.dependsOn) t.dependsOn = t.dependsOn.filter(function (id) { return removedIds.indexOf(id) === -1; });
-          if (t.dependsOnParallel) t.dependsOnParallel = t.dependsOnParallel.filter(function (id) { return removedIds.indexOf(id) === -1; });
+          if (t.dependencies) t.dependencies = t.dependencies.filter(function (d) { return removedIds.indexOf(d.id) === -1; });
         });
         state.phases = state.phases.filter(function (p) { return p.id !== phase.id; });
         save();
@@ -1079,22 +1173,21 @@ button, input{ font-family:var(--font-family); }
     el.appendChild(durationInput);
 
     // Vorgänger-Feld: Zeilennummer(n) der Aufgabe(n), von denen diese abhängt, MS-Project-Syntax
-    // ("3" = sequenziell/FS, "3SS" = parallel/SS, mehrere kommagetrennt: "3, 5SS"). Alternative
+    // ("3" = sequenziell/FS, "3SS" = parallel/SS, "3FF" = Ende-Ende, "3SF" = Anfang-Ende, jeweils
+    // mit optionalem Verzug/Vorlauf "+2d"/"-1d", mehrere kommagetrennt: "3, 5SS+2d"). Alternative
     // Eingabe zum Ziehen der Verknüpfungs-Griffe im Zeitstrahl — beide Wege bleiben synchron, da
-    // dieses Feld bei jedem Rendern aus den tatsächlichen dependsOn/dependsOnParallel-Arrays neu
-    // aufgebaut wird.
+    // dieses Feld bei jedem Rendern aus dem tatsächlichen dependencies-Array neu aufgebaut wird.
     var predecessorsInput = document.createElement('input');
     predecessorsInput.className = 'predecessors-input';
-    predecessorsInput.title = 'Vorgänger: Zeilennummer(n), z.B. "3" (startet nach Zeile 3) oder "3SS" (startet parallel mit Zeile 3)';
+    predecessorsInput.title = 'Vorgänger: Zeilennummer(n) + Typ + Verzug, z.B. "3" (nach Zeile 3), "3SS" (parallel zu Zeile 3), "3FS+2d" (2 Tage Verzug). Siehe Legende.';
     var predMap = buildTaskNumMap();
     predecessorsInput.value = formatPredecessors(task, predMap.idToNum);
     predecessorsInput.addEventListener('change', function () {
       var freshMap = buildTaskNumMap();
       var parsed = parsePredecessors(predecessorsInput.value, task, freshMap.numToId);
-      task.dependsOn = parsed.fs;
-      task.dependsOnParallel = parsed.ss;
+      task.dependencies = parsed;
       predecessorsInput.value = formatPredecessors(task, freshMap.idToNum);
-      parsed.fs.concat(parsed.ss).forEach(function (predId) { applyDependencyConstraints(predId); });
+      parsed.forEach(function (dep) { applyDependencyConstraints(dep.id); });
       save();
       renderAll();
     });
@@ -1107,8 +1200,7 @@ button, input{ font-family:var(--font-family); }
     del.addEventListener('click', function () {
       state.tasks = state.tasks.filter(function (t) { return t.id !== task.id; });
       state.tasks.forEach(function (t) {
-        if (t.dependsOn) t.dependsOn = t.dependsOn.filter(function (id) { return id !== task.id; });
-        if (t.dependsOnParallel) t.dependsOnParallel = t.dependsOnParallel.filter(function (id) { return id !== task.id; });
+        if (t.dependencies) t.dependencies = t.dependencies.filter(function (d) { return d.id !== task.id; });
       });
       save();
       renderAll();
@@ -1430,12 +1522,10 @@ button, input{ font-family:var(--font-family); }
       });
       var targetTask = targetId ? findTask(targetId) : null;
       if (targetTask && targetTask.id !== sourceTask.id) {
-        var listKey = linkType === 'SS' ? 'dependsOnParallel' : 'dependsOn';
-        targetTask[listKey] = targetTask[listKey] || [];
-        var alreadyLinked = (targetTask.dependsOn || []).indexOf(sourceTask.id) !== -1
-          || (targetTask.dependsOnParallel || []).indexOf(sourceTask.id) !== -1;
+        targetTask.dependencies = targetTask.dependencies || [];
+        var alreadyLinked = targetTask.dependencies.some(function (d) { return d.id === sourceTask.id; });
         if (!alreadyLinked && !wouldCreateCycle(sourceTask.id, targetTask.id)) {
-          targetTask[listKey].push(sourceTask.id);
+          targetTask.dependencies.push({ id: sourceTask.id, type: linkType === 'SS' ? 'SS' : 'FS', lag: 0 });
           // cascade() sucht Aufgaben, die von der übergebenen ID ABHÄNGEN — hier also mit der
           // neuen Vorgänger-ID (sourceTask) aufrufen, damit targetTask (der Nachfolger) selbst
           // auf die neue Abhängigkeit geprüft/eingerastet wird.
@@ -1458,20 +1548,17 @@ button, input{ font-family:var(--font-family); }
     var defs = document.createElementNS(SVG_NS, 'defs');
     defs.appendChild(makeArrowMarker('depArrow', 'var(--g400)'));
     defs.appendChild(makeArrowMarker('depArrowParallel', '#8B6FE0'));
+    defs.appendChild(makeArrowMarker('depArrowFF', '#22A699'));
+    defs.appendChild(makeArrowMarker('depArrowSF', '#F2994A'));
     svg.appendChild(defs);
 
     state.tasks.forEach(function (t) {
       var succGeom = taskGeom[t.id];
       if (!succGeom) return;
-      (t.dependsOn || []).forEach(function (predId) {
-        var predGeom = taskGeom[predId];
+      (t.dependencies || []).forEach(function (dep) {
+        var predGeom = taskGeom[dep.id];
         if (!predGeom) return;
-        drawDependencyLine(svg, predGeom, succGeom, predId, t.id, 'FS');
-      });
-      (t.dependsOnParallel || []).forEach(function (predId) {
-        var predGeom = taskGeom[predId];
-        if (!predGeom) return;
-        drawDependencyLine(svg, predGeom, succGeom, predId, t.id, 'SS');
+        drawDependencyLine(svg, predGeom, succGeom, dep.id, t.id, dep.type || 'FS');
       });
     });
 
@@ -1495,9 +1582,11 @@ button, input{ font-family:var(--font-family); }
   }
   function drawDependencyLine(svg, predGeom, succGeom, predId, succId, depType) {
     var TOP_CLEARANCE = 13; // über der Textmitte des Balkens/der Raute andocken, nicht durch die Schrift
-    var x1 = depType === 'SS' ? predGeom.startX : predGeom.endX;
+    // Ankerpunkt am Vorgänger: FS/FF docken an dessen ENDE an, SS/SF an dessen START.
+    // Ankerpunkt am Nachfolger: FS/SS docken an dessen START an, FF/SF an dessen ENDE.
+    var x1 = (depType === 'SS' || depType === 'SF') ? predGeom.startX : predGeom.endX;
     var y1 = predGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
-    var x2 = succGeom.startX;
+    var x2 = (depType === 'FF' || depType === 'SF') ? succGeom.endX : succGeom.startX;
     var y2 = succGeom.rowIndex * ROW_H + ROW_H / 2 - TOP_CLEARANCE;
     // Die Pfeilspitze muss IMMER von links kommend nach rechts zeigen (Leserichtung), auch wenn
     // der Vorgänger-Ankerpunkt weiter rechts liegt als der Nachfolger-Start (wenig/kein Abstand
@@ -1518,10 +1607,12 @@ button, input{ font-family:var(--font-family); }
     hit.setAttribute('class', 'dep-hit');
     g.appendChild(hit);
 
+    var typeClass = { SS: ' dep-path-parallel', FF: ' dep-path-ff', SF: ' dep-path-sf' }[depType] || '';
+    var markerId = { SS: 'depArrowParallel', FF: 'depArrowFF', SF: 'depArrowSF' }[depType] || 'depArrow';
     var visible = document.createElementNS(SVG_NS, 'path');
     visible.setAttribute('d', d);
-    visible.setAttribute('class', 'dep-path' + (depType === 'SS' ? ' dep-path-parallel' : ''));
-    visible.setAttribute('marker-end', 'url(#' + (depType === 'SS' ? 'depArrowParallel' : 'depArrow') + ')');
+    visible.setAttribute('class', 'dep-path' + typeClass);
+    visible.setAttribute('marker-end', 'url(#' + markerId + ')');
     g.appendChild(visible);
 
     g.addEventListener('mouseenter', function () { visible.classList.add('hover'); });
@@ -1529,9 +1620,8 @@ button, input{ font-family:var(--font-family); }
     g.addEventListener('click', function () {
       showConfirm('Abhängigkeit entfernen?', function () {
         var succ = findTask(succId);
-        var listKey = depType === 'SS' ? 'dependsOnParallel' : 'dependsOn';
-        if (succ && succ[listKey]) {
-          succ[listKey] = succ[listKey].filter(function (id) { return id !== predId; });
+        if (succ && succ.dependencies) {
+          succ.dependencies = succ.dependencies.filter(function (d) { return !(d.id === predId && d.type === depType); });
           save();
           renderAll();
         }
@@ -1656,25 +1746,33 @@ button, input{ font-family:var(--font-family); }
   
   function formatPredecessors(task, idToNum) {
     var parts = [];
-    (task.dependsOn || []).forEach(function (id) { var n = idToNum[id]; if (n) parts.push(String(n)); });
-    (task.dependsOnParallel || []).forEach(function (id) { var n = idToNum[id]; if (n) parts.push(n + 'SS'); });
+    (task.dependencies || []).forEach(function (dep) {
+      var n = idToNum[dep.id];
+      if (!n) return;
+      var s = String(n);
+      if (dep.type && dep.type !== 'FS') s += dep.type;
+      if (dep.lag) s += (dep.lag > 0 ? '+' : '') + dep.lag + 'd';
+      parts.push(s);
+    });
     return parts.join(', ');
   }
 
-    function parsePredecessors(text, task, numToId) {
-    var fs = [], ss = [];
+  function parsePredecessors(text, task, numToId) {
+    var deps = [];
+    var seen = {};
     (text || '').split(',').forEach(function (part) {
       part = part.trim();
       if (!part) return;
-      var m = /^(\d+)\s*(SS|FS)?$/i.exec(part);
+      var m = /^(\d+)\s*(FS|SS|FF|SF)?\s*(?:([+-]\d+)\s*d?)?$/i.exec(part);
       if (!m) return;
       var id = numToId[parseInt(m[1], 10)];
       if (!id || id === task.id) return;
-      if (fs.indexOf(id) !== -1 || ss.indexOf(id) !== -1) return;
+      if (seen[id]) return;
       if (wouldCreateCycle(id, task.id)) return;
-      if ((m[2] || 'FS').toUpperCase() === 'SS') ss.push(id); else fs.push(id);
+      seen[id] = true;
+      deps.push({ id: id, type: (m[2] || 'FS').toUpperCase(), lag: m[3] ? parseInt(m[3], 10) : 0 });
     });
-    return { fs: fs, ss: ss };
+    return deps;
   }
 
   
@@ -1687,56 +1785,94 @@ button, input{ font-family:var(--font-family); }
       visited[id] = true;
       var t = findTask(id);
       if (!t) return false;
-      var preds = (t.dependsOn || []).concat(t.dependsOnParallel || []);
-      return preds.some(dfs);
+      return (t.dependencies || []).some(function (dep) { return dfs(dep.id); });
     }
     return dfs(predecessorId);
   }
 
-  // deltaDays: um wie viele Tage sich das ENDE von changedTaskId gerade verschoben hat (positiv =
-  // später, negativ = früher; 0/undefined = keine direkte Verschiebung, z.B. beim erstmaligen
-  // Anlegen einer neuen Abhängigkeit). Folgeaufgaben werden um GENAU dieses Delta mitverschoben,
-  // statt starr an das Vorgänger-Ende gekoppelt zu werden — das erhält eine ggf. bewusst
-  // eingeplante "Pause" zwischen Vorgänger-Ende und Nachfolger-Start (Ann: "wenn ich einen
-  // vorherigen Vorgang kürze, muss der nächste nur um die Anzahl der gekürzten Tage kürzen").
-  // Als Sicherheitsnetz darf ein Nachfolger trotzdem nie vor dem spätesten Vorgänger-Ende
-  // beginnen — verletzt die Verschiebung das, wird stattdessen exakt ans Vorgänger-Ende gekoppelt
-  // (z.B. beim erstmaligen Verknüpfen zweier Aufgaben, wo es noch keine Pause zu erhalten gibt).
+  // Vier MS-Project-Abhängigkeitstypen: FS (Ende-Anfang, Standard), SS (Anfang-Anfang/"parallel"),
+  // FF (Ende-Ende) und SF (Anfang-Ende) — jeweils mit optionalem Verzug/Vorlauf (lag, in Tagen,
+  // negativ = Vorlauf). FS/SS beschränken den START des Nachfolgers, FF/SF dessen ENDE; ein
+  // End-Constraint wird über die (erhaltene) Dauer der Aufgabe in ein äquivalentes Start-Constraint
+  // umgerechnet, sodass am Ende immer nur EIN "frühestmöglicher Start" übrig bleibt.
+  //
+  // startDelta/endDelta: um wie viele Tage sich Start bzw. Ende von changedTaskId gerade
+  // verschoben haben (positiv = später, negativ = früher; 0/undefined = keine direkte
+  // Verschiebung, z.B. beim erstmaligen Anlegen einer neuen Abhängigkeit). FS/FF-Folgeaufgaben
+  // reagieren auf endDelta des Vorgängers, SS/SF-Folgeaufgaben auf startDelta — beide um GENAU
+  // dieses Delta, statt starr gekoppelt zu werden, damit eine ggf. bewusst eingeplante "Pause"
+  // erhalten bleibt (Ann: "wenn ich einen vorherigen Vorgang kürze, muss der nächste nur um die
+  // Anzahl der gekürzten Tage kürzen"). Als Sicherheitsnetz darf ein Nachfolger trotzdem nie vor
+  // dem spätesten errechneten Constraint beginnen — verletzt die Verschiebung das, wird
+  // stattdessen exakt an diesen Wert gekoppelt (z.B. beim erstmaligen Verknüpfen). Landet dieser
+  // Constraint auf ein Wochenende, rückt er zusätzlich auf den nächsten Arbeitstag vor (Mo–Fr) —
+  // genau wie in MS Project.
   function applyDependencyConstraints(changedTaskId, startDelta, endDelta) {
     var visited = {};
     function cascade(taskId, sDelta, eDelta) {
       if (visited[taskId]) return;
       visited[taskId] = true;
       state.tasks.forEach(function (t) {
-        var isFS = t.dependsOn && t.dependsOn.indexOf(taskId) !== -1;
-        var isSS = t.dependsOnParallel && t.dependsOnParallel.indexOf(taskId) !== -1;
-        if (!isFS && !isSS) return;
+        var deps = t.dependencies || [];
+        var matching = deps.filter(function (d) { return d.id === taskId; });
+        if (!matching.length) return;
+
         var oldStart = fromISO(t.start);
         var oldEnd = fromISO(t.end);
-        var delta = isFS ? eDelta : sDelta;
-        var proposedStart = delta ? addDays(oldStart, delta) : oldStart;
-        var minStart = null;
-        (t.dependsOn || []).forEach(function (predId) {
-          var pred = findTask(predId);
-          if (!pred) return;
-          var predEnd = fromISO(pred.end);
-          if (minStart === null || predEnd > minStart) minStart = predEnd;
+        var dur = diffDays(oldEnd, oldStart);
+
+        // Vorschlag: Delta des Vorgängers, der GERADE diese Kaskade ausgelöst hat — passend zum
+        // Beziehungstyp (FS/FF hängen am Vorgänger-Ende, SS/SF an dessen Start).
+        var proposedStart = oldStart;
+        matching.forEach(function (dep) {
+          var delta = (dep.type === 'FS' || dep.type === 'FF') ? eDelta : sDelta;
+          if (delta) {
+            var p = addDays(oldStart, delta);
+            if (p > proposedStart) proposedStart = p;
+          }
         });
-        (t.dependsOnParallel || []).forEach(function (predId) {
-          var pred = findTask(predId);
+
+        // Sicherheitsnetz: ALLE Abhängigkeiten von t frisch auswerten (nicht nur die auslösende),
+        // damit auch unveränderte Vorgänger ihre Grenze weiterhin durchsetzen.
+        var minStart = null, minEnd = null;
+        deps.forEach(function (dep) {
+          var pred = findTask(dep.id);
           if (!pred) return;
-          var predStart = fromISO(pred.start);
-          if (minStart === null || predStart > minStart) minStart = predStart;
+          var lag = dep.lag || 0;
+          if (dep.type === 'FS') {
+            var v = addDays(fromISO(pred.end), lag);
+            if (minStart === null || v > minStart) minStart = v;
+          } else if (dep.type === 'SS') {
+            var v2 = addDays(fromISO(pred.start), lag);
+            if (minStart === null || v2 > minStart) minStart = v2;
+          } else if (dep.type === 'FF') {
+            var v3 = addDays(fromISO(pred.end), lag);
+            if (minEnd === null || v3 > minEnd) minEnd = v3;
+          } else if (dep.type === 'SF') {
+            var v4 = addDays(fromISO(pred.start), lag);
+            if (minEnd === null || v4 > minEnd) minEnd = v4;
+          }
         });
+        // Ende-Constraint (FF/SF) in ein äquivalentes Start-Constraint umrechnen, damit am Ende
+        // nur EIN frühestmöglicher Start übrig bleibt (Dauer bleibt dabei erhalten).
+        var minStartFromEnd = minEnd !== null ? addDays(minEnd, -dur) : null;
+        var effectiveMinStart = minStart;
+        if (minStartFromEnd !== null && (effectiveMinStart === null || minStartFromEnd > effectiveMinStart)) {
+          effectiveMinStart = minStartFromEnd;
+        }
+        // Auf einen Arbeitstag vorrücken, falls die errechnete Grenze auf ein Wochenende fällt.
+        if (effectiveMinStart !== null && !isWorkday(effectiveMinStart)) {
+          while (!isWorkday(effectiveMinStart)) effectiveMinStart = addDays(effectiveMinStart, 1);
+        }
+
         var newStart = proposedStart;
-        if (minStart !== null && newStart < minStart) newStart = minStart;
+        if (effectiveMinStart !== null && newStart < effectiveMinStart) newStart = effectiveMinStart;
         if (newStart.getTime() === oldStart.getTime()) return;
         var shiftDelta = diffDays(newStart, oldStart);
         if (t.milestone) {
           t.start = toISO(newStart);
           t.end = t.start;
         } else {
-          var dur = diffDays(oldEnd, oldStart);
           t.start = toISO(newStart);
           t.end = toISO(addDays(newStart, dur));
         }
@@ -1744,6 +1880,102 @@ button, input{ font-family:var(--font-family); }
       });
     }
     cascade(changedTaskId, startDelta || 0, endDelta || 0);
+  }
+
+  // Kehrfunktion zu addWorkingDays: liefert das Startdatum, dessen workDays-ter Arbeitstag genau
+  // auf "end" fällt (end muss dafür selbst ein Arbeitstag sein — das ist bei allen intern
+  // errechneten Constraints immer der Fall, da sie zuvor auf den nächsten Arbeitstag vorgerückt
+  // werden). Wird nur für FF/SF-Abhängigkeiten gebraucht, um ein End-Constraint wieder in ein
+  // Start-Constraint umzurechnen.
+  function subtractWorkingDays(end, workDays) {
+    var d = midnight(end);
+    while (!isWorkday(d)) d = addDays(d, -1);
+    var count = 1;
+    while (count < workDays) {
+      d = addDays(d, -1);
+      if (isWorkday(d)) count++;
+    }
+    return d;
+  }
+
+  // Reihenfolge, in der Aufgaben terminiert werden können: jede Aufgabe erst NACHDEM alle ihre
+  // Vorgänger bereits einsortiert sind (Tiefensuche über die dependencies-Kanten). Bei einer
+  // (durch die UI eigentlich ausgeschlossenen) zyklischen Abhängigkeit bricht die Rekursion dank
+  // visited-Markierung trotzdem sauber ab, statt sich aufzuhängen.
+  function topoOrderTasks() {
+    var order = [];
+    var visited = {};
+    function visit(t) {
+      if (visited[t.id]) return;
+      visited[t.id] = true;
+      (t.dependencies || []).forEach(function (dep) {
+        var pred = findTask(dep.id);
+        if (pred) visit(pred);
+      });
+      order.push(t);
+    }
+    state.tasks.forEach(visit);
+    return order;
+  }
+
+  // Frühestmöglicher Start einer Aufgabe rein aus ihren Abhängigkeiten (ohne projectStart-Fallback),
+  // nach denselben MS-Project-Regeln wie applyDependencyConstraints: FS/SS-Vorgänger constrainen den
+  // Start direkt, FF/SF-Vorgänger constrainen das Ende und werden über die (Arbeitstage-)Dauer der
+  // Aufgabe in ein äquivalentes Start-Constraint umgerechnet. Gibt null zurück, wenn die Aufgabe
+  // keine (bereits terminierten) Vorgänger hat.
+  function earliestStartFromDeps(t, dur) {
+    var minStart = null, minEnd = null;
+    (t.dependencies || []).forEach(function (dep) {
+      var pred = findTask(dep.id);
+      if (!pred || !pred.start) return;
+      var lag = dep.lag || 0;
+      if (dep.type === 'FS') {
+        var v = addDays(fromISO(pred.end), lag);
+        if (minStart === null || v > minStart) minStart = v;
+      } else if (dep.type === 'SS') {
+        var v2 = addDays(fromISO(pred.start), lag);
+        if (minStart === null || v2 > minStart) minStart = v2;
+      } else if (dep.type === 'FF') {
+        var v3 = addDays(fromISO(pred.end), lag);
+        if (minEnd === null || v3 > minEnd) minEnd = v3;
+      } else if (dep.type === 'SF') {
+        var v4 = addDays(fromISO(pred.start), lag);
+        if (minEnd === null || v4 > minEnd) minEnd = v4;
+      }
+    });
+    var minStartFromEnd = minEnd !== null ? subtractWorkingDays(minEnd, dur) : null;
+    var effectiveMinStart = minStart;
+    if (minStartFromEnd !== null && (effectiveMinStart === null || minStartFromEnd > effectiveMinStart)) {
+      effectiveMinStart = minStartFromEnd;
+    }
+    if (effectiveMinStart !== null && !isWorkday(effectiveMinStart)) {
+      while (!isWorkday(effectiveMinStart)) effectiveMinStart = addDays(effectiveMinStart, 1);
+    }
+    return effectiveMinStart;
+  }
+
+  // MS Projects "Automatisch terminieren": ausgehend von einem gewählten Projektstart werden ALLE
+  // Termine neu berechnet — Aufgaben ohne Vorgänger starten am Projektstart, alle anderen folgen in
+  // Abhängigkeits-Reihenfolge aus ihren Vorgängern (FS/SS/FF/SF + Verzug, Wochenenden werden
+  // übersprungen). Die Dauer jeder Aufgabe (in Arbeitstagen, aus ihrem AKTUELLEN Start/Ende
+  // errechnet) bleibt dabei erhalten — so kann man Dauer und Vorgänger schon vorher festlegen, ohne
+  // sich um die konkreten Kalenderdaten kümmern zu müssen, und hier abschließend in einem Schritt
+  // alle Termine daraus ableiten lassen.
+  function autoScheduleAll(projectStartISO) {
+    var projectStart = midnight(fromISO(projectStartISO));
+    if (!isWorkday(projectStart)) { while (!isWorkday(projectStart)) projectStart = addDays(projectStart, 1); }
+    topoOrderTasks().forEach(function (t) {
+      var dur = t.milestone ? 1 : Math.max(1, countWorkdays(fromISO(t.start), fromISO(t.end)));
+      var earliest = earliestStartFromDeps(t, dur);
+      var newStart = earliest !== null ? earliest : projectStart;
+      if (t.milestone) {
+        t.start = toISO(newStart);
+        t.end = t.start;
+      } else {
+        t.start = toISO(newStart);
+        t.end = toISO(addWorkingDays(newStart, dur));
+      }
+    });
   }
 
   /* ────────────────────────── hover sync ────────────────────────── */
@@ -2640,17 +2872,26 @@ button, input{ font-family:var(--font-family); }
     // läuft vom Vorgänger-ANFANG zum Nachfolger-Anfang, violett/gestrichelt — genau wie im
     // Live-Zeitstrahl, damit Druck und Bildschirm optisch übereinstimmen.
     function pageArrFor(pageIndex) { return pageIndex === pages.length ? cur2 : pages[pageIndex]; }
-    var arrowC = hexToRgbFrac('#C7C7C7');
-    var arrowStrokeOp = arrowC.r.toFixed(3) + ' ' + arrowC.g.toFixed(3) + ' ' + arrowC.b.toFixed(3) + ' RG';
-    var arrowFillOp = arrowC.r.toFixed(3) + ' ' + arrowC.g.toFixed(3) + ' ' + arrowC.b.toFixed(3) + ' rg';
-    var arrowParC = hexToRgbFrac('#8B6FE0');
-    var arrowParStrokeOp = arrowParC.r.toFixed(3) + ' ' + arrowParC.g.toFixed(3) + ' ' + arrowParC.b.toFixed(3) + ' RG';
-    var arrowParFillOp = arrowParC.r.toFixed(3) + ' ' + arrowParC.g.toFixed(3) + ' ' + arrowParC.b.toFixed(3) + ' rg';
+    var ARROW_STYLE = {
+      FS: { hex: '#C7C7C7', dash: null },
+      SS: { hex: '#8B6FE0', dash: '[3 2]' },
+      FF: { hex: '#22A699', dash: '[2 2]' },
+      SF: { hex: '#F2994A', dash: '[1 3]' }
+    };
+    Object.keys(ARROW_STYLE).forEach(function (k) {
+      var c = hexToRgbFrac(ARROW_STYLE[k].hex);
+      ARROW_STYLE[k].strokeOp = c.r.toFixed(3) + ' ' + c.g.toFixed(3) + ' ' + c.b.toFixed(3) + ' RG';
+      ARROW_STYLE[k].fillOp = c.r.toFixed(3) + ' ' + c.g.toFixed(3) + ' ' + c.b.toFixed(3) + ' rg';
+    });
     function drawPdfArrow(pageArr, predGeom, succGeom, depType) {
+      var style = ARROW_STYLE[depType] || ARROW_STYLE.FS;
       var clearance = rowH * 0.28;
-      var x1 = depType === 'SS' ? predGeom.x1 : predGeom.x2;
+      // Ankerpunkt am Vorgänger: FS/FF an dessen ENDE, SS/SF an dessen START.
+      // Ankerpunkt am Nachfolger: FS/SS an dessen START, FF/SF an dessen ENDE.
+      var x1 = (depType === 'SS' || depType === 'SF') ? predGeom.x1 : predGeom.x2;
       var y1 = predGeom.rowTop - clearance;
-      var x2 = succGeom.x1, y2 = succGeom.rowTop - clearance;
+      var x2 = (depType === 'FF' || depType === 'SF') ? succGeom.x2 : succGeom.x1;
+      var y2 = succGeom.rowTop - clearance;
       var arrowSize = Math.max(2, rowH * 0.22);
       // Die Pfeilspitze muss IMMER von links kommend nach rechts zeigen (Leserichtung), auch wenn
       // der Vorgänger-Ankerpunkt weiter rechts liegt als der Nachfolger-Start — sonst wirkt der
@@ -2660,26 +2901,21 @@ button, input{ font-family:var(--font-family); }
       var approachX = x2 - arrowSize;
       var MIN_GAP = Math.max(10, rowH * 0.6);
       var elbowX = (approachX - x1 >= MIN_GAP) ? (x1 + approachX) / 2 : approachX;
-      pageArr.push(depType === 'SS' ? arrowParStrokeOp : arrowStrokeOp);
+      pageArr.push(style.strokeOp);
       pageArr.push('0.75 w');
-      if (depType === 'SS') pageArr.push('[3 2] 0 d');
+      if (style.dash) pageArr.push(style.dash + ' 0 d');
       pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
-      if (depType === 'SS') pageArr.push('[] 0 d');
-      pageArr.push(depType === 'SS' ? arrowParFillOp : arrowFillOp);
+      if (style.dash) pageArr.push('[] 0 d');
+      pageArr.push(style.fillOp);
       pageArr.push(approachX.toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + approachX.toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
     }
     state.tasks.forEach(function (t) {
       var succGeom = pdfTaskGeom[t.id];
       if (!succGeom) return;
-      (t.dependsOn || []).forEach(function (predId) {
-        var predGeom = pdfTaskGeom[predId];
+      (t.dependencies || []).forEach(function (dep) {
+        var predGeom = pdfTaskGeom[dep.id];
         if (!predGeom || predGeom.page !== succGeom.page) return;
-        drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, 'FS');
-      });
-      (t.dependsOnParallel || []).forEach(function (predId) {
-        var predGeom = pdfTaskGeom[predId];
-        if (!predGeom || predGeom.page !== succGeom.page) return;
-        drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, 'SS');
+        drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, dep.type || 'FS');
       });
     });
 
@@ -2806,7 +3042,7 @@ button, input{ font-family:var(--font-family); }
         showConfirm('Diese Datei ist kein gültiges Zeitplan-Format.', function () {}, { okLabel: 'OK', hideCancel: true });
         return;
       }
-      state = parsed;
+      state = migrateDependencies(parsed);
       if (!state.colorBy) state.colorBy = 'phase';
       if (state.listWidth) {
         document.documentElement.style.setProperty('--list-w', Math.max(320, Math.min(900, state.listWidth)) + 'px');
@@ -2863,6 +3099,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'add-milestone') addMilestone(null);
       else if (action === 'add-phase') addPhase();
       else if (action === 'today') scrollToToday();
+      else if (action === 'auto-schedule') openAutoScheduleDialog();
       else if (action === 'export-pdf') exportPDF();
       else if (action === 'print') openPrintPreview();
       else if (action === 'save-file') saveProjectFile();
@@ -2879,6 +3116,17 @@ button, input{ font-family:var(--font-family); }
     fileInputEl.value = '';
   });
 
+
+  var predLegendBtn = document.getElementById('predLegendBtn');
+  var predLegendPanel = document.getElementById('predLegendPanel');
+  if (predLegendBtn && predLegendPanel) {
+    predLegendBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      predLegendPanel.hidden = !predLegendPanel.hidden;
+    });
+    predLegendPanel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { predLegendPanel.hidden = true; });
+  }
 
   /* ────────────────────────── init ────────────────────────── */
   document.querySelectorAll('.zoom-btn[data-zoom]').forEach(function (b) {
