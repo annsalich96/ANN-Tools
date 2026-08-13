@@ -480,6 +480,35 @@ button, input{ font-family:var(--font-family); }
     return Math.round((midnight(a) - midnight(b)) / MS);
   }
   function fmtDE(d) { return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear(); }
+
+  // Arbeitskalender (Mo–Fr): "Dauer" zählt nur Arbeitstage, nicht Kalendertage — 5 Tage Dauer
+  // heißen 5 Arbeitstage, auch wenn dazwischen ein Wochenende liegt (dann sind es entsprechend
+  // mehr Kalendertage). Der Balken im Zeitstrahl selbst zeigt weiterhin den vollen Kalenderzeitraum
+  // (inkl. Wochenende) — nur die Dauer-Zahl/-Eingabe rechnet in Arbeitstagen.
+  function isWorkday(d) { var dow = d.getDay(); return dow !== 0 && dow !== 6; }
+  // Liefert das Datum des workDays-ten Arbeitstags ab start (inklusive) — der Starttag zählt als
+  // Tag 1, wenn er selbst ein Arbeitstag ist; fällt er auf ein Wochenende, rückt er zuerst auf den
+  // nächsten Arbeitstag vor.
+  function addWorkingDays(start, workDays) {
+    var d = midnight(start);
+    while (!isWorkday(d)) d = addDays(d, 1);
+    var count = 1;
+    while (count < workDays) {
+      d = addDays(d, 1);
+      if (isWorkday(d)) count++;
+    }
+    return d;
+  }
+  // Anzahl Arbeitstage zwischen start und end, beide Enden inklusive.
+  function countWorkdays(start, end) {
+    var d = midnight(start), endD = midnight(end);
+    var count = 0;
+    while (d <= endD) {
+      if (isWorkday(d)) count++;
+      d = addDays(d, 1);
+    }
+    return count;
+  }
   function nextMonthBoundary(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 1); }
   function nextYearBoundary(d) { return new Date(d.getFullYear() + 1, 0, 1); }
   function nextDayBoundary(d) { return addDays(d, 1); }
@@ -958,11 +987,11 @@ button, input{ font-family:var(--font-family); }
       if (task.milestone) {
         task.start = startInput.value; task.end = startInput.value;
       } else {
-        // Dauer bleibt erhalten, wenn der Start verschoben wird — das Ende wandert mit,
-        // damit man wahlweise mit konkreten Daten oder mit der Dauer planen kann.
-        var durationDiff = diffDays(fromISO(task.end), oldStart);
+        // Dauer (in Arbeitstagen) bleibt erhalten, wenn der Start verschoben wird — das Ende
+        // wandert mit, damit man wahlweise mit konkreten Daten oder mit der Dauer planen kann.
+        var workDur = countWorkdays(oldStart, fromISO(task.end));
         task.start = startInput.value;
-        task.end = toISO(addDays(newStart, durationDiff));
+        task.end = toISO(addWorkingDays(newStart, workDur));
       }
       // Abhängige Folgeaufgaben werden um genau das Delta verschoben, um das sich Start bzw. Ende
       // DIESER Aufgabe verändert haben — das erhält eine eventuell eingeplante "Pause" zum
@@ -988,21 +1017,23 @@ button, input{ font-family:var(--font-family); }
     });
     el.appendChild(endInput);
 
-    // Alternative Eingabe zum Enddatum: Dauer in Tagen (inkl. Start- und Endtag).
-    // Ändert man die Dauer, wird das Enddatum daraus neu berechnet — und umgekehrt zeigt
-    // das Feld nach jeder Änderung von Start/Ende immer die tatsächlich aktuelle Dauer.
+    // Alternative Eingabe zum Enddatum: Dauer in ARBEITSTAGEN (Mo–Fr, inkl. Start- und Endtag) —
+    // 5 Tage Dauer heißen 5 Arbeitstage, auch wenn dazwischen ein Wochenende liegt (dann sind es
+    // entsprechend mehr Kalendertage bis zum Enddatum). Ändert man die Dauer, wird das Enddatum
+    // daraus neu berechnet — und umgekehrt zeigt das Feld nach jeder Änderung von Start/Ende immer
+    // die tatsächlich aktuelle Arbeitstage-Dauer.
     var durationInput = document.createElement('input');
     durationInput.type = 'number';
     durationInput.min = '1';
     durationInput.className = 'duration-input';
-    durationInput.value = diffDays(fromISO(task.end), fromISO(task.start)) + 1;
-    durationInput.title = 'Dauer in Tagen (inkl. Start- und Endtag) — alternative Eingabe zum Enddatum';
+    durationInput.value = countWorkdays(fromISO(task.start), fromISO(task.end));
+    durationInput.title = 'Dauer in Arbeitstagen (Mo–Fr, inkl. Start- und Endtag) — alternative Eingabe zum Enddatum';
     durationInput.style.visibility = task.milestone ? 'hidden' : 'visible';
     var durationRenderPending = null;
     durationInput.addEventListener('change', function () {
       var dur = Math.max(1, parseInt(durationInput.value, 10) || 1);
       var oldEnd = fromISO(task.end);
-      task.end = toISO(addDays(fromISO(task.start), dur - 1));
+      task.end = toISO(addWorkingDays(fromISO(task.start), dur));
       applyDependencyConstraints(task.id, 0, diffDays(fromISO(task.end), oldEnd));
       save();
       // Die Auf/Ab-Pfeile des Zahlenfelds feuern "change" bei jedem Auto-Repeat-Tick, solange man
@@ -1174,7 +1205,10 @@ button, input{ font-family:var(--font-family); }
           var minStart = row.tasks.reduce(function (m, t) { var s = fromISO(t.start); return s < m ? s : m; }, fromISO(row.tasks[0].start));
           var maxEnd = row.tasks.reduce(function (m, t) { var e = fromISO(t.end); return e > m ? e : m; }, fromISO(row.tasks[0].end));
           var left = diffDays(minStart, range.start) * dayWidth;
-          var width = Math.max(diffDays(maxEnd, minStart) * dayWidth, 4);
+          // +1: Start- und Endtag zählen beide voll mit (inklusive Zeitspanne), sonst würde der
+          // Sammelbalken optisch einen Tag zu kurz enden — dasselbe Prinzip wie beim einzelnen
+          // Aufgaben-Balken weiter unten und im PDF-Export.
+          var width = Math.max((diffDays(maxEnd, minStart) + 1) * dayWidth, 4);
           var rollup = document.createElement('div');
           rollup.className = 'phase-rollup';
           rollup.style.left = left + 'px';
@@ -1239,7 +1273,10 @@ button, input{ font-family:var(--font-family); }
     }
 
     var left = diffDays(fromISO(task.start), range.start) * dayWidth;
-    var width = Math.max(diffDays(fromISO(task.end), fromISO(task.start)) * dayWidth, dayWidth * 0.6);
+    // +1: Start- und Endtag zählen beide voll zur sichtbaren Balkenlänge — ohne das +1 endete der
+    // Balken optisch einen Tag zu früh (deckte den letzten Tag der Aufgabe gar nicht ab), obwohl
+    // Dauer-Feld und PDF-Export den Zeitraum bereits korrekt inklusive rechneten.
+    var width = Math.max((diffDays(fromISO(task.end), fromISO(task.start)) + 1) * dayWidth, dayWidth * 0.6);
 
     var bar = document.createElement('div');
     bar.className = 'bar';
@@ -1498,7 +1535,7 @@ button, input{ font-family:var(--font-family); }
           } else if (mode === 'left') {
             var ns = addDays(origStart, deltaDays);
             if (ns >= origEnd) ns = addDays(origEnd, -1);
-            var w = Math.max(diffDays(origEnd, ns) * dayWidth, dayWidth * 0.6);
+            var w = Math.max((diffDays(origEnd, ns) + 1) * dayWidth, dayWidth * 0.6);
             bar.style.left = (diffDays(ns, range.start) * dayWidth) + 'px';
             bar.style.width = w + 'px';
             bar.dataset.pendingStart = toISO(ns);
@@ -1506,7 +1543,7 @@ button, input{ font-family:var(--font-family); }
           } else if (mode === 'right') {
             var ne = addDays(origEnd, deltaDays);
             if (ne <= origStart) ne = addDays(origStart, 1);
-            var w2 = Math.max(diffDays(ne, origStart) * dayWidth, dayWidth * 0.6);
+            var w2 = Math.max((diffDays(ne, origStart) + 1) * dayWidth, dayWidth * 0.6);
             bar.style.width = w2 + 'px';
             bar.dataset.pendingStart = toISO(origStart);
             bar.dataset.pendingEnd = toISO(ne);
@@ -2603,7 +2640,7 @@ button, input{ font-family:var(--font-family); }
       if (!task.milestone) {
         cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + fmtDE(e) + ') Tj ET');
         tx += dateW;
-        var durDays = diffDays(e, s) + 1;
+        var durDays = countWorkdays(s, e); // Arbeitstage (Mo–Fr), wie im Dauer-Feld der Live-App
         cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + durDays + ') Tj ET');
       }
     });
