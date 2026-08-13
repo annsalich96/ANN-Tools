@@ -161,6 +161,7 @@ button, input{ font-family:var(--font-family); }
   position:sticky; top:0; z-index:10;
 }
 .list-header .col-spacer-lead{ width:14px; flex:0 0 auto; }
+.list-header .col-num{ width:24px; flex:0 0 auto; text-align:right; }
 .list-header .col-spacer-trail{ width:20px; flex:0 0 auto; }
 .list-header .col-name{ flex:1 1 auto; }
 .list-header .col-assignee{ width:110px; text-align:left; }
@@ -330,6 +331,10 @@ button, input{ font-family:var(--font-family); }
   user-select:none; touch-action:none; letter-spacing:-1px;
 }
 .drag-handle:hover{ color:var(--g600); }
+.row-num{
+  width:24px; flex:0 0 24px; text-align:right; padding-right:4px; font-size:11px;
+  color:var(--g400); font-variant-numeric:tabular-nums; align-self:center;
+}
 .phase-row.phase-dragging{
   background:var(--color-white); box-shadow:0 6px 16px rgba(0,0,0,.15); position:relative; z-index:20;
 }
@@ -393,6 +398,7 @@ button, input{ font-family:var(--font-family); }
     <div class="list-col" id="listCol">
       <div class="list-header">
         <div class="col-spacer-lead"></div>
+        <div class="col-num">#</div>
         <div class="col-name">Aufgabe</div>
         <div class="col-assignee">Verantwortlich</div>
         <div class="col-date">Start</div>
@@ -706,13 +712,15 @@ button, input{ font-family:var(--font-family); }
   function buildRows() {
     rebuildAssigneeIndex();
     var rows = [];
+    var taskNum = 0;
     state.phases.forEach(function (phase, idx) {
       var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; })
         .sort(function (a, b) { return fromISO(a.start) - fromISO(b.start); });
       rows.push({ type: 'phase', phase: phase, colorIdx: idx, tasks: phaseTasks });
       if (!phase.collapsed) {
         phaseTasks.forEach(function (task) {
-          rows.push({ type: 'task', task: task, phase: phase, colorIdx: idx });
+          taskNum++;
+          rows.push({ type: 'task', task: task, phase: phase, colorIdx: idx, num: taskNum });
         });
         rows.push({ type: 'add', phase: phase });
       }
@@ -890,6 +898,11 @@ button, input{ font-family:var(--font-family); }
     el.appendChild(taskDragHandle);
     attachTaskDrag(taskDragHandle, el, row);
 
+    var rowNum = document.createElement('span');
+    rowNum.className = 'row-num';
+    rowNum.textContent = row.num;
+    el.appendChild(rowNum);
+
     var status = taskStatus(task);
     var icon = document.createElement('span');
     icon.className = 'status-icon' + (status ? ' ' + status : '');
@@ -937,6 +950,7 @@ button, input{ font-family:var(--font-family); }
     startInput.value = task.start;
     startInput.addEventListener('change', function () {
       var newStart = fromISO(startInput.value);
+      var oldEnd = fromISO(task.end);
       if (task.milestone) {
         task.start = startInput.value; task.end = startInput.value;
       } else {
@@ -947,7 +961,10 @@ button, input{ font-family:var(--font-family); }
         task.start = startInput.value;
         task.end = toISO(addDays(newStart, durationDiff));
       }
-      applyDependencyConstraints(task.id);
+      // Abhängige Folgeaufgaben werden um genau das Delta verschoben, um das sich DIESES Ende
+      // verändert hat — das erhält eine eventuell eingeplante "Pause" zum Nachfolger, statt sie
+      // beim Kürzen/Verlängern auf 0 zu setzen (siehe applyDependencyConstraints).
+      applyDependencyConstraints(task.id, diffDays(fromISO(task.end), oldEnd));
       save();
       renderAll();
     });
@@ -960,8 +977,9 @@ button, input{ font-family:var(--font-family); }
     endInput.addEventListener('change', function () {
       var newEnd = fromISO(endInput.value);
       var start = fromISO(task.start);
+      var oldEnd = fromISO(task.end);
       if (newEnd < start) { task.end = task.start; } else { task.end = endInput.value; }
-      applyDependencyConstraints(task.id);
+      applyDependencyConstraints(task.id, diffDays(fromISO(task.end), oldEnd));
       save();
       renderAll();
     });
@@ -980,8 +998,9 @@ button, input{ font-family:var(--font-family); }
     var durationRenderPending = null;
     durationInput.addEventListener('change', function () {
       var dur = Math.max(1, parseInt(durationInput.value, 10) || 1);
+      var oldEnd = fromISO(task.end);
       task.end = toISO(addDays(fromISO(task.start), dur - 1));
-      applyDependencyConstraints(task.id);
+      applyDependencyConstraints(task.id, diffDays(fromISO(task.end), oldEnd));
       save();
       // Die Auf/Ab-Pfeile des Zahlenfelds feuern "change" bei jedem Auto-Repeat-Tick, solange man
       // sie gedrückt hält — ein volles renderAll() (kompletter DOM-Rebuild von Liste, Zeitstrahl und
@@ -1310,7 +1329,10 @@ button, input{ font-family:var(--font-family); }
         targetTask.dependsOn = targetTask.dependsOn || [];
         if (targetTask.dependsOn.indexOf(sourceTask.id) === -1 && !wouldCreateCycle(sourceTask.id, targetTask.id)) {
           targetTask.dependsOn.push(sourceTask.id);
-          applyDependencyConstraints(targetTask.id);
+          // cascade() sucht Aufgaben, die von der übergebenen ID ABHÄNGEN — hier also mit der
+          // neuen Vorgänger-ID (sourceTask) aufrufen, damit targetTask (der Nachfolger) selbst
+          // auf die neue Abhängigkeit geprüft/eingerastet wird.
+          applyDependencyConstraints(sourceTask.id);
           save();
           renderAll();
         }
@@ -1444,7 +1466,7 @@ button, input{ font-family:var(--font-family); }
             task.end = bar.dataset.pendingEnd;
             delete bar.dataset.pendingStart;
             delete bar.dataset.pendingEnd;
-            applyDependencyConstraints(task.id);
+            applyDependencyConstraints(task.id, diffDays(fromISO(task.end), origEnd));
             save();
             renderAll();
           }
@@ -1485,7 +1507,7 @@ button, input{ font-family:var(--font-family); }
           task.start = dia.dataset.pendingDate;
           task.end = dia.dataset.pendingDate;
           delete dia.dataset.pendingDate;
-          applyDependencyConstraints(task.id);
+          applyDependencyConstraints(task.id, diffDays(fromISO(task.end), origDate));
           save();
           renderAll();
         }
@@ -1514,13 +1536,25 @@ button, input{ font-family:var(--font-family); }
     return dfs(predecessorId);
   }
 
-  function applyDependencyConstraints(changedTaskId) {
+  // deltaDays: um wie viele Tage sich das ENDE von changedTaskId gerade verschoben hat (positiv =
+  // später, negativ = früher; 0/undefined = keine direkte Verschiebung, z.B. beim erstmaligen
+  // Anlegen einer neuen Abhängigkeit). Folgeaufgaben werden um GENAU dieses Delta mitverschoben,
+  // statt starr an das Vorgänger-Ende gekoppelt zu werden — das erhält eine ggf. bewusst
+  // eingeplante "Pause" zwischen Vorgänger-Ende und Nachfolger-Start (Ann: "wenn ich einen
+  // vorherigen Vorgang kürze, muss der nächste nur um die Anzahl der gekürzten Tage kürzen").
+  // Als Sicherheitsnetz darf ein Nachfolger trotzdem nie vor dem spätesten Vorgänger-Ende
+  // beginnen — verletzt die Verschiebung das, wird stattdessen exakt ans Vorgänger-Ende gekoppelt
+  // (z.B. beim erstmaligen Verknüpfen zweier Aufgaben, wo es noch keine Pause zu erhalten gibt).
+  function applyDependencyConstraints(changedTaskId, deltaDays) {
     var visited = {};
-    function cascade(taskId) {
+    function cascade(taskId, delta) {
       if (visited[taskId]) return;
       visited[taskId] = true;
       state.tasks.forEach(function (t) {
         if (!t.dependsOn || t.dependsOn.indexOf(taskId) === -1) return;
+        var oldStart = fromISO(t.start);
+        var oldEnd = fromISO(t.end);
+        var proposedStart = delta ? addDays(oldStart, delta) : oldStart;
         var minStart = null;
         t.dependsOn.forEach(function (predId) {
           var pred = findTask(predId);
@@ -1528,25 +1562,21 @@ button, input{ font-family:var(--font-family); }
           var predEnd = fromISO(pred.end);
           if (minStart === null || predEnd > minStart) minStart = predEnd;
         });
-        if (minStart === null) return;
-        var curStart = fromISO(t.start);
-        // Folgeaufgabe wird immer exakt an das Ende der (spätesten) Vorgänger-Aufgabe gekoppelt —
-        // sowohl nach hinten (Überschneidung) als auch nach vorne (Vorgänger endet jetzt früher),
-        // damit sich der komplette Abhängigkeits-Strang immer mitverschiebt.
-        if (curStart.getTime() !== minStart.getTime()) {
-          if (t.milestone) {
-            t.start = toISO(minStart);
-            t.end = t.start;
-          } else {
-            var dur = diffDays(fromISO(t.end), curStart);
-            t.start = toISO(minStart);
-            t.end = toISO(addDays(minStart, dur));
-          }
-          cascade(t.id);
+        var newStart = proposedStart;
+        if (minStart !== null && newStart < minStart) newStart = minStart;
+        if (newStart.getTime() === oldStart.getTime()) return;
+        if (t.milestone) {
+          t.start = toISO(newStart);
+          t.end = t.start;
+        } else {
+          var dur = diffDays(oldEnd, oldStart);
+          t.start = toISO(newStart);
+          t.end = toISO(addDays(newStart, dur));
         }
+        cascade(t.id, diffDays(newStart, oldStart));
       });
     }
-    cascade(changedTaskId);
+    cascade(changedTaskId, deltaDays || 0);
   }
 
   /* ────────────────────────── hover sync ────────────────────────── */
@@ -2094,12 +2124,12 @@ button, input{ font-family:var(--font-family); }
     // wirkt sich die gewählte Zoomstufe dadurch direkt auf die gedruckte Dichte aus. Bei den
     // Seiten-Passend-Modi wird die Breite ohnehin auf die Seite herunterskaliert; dort bleibt als
     // sichtbarer Zoom-Unterschied vor allem die Kopfzeilen-Granularität (Tag/Woche/Monat).
-    var BASE_DAY_W = zoomCfg.dayWidth, BASE_ROW_H = 14, BASE_NAME_W = 130, BASE_ASSIGNEE_W = 65, BASE_DATE_W = 42, BASE_HEADER_H = 24;
-    var baseLabelW = BASE_NAME_W + BASE_ASSIGNEE_W + 2 * BASE_DATE_W;
+    var BASE_DAY_W = zoomCfg.dayWidth, BASE_ROW_H = 14, BASE_NUM_W = 16, BASE_NAME_W = 130, BASE_ASSIGNEE_W = 65, BASE_DATE_W = 42, BASE_DURATION_W = 30, BASE_HEADER_H = 24;
+    var baseLabelW = BASE_NUM_W + BASE_NAME_W + BASE_ASSIGNEE_W + 2 * BASE_DATE_W + BASE_DURATION_W;
     var naturalW = baseLabelW + days.length * BASE_DAY_W;
     var naturalH = BASE_HEADER_H + rows.length * BASE_ROW_H;
 
-    var FOOTER_H = 16; // reservierter Platz für die Fußzeile am Seitenende
+    var FOOTER_H = 16; // reservierter Platz für die reine Fußzeile (Absender/Seitenzahl) am Seitenende
     var RUNNING_HEADER_H = 18; // reservierter Platz für die wiederholte Kopfzeile ab Seite 2
     var availW = PAGE_W - 2 * MARGIN;
     var availH = PAGE_H - 2 * MARGIN - FOOTER_H;
@@ -2132,22 +2162,57 @@ button, input{ font-family:var(--font-family); }
 
     var dayW = Math.max(0.4, BASE_DAY_W * scaleW);
     var rowH = Math.max(7, BASE_ROW_H * scaleH);
-    var nameW = BASE_NAME_W * scaleH;
-    var assigneeW = BASE_ASSIGNEE_W * scaleH;
     var fontSize = Math.max(4.5, 7.5 * scaleH);
-    // dateW hat (anders als nameW/assigneeW, deren Text sich per pdfTruncate an die verfügbare
-    // Breite anpasst) einen festen Text-Inhalt ("TT.MM.JJJJ", 10 Zeichen) ohne Kürzung — sobald
-    // scaleH klein genug ist, dass fontSize seine Untergrenze (4.5pt) erreicht, schrumpft dateW
-    // normalerweise trotzdem weiter, wodurch Start-/Enddatum sich überlappen. Deshalb bekommt
-    // dateW eine eigene Untergrenze, die an der tatsächlichen (ggf. geflooerten) Schriftgröße hängt.
+    // numW/nameW/dateW/durationW haben (anders als assigneeW, dessen Text sich per pdfTruncate an
+    // die verfügbare Breite anpasst) eigene Untergrenzen, die an der tatsächlichen (ggf.
+    // geflooerten) Schriftgröße hängen: # und Dauer sind kurze Zahlen, Start/Ende ein festes
+    // "TT.MM.JJJJ"-Format ohne Kürzung, Aufgabe soll auch bei starker Kompression noch lesbar
+    // bleiben (nicht auf 1-2 Zeichen zusammenschrumpfen).
+    var numW = Math.max(BASE_NUM_W * scaleH, fontSize * 2.4);
+    var nameW = Math.max(BASE_NAME_W * scaleH, fontSize * 9);
+    var assigneeW = BASE_ASSIGNEE_W * scaleH;
     var dateW = Math.max(BASE_DATE_W * scaleH, fontSize * 5.8);
-    var labelW = nameW + assigneeW + 2 * dateW;
+    var durationW = Math.max(BASE_DURATION_W * scaleH, fontSize * 3);
+    var labelW = numW + nameW + assigneeW + 2 * dateW + durationW;
     var topTierH = Math.max(9, 11 * scaleH);
     var bottomTierH = Math.max(8, 11 * scaleH);
     var headerH = topTierH + bottomTierH;
     var headerFontSize = Math.max(4, 6.5 * scaleH);
     var tickFontSize = Math.max(3.5, 5.5 * scaleH);
     var fullW = labelW + days.length * dayW;
+    // Die Spalten-Untergrenzen oben können labelW breiter machen, als scaleW/scaleH ursprünglich
+    // budgetiert hatten (die wurden mit UNGEFLOORTEN Spaltenbreiten berechnet) — dadurch konnte der
+    // Inhalt bei "An Seite anpassen"/"Optimale Breite" über den rechten Seitenrand hinauslaufen.
+    // Etwaigen Mehrbedarf holt sich die Tagesspaltenbreite zurück, damit die GESAMTBREITE nie
+    // größer wird als availW und der Rand rechts/links erhalten bleibt.
+    // 6pt Sicherheitspuffer: Meilenstein-Raute/Pfeilspitzen können am letzten Tag der Zeitachse
+    // etwas über die reine Spaltenkante hinausragen (halbe Meilenstein-/Pfeilbreite) — der Puffer
+    // stellt sicher, dass dabei nie tatsächlich der rechte Seitenrand überschritten wird.
+    var SAFETY_MARGIN = 6;
+    if (fullW > availW - SAFETY_MARGIN && days.length > 0) {
+      dayW = Math.max(0.4, dayW - (fullW - (availW - SAFETY_MARGIN)) / days.length);
+      fullW = labelW + days.length * dayW;
+    }
+
+    // Legende (Phasen- oder Verantwortlich-Farben) — Höhe VORAB berechnet (gleiche Umbruch-Logik
+    // wie beim eigentlichen Zeichnen weiter unten), damit auf JEDER Seite unten durchgehend Platz
+    // dafür reserviert werden kann (die Legende selbst wird erst nach der letzten Zeile auf der
+    // dann aktuellen/letzten Seite gezeichnet). So bleibt dieser Bereich frei von Gitterlinien,
+    // statt dass diese durch die Legende hindurchlaufen.
+    var legendItems = state.colorBy === 'assignee'
+      ? assigneeOrder.map(function (name, idx) { return { name: name, hex: resolvePhaseHex(idx) }; })
+      : state.phases.map(function (p, idx) { return { name: p.name, hex: resolvePhaseHex(idx) }; });
+    var legendBlockH = 0;
+    if (legendItems.length) {
+      var legendLx0 = MARGIN, legendLines0 = 1;
+      legendItems.forEach(function (item) {
+        var itemW0 = 16 + pdfTruncate(item.name, 30).length * 3.6;
+        if (legendLx0 + itemW0 > MARGIN + availW && legendLx0 > MARGIN) { legendLx0 = MARGIN; legendLines0++; }
+        legendLx0 += itemW0;
+      });
+      legendBlockH = 18 + legendLines0 * 14 + 6;
+    }
+    var FOOTER_RESERVE = FOOTER_H + legendBlockH;
 
     var pages = [], cur2 = [], y, isFirstPage = true;
     var pdfTaskGeom = {};
@@ -2165,20 +2230,23 @@ button, input{ font-family:var(--font-family); }
     function vLine(xx, y1, y2) {
       cur2.push(xx.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + xx.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
     }
-    // Zeichnet die senkrechten Spaltentrenner (Aufgabe/Verantw./Start/Ende/Dauer-Grenze + jeder Tag)
-    // für den Höhenbereich [yTop, yBottom] einer Kopf- oder Datenzeile.
+    // Zeichnet die senkrechten Spaltentrenner (#/Aufgabe/Verantw./Start/Ende/Dauer-Grenzen + jeder
+    // Tag) für den Höhenbereich [yTop, yBottom] einer Kopf- oder Datenzeile.
     function drawColumnGrid(yTop, yBottom) {
       vLine(MARGIN, yTop, yBottom);
-      vLine(MARGIN + nameW, yTop, yBottom);
-      vLine(MARGIN + nameW + assigneeW, yTop, yBottom);
-      vLine(MARGIN + nameW + assigneeW + dateW, yTop, yBottom);
+      vLine(MARGIN + numW, yTop, yBottom);
+      vLine(MARGIN + numW + nameW, yTop, yBottom);
+      vLine(MARGIN + numW + nameW + assigneeW, yTop, yBottom);
+      vLine(MARGIN + numW + nameW + assigneeW + dateW, yTop, yBottom);
+      vLine(MARGIN + numW + nameW + assigneeW + 2 * dateW, yTop, yBottom);
       vLine(MARGIN + labelW, yTop, yBottom);
       for (var i = 0; i <= days.length; i++) vLine(MARGIN + labelW + i * dayW, yTop, yBottom);
     }
     // Zeichnet zusätzlich etwas dunklere Trennlinien an den Grenzen der unteren Kopfzeilen-Ebene
     // (Wochen in der Monatsansicht, Monate in der Jahresansicht) — damit sich diese Blöcke beim
-    // Scannen der Balken klar von den normalen (helleren) Tagesspalten abheben. Bei der Wochenansicht
-    // wäre die untere Ebene jeder einzelne Tag — dort bringt die Hervorhebung nichts und wird ausgelassen.
+    // Scannen der Balken klar von den normalen (helleren) Tagesspalten abheben, auch über die
+    // Kategorie-/Phasenzeilen hinweg. Bei der Wochenansicht wäre die untere Ebene jeder einzelne
+    // Tag — dort bringt die Hervorhebung nichts und wird ausgelassen.
     function drawTierBoundaries(yTop, yBottom) {
       if (state.zoom === 'week') return;
       cur2.push(tierColorOp);
@@ -2205,7 +2273,7 @@ button, input{ font-family:var(--font-family); }
       var bottomY = y - headerH;
 
       // Hintergrund + Gitterlinien ZUERST — sonst verdecken die Linien die Monats-/Wochen-/
-      // "Aufgabe"-Beschriftung, die weiter unten darüber gemalt wird (gleiches Prinzip wie bei
+      // Spalten-Beschriftung, die weiter unten darüber gemalt wird (gleiches Prinzip wie bei
       // den Datenzeilen: Linien immer hinter dem Inhalt).
       cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + bottomY.toFixed(2) + ' ' + fullW.toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
       hLine(MARGIN, MARGIN + fullW, headerTop);
@@ -2236,7 +2304,17 @@ button, input{ font-family:var(--font-family); }
         bx += bw; bcur = bnext;
       }
 
-      cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (bottomY + 3).toFixed(2) + ' Tm (Aufgabe) Tj ET');
+      var headerCols = [
+        { x: 0, label: '#' },
+        { x: numW, label: 'Aufgabe' },
+        { x: numW + nameW, label: 'Verantw.' },
+        { x: numW + nameW + assigneeW, label: 'Start' },
+        { x: numW + nameW + assigneeW + dateW, label: 'Ende' },
+        { x: numW + nameW + assigneeW + 2 * dateW, label: 'Dauer' }
+      ];
+      headerCols.forEach(function (col) {
+        cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + col.x + 2).toFixed(2) + ' ' + (bottomY + 3).toFixed(2) + ' Tm (' + pdfEsc(col.label) + ') Tj ET');
+      });
       y = bottomY;
     }
 
@@ -2253,32 +2331,60 @@ button, input{ font-family:var(--font-family); }
       if (isFirstPage) {
         cur2.push('0 0 0 rg');
         cur2.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + (y - 12) + ' Tm (' + pdfEsc(title) + ') Tj ET');
+        // Logo oben rechts im Kopf, oben/unten bündig mit der 13pt-Titelzeile (deren Zeilenhöhe
+        // hier 16pt beträgt, von y bis y-16) — darunter rechtsbündig der Studio-Schriftzug.
+        var headerLogoH = 16, headerLogoW = headerLogoH * (PDF_LOGO_W / PDF_LOGO_H);
+        var headerLogoX = PAGE_W - MARGIN - headerLogoW, headerLogoY = y - headerLogoH;
+        cur2.push('q ' + headerLogoW.toFixed(2) + ' 0 0 ' + headerLogoH.toFixed(2) + ' ' + headerLogoX.toFixed(2) + ' ' + headerLogoY.toFixed(2) + ' cm /Logo Do Q');
+        cur2.push('0.6 0.6 0.6 rg');
+        var studioLine = 'AN(N) ARCHITECTURE SOLUTION';
+        var studioLineW = studioLine.length * 3.0;
+        cur2.push('BT /F2 6 Tf 1 0 0 1 ' + (PAGE_W - MARGIN - studioLineW).toFixed(2) + ' ' + (headerLogoY - 8).toFixed(2) + ' Tm (' + pdfEsc(studioLine) + ') Tj ET');
+        cur2.push('0 0 0 rg');
         y -= 16;
         if (state.projectSubtitle) {
           cur2.push('BT /F1 8 Tf 1 0 0 1 ' + MARGIN + ' ' + (y - 8) + ' Tm (' + pdfEsc(state.projectSubtitle) + ') Tj ET');
+          // Erstellungsdatum direkt rechts neben dem Bauvorhaben/Untertitel — Position hängt von
+          // dessen tatsächlicher (fest 8pt, nicht mit scaleH skalierter) Textbreite ab, NICHT von
+          // labelW: labelW kann bei starker Kompression schmaler sein als der Untertitel selbst,
+          // was sonst zu einer Überlappung zwischen Untertitel und Datum führen konnte.
+          // 5.6pt/Zeichen statt der üblichen ~4.4pt-Faustregel: Bauvorhaben-Untertitel sind bei
+          // Ann durchgehend GROSSBUCHSTABEN (z.B. "KANT CENTER PARKHAUS"), die in Helvetica
+          // spürbar breiter laufen als eine gemischte Groß-/Kleinschreibung — mit dem normalen
+          // Schätzwert lag das Datum bei solchen Untertiteln noch spürbar zu weit links.
+          var subtitleW = pdfEsc(state.projectSubtitle).length * 5.6;
+          cur2.push('0.6 0.6 0.6 rg');
+          var createdLabel = 'Erstellt am ' + fmtDE(new Date());
+          cur2.push('BT /F1 8 Tf 1 0 0 1 ' + (MARGIN + subtitleW + 14).toFixed(2) + ' ' + (y - 8).toFixed(2) + ' Tm (' + pdfEsc(createdLabel) + ') Tj ET');
+          cur2.push('0 0 0 rg');
           y -= 14;
         }
         y -= 6;
         isFirstPage = false;
       } else {
-        // laufende Kopfzeile auf jeder weiteren Seite
+        // laufende Kopfzeile auf jeder weiteren Seite, inkl. kleinerem Logo für durchgehende Markenpräsenz.
         cur2.push('0 0 0 rg');
         cur2.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (y - 9).toFixed(2) + ' Tm (' + pdfEsc(title) + ') Tj ET');
+        var runLogoH = RUNNING_HEADER_H, runLogoW = runLogoH * (PDF_LOGO_W / PDF_LOGO_H);
+        cur2.push('q ' + runLogoW.toFixed(2) + ' 0 0 ' + runLogoH.toFixed(2) + ' ' + (PAGE_W - MARGIN - runLogoW).toFixed(2) + ' ' + (y - RUNNING_HEADER_H).toFixed(2) + ' cm /Logo Do Q');
         y -= RUNNING_HEADER_H;
       }
       var pageTop = y;
       drawDateHeader();
       // Senkrechte Spaltentrenner EINMAL über die gesamte nutzbare Höhe der Seite ziehen, statt
       // (wie zuvor) pro Zeile neu — bei vielen Zeilen und/oder einem großen Datumsbereich erzeugte
-      // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs.
-      drawColumnGrid(y, MARGIN + FOOTER_H);
+      // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs. Der
+      // untere Rand ist MARGIN+FOOTER_RESERVE (nicht nur FOOTER_H), damit der für die Legende
+      // reservierte Bereich am Fuß frei von Gitterlinien bleibt.
+      drawColumnGrid(y, MARGIN + FOOTER_RESERVE);
       // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
-      // GESAMTE Seitenhöhe inkl. Kopfzeile, damit die Blöcke auch dort klar erkennbar bleiben.
-      drawTierBoundaries(pageTop, MARGIN + FOOTER_H);
+      // GESAMTE Seitenhöhe inkl. Kopfzeile, damit die Blöcke auch dort (und über die
+      // Kategorie-/Phasenzeilen hinweg) klar erkennbar bleiben.
+      drawTierBoundaries(pageTop, MARGIN + FOOTER_RESERVE);
       pageBounds.push({ top: y, bottom: y });
     }
 
-    function ensureSpace() { if (y - rowH < MARGIN + FOOTER_H) newPage(); }
+    function ensureSpace() { if (y - rowH < MARGIN + FOOTER_RESERVE) newPage(); }
 
     newPage();
 
@@ -2322,13 +2428,20 @@ button, input{ font-family:var(--font-family); }
       var tx = MARGIN;
       var textY = (rowTop - rowH * 0.7).toFixed(2);
       cur2.push('0 0 0 rg');
+      cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + row.num + ') Tj ET');
+      tx += numW;
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + pdfEsc(pdfTruncate(task.name, Math.max(6, Math.floor(nameW / (fontSize * 0.55))))) + ') Tj ET');
       tx += nameW;
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + pdfEsc(pdfTruncate(task.assignee || '', Math.max(4, Math.floor(assigneeW / (fontSize * 0.55))))) + ') Tj ET');
       tx += assigneeW;
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + fmtDE(s) + ') Tj ET');
       tx += dateW;
-      if (!task.milestone) cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + fmtDE(e) + ') Tj ET');
+      if (!task.milestone) {
+        cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + fmtDE(e) + ') Tj ET');
+        tx += dateW;
+        var durDays = diffDays(e, s) + 1;
+        cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + durDays + ') Tj ET');
+      }
     });
     pageBounds[pageBounds.length - 1].bottom = y;
 
@@ -2379,56 +2492,38 @@ button, input{ font-family:var(--font-family); }
       });
     });
 
-    // Legende (Phasen- oder Verantwortlich-Farben) — unten auf der Seite verankert, direkt über der
-    // Fußzeile, statt direkt unter der letzten Zeile zu hängen (ließ sonst oft viel Weißraum
-    // zwischen Legende und Fußzeile, je nachdem wie voll die letzte Seite war).
-    var legendItems = state.colorBy === 'assignee'
-      ? assigneeOrder.map(function (name, idx) { return { name: name, hex: resolvePhaseHex(idx) }; })
-      : state.phases.map(function (p, idx) { return { name: p.name, hex: resolvePhaseHex(idx) }; });
+    // Legende — einmal, in der bereits (siehe FOOTER_RESERVE oben) reservierten Fläche direkt über
+    // der Fußzeile der zu diesem Zeitpunkt aktuellen (= letzten) Seite. Da der Platz dafür auf
+    // JEDER Seite gleich reserviert wurde, ist hier garantiert genug Raum, keine dynamische
+    // Seitenumbruch-Prüfung während des Zeichnens mehr nötig.
     if (legendItems.length) {
-      // Zeilenzahl der Legende vorab mit derselben Umbruch-Logik wie beim eigentlichen Zeichnen
-      // ermitteln, um die Starthöhe so zu berechnen, dass die Legende exakt am Fuß der Seite endet.
-      var legendLx = MARGIN, legendLines = 1;
-      legendItems.forEach(function (item) {
-        var itemW = 16 + pdfTruncate(item.name, 30).length * 3.6;
-        if (legendLx + itemW > MARGIN + availW && legendLx > MARGIN) { legendLx = MARGIN; legendLines++; }
-        legendLx += itemW;
-      });
-      var legendBlockH = 18 + legendLines * 14 + 6;
-      var legendStartY = MARGIN + FOOTER_H + legendBlockH;
-      if (y < legendStartY) newPage();
-      y = legendStartY;
+      var legendY = MARGIN + FOOTER_H + legendBlockH;
       cur2.push('0 0 0 rg');
-      cur2.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (y - 10).toFixed(2) + ' Tm (' + pdfEsc(state.colorBy === 'assignee' ? 'Verantwortlich' : 'Phasen/Kategorien') + ') Tj ET');
-      y -= 18;
-      var lx = MARGIN, ly = y;
+      cur2.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (legendY - 10).toFixed(2) + ' Tm (' + pdfEsc(state.colorBy === 'assignee' ? 'Verantwortlich' : 'Phasen/Kategorien') + ') Tj ET');
+      var lx = MARGIN, ly = legendY - 18;
       legendItems.forEach(function (item) {
         var label = pdfTruncate(item.name, 30);
         var itemW = 16 + label.length * 3.6;
         if (lx + itemW > MARGIN + availW && lx > MARGIN) { lx = MARGIN; ly -= 14; }
-        if (ly - 12 < MARGIN + FOOTER_H) { newPage(); lx = MARGIN; ly = y; }
         cur2.push(colorOp(item.hex) + ' rg ' + lx.toFixed(2) + ' ' + (ly - 8).toFixed(2) + ' 8.00 8.00 re f');
         cur2.push('0 0 0 rg');
         cur2.push('BT /F1 7.5 Tf 1 0 0 1 ' + (lx + 12).toFixed(2) + ' ' + (ly - 7).toFixed(2) + ' Tm (' + pdfEsc(label) + ') Tj ET');
         lx += itemW;
       });
-      y = ly - 16;
     }
 
     pages.push(cur2);
 
-    // Fußzeile auf jeder Seite: Studio-Absender links, Seitenzahl + Logo rechts — erst jetzt
-    // möglich, da die Gesamt-Seitenzahl vorher nicht feststand.
+    // Fußzeile auf jeder Seite: Studio-Absender links, Seitenzahl rechts — erst jetzt möglich,
+    // da die Gesamt-Seitenzahl vorher nicht feststand. Das Logo sitzt jetzt im Kopf, nicht mehr
+    // hier, daher braucht die Seitenzahl keinen Platz mehr dafür freizuhalten.
     var footerY = MARGIN - 4 >= 6 ? MARGIN - 4 : MARGIN * 0.5;
-    var logoH = 9, logoW = logoH * (PDF_LOGO_W / PDF_LOGO_H);
-    var logoX = PAGE_W - MARGIN - logoW, logoY = footerY - 2;
     pages.forEach(function (pageArr, idx) {
       pageArr.push('0.6 0.6 0.6 rg');
       pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (An(n) Architecture Solution) Tj ET');
       var pageLabel = 'Seite ' + (idx + 1) + ' von ' + pages.length;
       var pageLabelW = pageLabel.length * 3.6;
-      pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + (logoX - 8 - pageLabelW).toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (' + pageLabel + ') Tj ET');
-      pageArr.push('q ' + logoW.toFixed(2) + ' 0 0 ' + logoH.toFixed(2) + ' ' + logoX.toFixed(2) + ' ' + logoY.toFixed(2) + ' cm /Logo Do Q');
+      pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + (PAGE_W - MARGIN - pageLabelW).toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (' + pageLabel + ') Tj ET');
     });
 
     var n = pages.length;
@@ -2467,7 +2562,6 @@ button, input{ font-family:var(--font-family); }
     out += 'trailer\n<< /Size ' + (maxId + 1) + ' /Root ' + catalogId + ' 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';
     return out;
   }
-
   function buildGanttPDFBytes(settings) {
     var pdfText = buildGanttPDF(settings);
     var bytes = new Uint8Array(pdfText.length);
