@@ -148,7 +148,12 @@ button, input{ font-family:var(--font-family); }
    mehr möglich). Horizontal bleibt ausschließlich der Zeitstrahl (.timeline-body) scrollbar. */
 .board{ flex:1 1 auto; min-height:0; display:flex; overflow-y:auto; overflow-x:hidden; }
 
-.list-col{ width:var(--list-w); flex:0 0 var(--list-w); display:flex; flex-direction:column; min-width:0; overflow-x:hidden; overflow-y:visible; }
+/* overflow-x:hidden + overflow-y:visible würde der Browser automatisch zu overflow-y:auto
+   hochstufen (CSS-Spezialfall: "visible" auf einer Achse wird erzwungen zu "auto", wenn die
+   andere Achse nicht "visible" ist) — dadurch würde .list-col wieder ein eigener, unabhängig
+   scrollbarer Container. overflow-x:clip klemmt die Breite genauso ab, ohne diese Hochstufung
+   auszulösen, sodass NUR .board (siehe dort) vertikal scrollt. */
+.list-col{ width:var(--list-w); flex:0 0 var(--list-w); display:flex; flex-direction:column; min-width:0; overflow-x:clip; overflow-y:visible; }
 .list-header{
   flex:0 0 auto; display:flex; align-items:center; height:56px; gap:8px;
   padding:0 var(--space-4) 0 var(--space-6); border-bottom:1px solid var(--g200); background:var(--g100);
@@ -549,7 +554,17 @@ button, input{ font-family:var(--font-family); }
   function monthLabel(d) { return MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
   function yearLabel(d) { return String(d.getFullYear()); }
   function monthOnlyLabel(d) { return MONTHS[d.getMonth()]; }
-  function weekLabel(d) { return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.'; }
+  // ISO-8601-Kalenderwoche: die Woche, die den Donnerstag enthält, bestimmt Jahr/Wochennummer.
+  function isoWeekNumber(d) {
+    var target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var dayNr = (target.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    var firstThursday = target.valueOf();
+    target.setMonth(0, 1);
+    if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+    return 1 + Math.ceil((firstThursday - target) / 604800000);
+  }
+  function weekLabel(d) { return 'KW' + pad2(isoWeekNumber(d)); }
   function dayLabel(d) { return { main: pad2(d.getDate()), sub: WEEKDAYS[d.getDay()] }; }
 
   var PHASE_COLORS = ['var(--phase-1)', 'var(--phase-2)', 'var(--phase-3)', 'var(--phase-4)', 'var(--phase-5)', 'var(--phase-6)', 'var(--phase-7)', 'var(--phase-8)', 'var(--phase-9)', 'var(--phase-10)', 'var(--phase-11)', 'var(--phase-12)'];
@@ -2034,6 +2049,11 @@ button, input{ font-family:var(--font-family); }
   /* Echter PDF-Export des Gantt-Charts (kein window.print(), kein Popup) */
   var PDF_PAPER_PT = { a4: { w: 595, h: 842 }, a3: { w: 842, h: 1191 }, letter: { w: 612, h: 792 } };
   var MM_TO_PT = 2.8346;
+  // Logo für die PDF-Fußzeile (rechts unten) — als JPEG mit weißem statt transparentem
+  // Hintergrund eingebettet (PDF-DCTDecode kann JPEG-Bytes direkt aufnehmen, ohne die
+  // PNG-eigene Filterung/Alpha-Kanal-Logik von Hand nachbauen zu müssen).
+  var PDF_LOGO_W = 400, PDF_LOGO_H = 174;
+  var PDF_LOGO_JPEG_B64 = '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';
 
   function hexToRgbFrac(hex) {
     hex = String(hex || '').replace('#', '').trim();
@@ -2069,7 +2089,12 @@ button, input{ font-family:var(--font-family); }
     var zoomCfg = ZOOMS[state.zoom] || ZOOMS.month;
     var title = state.projectTitle || 'Zeitplan';
 
-    var BASE_DAY_W = 10, BASE_ROW_H = 14, BASE_NAME_W = 130, BASE_ASSIGNEE_W = 65, BASE_DATE_W = 42, BASE_HEADER_H = 24;
+    // BASE_DAY_W übernimmt die Tagesbreite der aktuell gewählten Live-Zoomstufe (Woche/Monat/Jahr)
+    // als Ausgangswert, statt fest auf 10pt zu stehen — bei "Normal (100%)"/"Benutzerdefiniert %"
+    // wirkt sich die gewählte Zoomstufe dadurch direkt auf die gedruckte Dichte aus. Bei den
+    // Seiten-Passend-Modi wird die Breite ohnehin auf die Seite herunterskaliert; dort bleibt als
+    // sichtbarer Zoom-Unterschied vor allem die Kopfzeilen-Granularität (Tag/Woche/Monat).
+    var BASE_DAY_W = zoomCfg.dayWidth, BASE_ROW_H = 14, BASE_NAME_W = 130, BASE_ASSIGNEE_W = 65, BASE_DATE_W = 42, BASE_HEADER_H = 24;
     var baseLabelW = BASE_NAME_W + BASE_ASSIGNEE_W + 2 * BASE_DATE_W;
     var naturalW = baseLabelW + days.length * BASE_DAY_W;
     var naturalH = BASE_HEADER_H + rows.length * BASE_ROW_H;
@@ -2109,12 +2134,17 @@ button, input{ font-family:var(--font-family); }
     var rowH = Math.max(7, BASE_ROW_H * scaleH);
     var nameW = BASE_NAME_W * scaleH;
     var assigneeW = BASE_ASSIGNEE_W * scaleH;
-    var dateW = BASE_DATE_W * scaleH;
+    var fontSize = Math.max(4.5, 7.5 * scaleH);
+    // dateW hat (anders als nameW/assigneeW, deren Text sich per pdfTruncate an die verfügbare
+    // Breite anpasst) einen festen Text-Inhalt ("TT.MM.JJJJ", 10 Zeichen) ohne Kürzung — sobald
+    // scaleH klein genug ist, dass fontSize seine Untergrenze (4.5pt) erreicht, schrumpft dateW
+    // normalerweise trotzdem weiter, wodurch Start-/Enddatum sich überlappen. Deshalb bekommt
+    // dateW eine eigene Untergrenze, die an der tatsächlichen (ggf. geflooerten) Schriftgröße hängt.
+    var dateW = Math.max(BASE_DATE_W * scaleH, fontSize * 5.8);
     var labelW = nameW + assigneeW + 2 * dateW;
     var topTierH = Math.max(9, 11 * scaleH);
     var bottomTierH = Math.max(8, 11 * scaleH);
     var headerH = topTierH + bottomTierH;
-    var fontSize = Math.max(4.5, 7.5 * scaleH);
     var headerFontSize = Math.max(4, 6.5 * scaleH);
     var tickFontSize = Math.max(3.5, 5.5 * scaleH);
     var fullW = labelW + days.length * dayW;
@@ -2128,6 +2158,7 @@ button, input{ font-family:var(--font-family); }
     }
 
     var gridColorOp = (function () { var c = hexToRgbFrac('#E2E2E2'); return c.r.toFixed(3) + ' ' + c.g.toFixed(3) + ' ' + c.b.toFixed(3) + ' RG'; })();
+    var tierColorOp = (function () { var c = hexToRgbFrac('#AFAFAF'); return c.r.toFixed(3) + ' ' + c.g.toFixed(3) + ' ' + c.b.toFixed(3) + ' RG'; })();
     function hLine(x1, x2, yy) {
       cur2.push(x1.toFixed(2) + ' ' + yy.toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + yy.toFixed(2) + ' l S');
     }
@@ -2144,6 +2175,25 @@ button, input{ font-family:var(--font-family); }
       vLine(MARGIN + labelW, yTop, yBottom);
       for (var i = 0; i <= days.length; i++) vLine(MARGIN + labelW + i * dayW, yTop, yBottom);
     }
+    // Zeichnet zusätzlich etwas dunklere Trennlinien an den Grenzen der unteren Kopfzeilen-Ebene
+    // (Wochen in der Monatsansicht, Monate in der Jahresansicht) — damit sich diese Blöcke beim
+    // Scannen der Balken klar von den normalen (helleren) Tagesspalten abheben. Bei der Wochenansicht
+    // wäre die untere Ebene jeder einzelne Tag — dort bringt die Hervorhebung nichts und wird ausgelassen.
+    function drawTierBoundaries(yTop, yBottom) {
+      if (state.zoom === 'week') return;
+      cur2.push(tierColorOp);
+      cur2.push('0.5 w');
+      var bx = 0, bcur = new Date(range.start);
+      while (bcur < range.end) {
+        vLine(MARGIN + labelW + bx, yTop, yBottom);
+        var bnext = zoomCfg.bottomBoundary(bcur);
+        if (bnext > range.end) bnext = range.end;
+        bx += diffDays(bnext, bcur) * dayW;
+        bcur = bnext;
+      }
+      cur2.push(gridColorOp);
+      cur2.push('0.25 w');
+    }
 
     // Zeitachsen-Kopf mit zwei Ebenen, exakt wie im Live-Zoom gewählt (Woche/Monat/Jahr) —
     // obere Ebene = zoomCfg.topLabel (z.B. Monat/Jahr), untere Ebene = zoomCfg.bottomLabel
@@ -2152,7 +2202,16 @@ button, input{ font-family:var(--font-family); }
     function drawDateHeader() {
       var headerTop = y;
       var midY = y - topTierH;
-      cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - headerH).toFixed(2) + ' ' + fullW.toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
+      var bottomY = y - headerH;
+
+      // Hintergrund + Gitterlinien ZUERST — sonst verdecken die Linien die Monats-/Wochen-/
+      // "Aufgabe"-Beschriftung, die weiter unten darüber gemalt wird (gleiches Prinzip wie bei
+      // den Datenzeilen: Linien immer hinter dem Inhalt).
+      cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + bottomY.toFixed(2) + ' ' + fullW.toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
+      hLine(MARGIN, MARGIN + fullW, headerTop);
+      hLine(MARGIN, MARGIN + fullW, midY);
+      hLine(MARGIN, MARGIN + fullW, bottomY);
+      drawColumnGrid(headerTop, bottomY);
       cur2.push('0 0 0 rg');
 
       var tx = 0, tcur = new Date(range.start);
@@ -2172,17 +2231,13 @@ button, input{ font-family:var(--font-family); }
         if (bw > 9) {
           var lbl = zoomCfg.bottomLabel(bcur);
           var text = typeof lbl === 'object' ? lbl.main : lbl;
-          cur2.push('BT /F1 ' + tickFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + labelW + bx + 2).toFixed(2) + ' ' + (y - headerH + 3).toFixed(2) + ' Tm (' + pdfEsc(String(text)) + ') Tj ET');
+          cur2.push('BT /F1 ' + tickFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + labelW + bx + 2).toFixed(2) + ' ' + (bottomY + 3).toFixed(2) + ' Tm (' + pdfEsc(String(text)) + ') Tj ET');
         }
         bx += bw; bcur = bnext;
       }
 
-      cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y - headerH + 3).toFixed(2) + ' Tm (Aufgabe) Tj ET');
-      y -= headerH;
-      hLine(MARGIN, MARGIN + fullW, headerTop);
-      hLine(MARGIN, MARGIN + fullW, midY);
-      hLine(MARGIN, MARGIN + fullW, y);
-      drawColumnGrid(headerTop, y);
+      cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (bottomY + 3).toFixed(2) + ' Tm (Aufgabe) Tj ET');
+      y = bottomY;
     }
 
     var pageBounds = []; // {top, bottom} je Seite — für die "Heute"-Linie über die volle Zeilenhöhe der Seite
@@ -2193,7 +2248,7 @@ button, input{ font-family:var(--font-family); }
       }
       cur2 = [];
       cur2.push(gridColorOp);
-      cur2.push('0.5 w');
+      cur2.push('0.25 w');
       y = PAGE_H - MARGIN;
       if (isFirstPage) {
         cur2.push('0 0 0 rg');
@@ -2211,11 +2266,15 @@ button, input{ font-family:var(--font-family); }
         cur2.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (y - 9).toFixed(2) + ' Tm (' + pdfEsc(title) + ') Tj ET');
         y -= RUNNING_HEADER_H;
       }
+      var pageTop = y;
       drawDateHeader();
       // Senkrechte Spaltentrenner EINMAL über die gesamte nutzbare Höhe der Seite ziehen, statt
       // (wie zuvor) pro Zeile neu — bei vielen Zeilen und/oder einem großen Datumsbereich erzeugte
       // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs.
       drawColumnGrid(y, MARGIN + FOOTER_H);
+      // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
+      // GESAMTE Seitenhöhe inkl. Kopfzeile, damit die Blöcke auch dort klar erkennbar bleiben.
+      drawTierBoundaries(pageTop, MARGIN + FOOTER_H);
       pageBounds.push({ top: y, bottom: y });
     }
 
@@ -2320,12 +2379,25 @@ button, input{ font-family:var(--font-family); }
       });
     });
 
-    // Legende (Phasen- oder Verantwortlich-Farben) am Ende des Inhalts, mehrzeilig falls nötig.
+    // Legende (Phasen- oder Verantwortlich-Farben) — unten auf der Seite verankert, direkt über der
+    // Fußzeile, statt direkt unter der letzten Zeile zu hängen (ließ sonst oft viel Weißraum
+    // zwischen Legende und Fußzeile, je nachdem wie voll die letzte Seite war).
     var legendItems = state.colorBy === 'assignee'
       ? assigneeOrder.map(function (name, idx) { return { name: name, hex: resolvePhaseHex(idx) }; })
       : state.phases.map(function (p, idx) { return { name: p.name, hex: resolvePhaseHex(idx) }; });
     if (legendItems.length) {
-      if (y - 30 < MARGIN + FOOTER_H) newPage();
+      // Zeilenzahl der Legende vorab mit derselben Umbruch-Logik wie beim eigentlichen Zeichnen
+      // ermitteln, um die Starthöhe so zu berechnen, dass die Legende exakt am Fuß der Seite endet.
+      var legendLx = MARGIN, legendLines = 1;
+      legendItems.forEach(function (item) {
+        var itemW = 16 + pdfTruncate(item.name, 30).length * 3.6;
+        if (legendLx + itemW > MARGIN + availW && legendLx > MARGIN) { legendLx = MARGIN; legendLines++; }
+        legendLx += itemW;
+      });
+      var legendBlockH = 18 + legendLines * 14 + 6;
+      var legendStartY = MARGIN + FOOTER_H + legendBlockH;
+      if (y < legendStartY) newPage();
+      y = legendStartY;
       cur2.push('0 0 0 rg');
       cur2.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (y - 10).toFixed(2) + ' Tm (' + pdfEsc(state.colorBy === 'assignee' ? 'Verantwortlich' : 'Phasen/Kategorien') + ') Tj ET');
       y -= 18;
@@ -2345,15 +2417,18 @@ button, input{ font-family:var(--font-family); }
 
     pages.push(cur2);
 
-    // Fußzeile auf jeder Seite: Studio-Absender links, Seitenzahl rechts — erst jetzt möglich,
-    // da die Gesamt-Seitenzahl vorher nicht feststand.
+    // Fußzeile auf jeder Seite: Studio-Absender links, Seitenzahl + Logo rechts — erst jetzt
+    // möglich, da die Gesamt-Seitenzahl vorher nicht feststand.
     var footerY = MARGIN - 4 >= 6 ? MARGIN - 4 : MARGIN * 0.5;
+    var logoH = 9, logoW = logoH * (PDF_LOGO_W / PDF_LOGO_H);
+    var logoX = PAGE_W - MARGIN - logoW, logoY = footerY - 2;
     pages.forEach(function (pageArr, idx) {
       pageArr.push('0.6 0.6 0.6 rg');
       pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (An(n) Architecture Solution) Tj ET');
       var pageLabel = 'Seite ' + (idx + 1) + ' von ' + pages.length;
       var pageLabelW = pageLabel.length * 3.6;
-      pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + (PAGE_W - MARGIN - pageLabelW).toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (' + pageLabel + ') Tj ET');
+      pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + (logoX - 8 - pageLabelW).toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (' + pageLabel + ') Tj ET');
+      pageArr.push('q ' + logoW.toFixed(2) + ' 0 0 ' + logoH.toFixed(2) + ' ' + logoX.toFixed(2) + ' ' + logoY.toFixed(2) + ' cm /Logo Do Q');
     });
 
     var n = pages.length;
@@ -2363,20 +2438,23 @@ button, input{ font-family:var(--font-family); }
     for (var i = 0; i < n; i++) contentIds.push(3 + n + i);
     var fontF1Id = 3 + 2 * n;
     var fontF2Id = 4 + 2 * n;
+    var logoImgId = 5 + 2 * n;
     var catalogId = 1;
 
     var objects = [];
     objects[catalogId] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
     objects[pagesId] = '<< /Type /Pages /Kids [' + pageIds.map(function (id) { return id + ' 0 R'; }).join(' ') + '] /Count ' + n + ' >>';
     for (var i = 0; i < n; i++) {
-      objects[pageIds[i]] = '<< /Type /Page /Parent ' + pagesId + ' 0 R /Resources << /Font << /F1 ' + fontF1Id + ' 0 R /F2 ' + fontF2Id + ' 0 R >> >> /MediaBox [0 0 ' + PAGE_W + ' ' + PAGE_H + '] /Contents ' + contentIds[i] + ' 0 R >>';
+      objects[pageIds[i]] = '<< /Type /Page /Parent ' + pagesId + ' 0 R /Resources << /Font << /F1 ' + fontF1Id + ' 0 R /F2 ' + fontF2Id + ' 0 R >> /XObject << /Logo ' + logoImgId + ' 0 R >> >> /MediaBox [0 0 ' + PAGE_W + ' ' + PAGE_H + '] /Contents ' + contentIds[i] + ' 0 R >>';
       var stream = pages[i].join('\n');
       objects[contentIds[i]] = '<< /Length ' + stream.length + ' >>\nstream\n' + stream + '\nendstream';
     }
     objects[fontF1Id] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
     objects[fontF2Id] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+    var logoBytes = atob(PDF_LOGO_JPEG_B64);
+    objects[logoImgId] = '<< /Type /XObject /Subtype /Image /Width ' + PDF_LOGO_W + ' /Height ' + PDF_LOGO_H + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + logoBytes.length + ' >>\nstream\n' + logoBytes + '\nendstream';
 
-    var maxId = fontF2Id;
+    var maxId = logoImgId;
     var out = '%PDF-1.4\n';
     var offsets = [0];
     for (var id = 1; id <= maxId; id++) {
@@ -2389,7 +2467,6 @@ button, input{ font-family:var(--font-family); }
     out += 'trailer\n<< /Size ' + (maxId + 1) + ' /Root ' + catalogId + ' 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';
     return out;
   }
-
 
   function buildGanttPDFBytes(settings) {
     var pdfText = buildGanttPDF(settings);
