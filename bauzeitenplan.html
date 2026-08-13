@@ -419,6 +419,11 @@ button, input{ font-family:var(--font-family); }
       <button class="zoom-btn colorby-btn active" data-colorby="phase">Farbe: Phase/Kategorie</button>
       <button class="zoom-btn colorby-btn" data-colorby="assignee">Farbe: Verantwortlich</button>
     </div>
+    <div class="toolbar-group zoom-group" title="Welche Wochentage als Arbeitstage zählen — betrifft Dauer-Berechnung, automatische Terminierung und die Wochenend-Schattierung im Zeitstrahl">
+      <button class="zoom-btn workweek-btn active" data-workweek="mo-fr">Mo–Fr</button>
+      <button class="zoom-btn workweek-btn" data-workweek="mo-sa">Mo–Sa</button>
+      <button class="zoom-btn workweek-btn" data-workweek="mo-so">Mo–So</button>
+    </div>
     <div class="toolbar-group">
       <button class="btn" data-action="today">Heute</button>
       <button class="btn" data-action="auto-schedule" title="Alle Termine anhand von Vorgänger-Abhängigkeiten und Dauer neu berechnen — Vorgänger/Dauer zuerst festlegen, dann hier ein Startdatum eingeben">Termine automatisch setzen</button>
@@ -540,11 +545,19 @@ button, input{ font-family:var(--font-family); }
   }
   function fmtDE(d) { return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear(); }
 
-  // Arbeitskalender (Mo–Fr): "Dauer" zählt nur Arbeitstage, nicht Kalendertage — 5 Tage Dauer
-  // heißen 5 Arbeitstage, auch wenn dazwischen ein Wochenende liegt (dann sind es entsprechend
-  // mehr Kalendertage). Der Balken im Zeitstrahl selbst zeigt weiterhin den vollen Kalenderzeitraum
-  // (inkl. Wochenende) — nur die Dauer-Zahl/-Eingabe rechnet in Arbeitstagen.
-  function isWorkday(d) { var dow = d.getDay(); return dow !== 0 && dow !== 6; }
+  // Arbeitskalender: "Dauer" zählt nur Arbeitstage, nicht Kalendertage — 5 Tage Dauer heißen
+  // 5 Arbeitstage, auch wenn dazwischen freie Tage liegen (dann sind es entsprechend mehr
+  // Kalendertage). Der Balken im Zeitstrahl selbst zeigt weiterhin den vollen Kalenderzeitraum
+  // (inkl. freier Tage) — nur die Dauer-Zahl/-Eingabe rechnet in Arbeitstagen. Welche Wochentage
+  // als Arbeitstage zählen, ist über `state.workWeek` einstellbar (Mo–Fr/Mo–Sa/Mo–So, siehe
+  // setWorkWeek) — Standard bleibt Mo–Fr, wie zuvor fest verdrahtet.
+  function isWorkday(d) {
+    var dow = d.getDay(); // 0 = So, 6 = Sa
+    var ww = state.workWeek || 'mo-fr';
+    if (ww === 'mo-so') return true;
+    if (ww === 'mo-sa') return dow !== 0;
+    return dow !== 0 && dow !== 6;
+  }
   // Liefert das Datum des workDays-ten Arbeitstags ab start (inklusive) — der Starttag zählt als
   // Tag 1, wenn er selbst ein Arbeitstag ist; fällt er auf ein Wochenende, rückt er zuerst auf den
   // nächsten Arbeitstag vor.
@@ -660,6 +673,7 @@ button, input{ font-family:var(--font-family); }
 
   var state = migrateDependencies(load());
   if (!state.colorBy) state.colorBy = 'phase';
+  if (!state.workWeek) state.workWeek = 'mo-fr';
   var saveScheduled = false;
   function persistToStorage() {
     if (saveScheduled) return;
@@ -745,6 +759,7 @@ button, input{ font-family:var(--font-family); }
   // einer Projektdatei UND bei Undo/Redo.
   function applyStateToUI() {
     if (!state.colorBy) state.colorBy = 'phase';
+    if (!state.workWeek) state.workWeek = 'mo-fr';
     if (state.listWidth) {
       document.documentElement.style.setProperty('--list-w', Math.max(320, Math.min(900, state.listWidth)) + 'px');
     }
@@ -755,6 +770,9 @@ button, input{ font-family:var(--font-family); }
     });
     document.querySelectorAll('.colorby-btn').forEach(function (b) {
       b.classList.toggle('active', b.dataset.colorby === state.colorBy);
+    });
+    document.querySelectorAll('.workweek-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.workweek === state.workWeek);
     });
     rebuildAssigneeIndex();
   }
@@ -1369,7 +1387,7 @@ button, input{ font-family:var(--font-family); }
       tick.style.width = w2 + 'px';
       var lbl = zoomCfg.bottomLabel(cur);
       if (typeof lbl === 'object') {
-        if (lbl.sub === 'Sa' || lbl.sub === 'So') tick.classList.add('weekend');
+        if (!isWorkday(cur)) tick.classList.add('weekend');
         var sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = lbl.sub;
         var main = document.createElement('span'); main.className = 'main'; main.textContent = lbl.main;
         tick.appendChild(sub); tick.appendChild(main);
@@ -1383,10 +1401,14 @@ button, input{ font-family:var(--font-family); }
     }
   }
 
+  // Schattiert die freien Tage im Zeitstrahl-Hintergrund — folgt state.workWeek: bei Mo–Sa ist nur
+  // noch Sonntag schattiert, bei Mo–So gibt es keine freien Tage mehr (kein Hintergrund nötig).
   function weekendBackground(range, dayWidth) {
+    var ww = state.workWeek || 'mo-fr';
+    if (ww === 'mo-so') return null;
     var dow0 = (range.start.getDay() + 6) % 7; // 0 = Monday
     var period = 7 * dayWidth;
-    var wkStart = 5 * dayWidth;
+    var wkStart = (ww === 'mo-sa' ? 6 : 5) * dayWidth;
     return {
       backgroundImage: 'repeating-linear-gradient(to right, transparent 0px, transparent ' + wkStart + 'px, var(--g100) ' + wkStart + 'px, var(--g100) ' + period + 'px)',
       backgroundSize: period + 'px 100%',
@@ -1414,9 +1436,11 @@ button, input{ font-family:var(--font-family); }
 
       if (dayWidth >= 3) {
         var wk = weekendBackground(range, dayWidth);
-        rowEl.style.backgroundImage = wk.backgroundImage;
-        rowEl.style.backgroundSize = wk.backgroundSize;
-        rowEl.style.backgroundPositionX = wk.backgroundPositionX;
+        if (wk) {
+          rowEl.style.backgroundImage = wk.backgroundImage;
+          rowEl.style.backgroundSize = wk.backgroundSize;
+          rowEl.style.backgroundPositionX = wk.backgroundPositionX;
+        }
       }
 
       gridXs.forEach(function (gx) {
@@ -2346,6 +2370,18 @@ button, input{ font-family:var(--font-family); }
     renderAll();
   }
 
+  // Ändert nur, welche Wochentage künftig als Arbeitstage zählen (Dauer-Berechnung, automatische
+  // Terminierung, Wochenend-Schattierung im Zeitstrahl) — rechnet KEINE bereits gesetzten
+  // Start-/Enddaten bestehender Aufgaben um, genau wie ein Kalenderwechsel in MS Project.
+  function setWorkWeek(ww) {
+    state.workWeek = ww;
+    document.querySelectorAll('.workweek-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.workweek === ww);
+    });
+    save();
+    renderAll();
+  }
+
   function scrollToToday() {
     var range = getRange();
     var zoomCfg = ZOOMS[state.zoom];
@@ -3217,6 +3253,8 @@ button, input{ font-family:var(--font-family); }
     if (zoomEl) setZoom(zoomEl.dataset.zoom);
     var colorByEl = e.target.closest('[data-colorby]');
     if (colorByEl) setColorBy(colorByEl.dataset.colorby);
+    var workWeekEl = e.target.closest('[data-workweek]');
+    if (workWeekEl) setWorkWeek(workWeekEl.dataset.workweek);
   });
   fileInputEl.addEventListener('change', function () {
     if (fileInputEl.files && fileInputEl.files[0]) openProjectFile(fileInputEl.files[0]);
@@ -3260,6 +3298,9 @@ button, input{ font-family:var(--font-family); }
   });
   document.querySelectorAll('.colorby-btn').forEach(function (b) {
     b.classList.toggle('active', b.dataset.colorby === state.colorBy);
+  });
+  document.querySelectorAll('.workweek-btn').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.workweek === state.workWeek);
   });
   updateUndoRedoButtons();
   document.addEventListener('keydown', function (e) {
