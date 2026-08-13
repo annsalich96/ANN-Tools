@@ -1978,7 +1978,12 @@ button, input{ font-family:var(--font-family); }
           if (!pred) return;
           var lag = dep.lag || 0;
           if (dep.type === 'FS') {
-            var v = addDays(fromISO(pred.end), lag);
+            // Das Ende eines Vorgangs ist der letzte (inklusive) Arbeitstag daran — der Nachfolger
+            // darf deshalb frühestens am TAG DANACH beginnen, nicht am selben Tag (sonst würden
+            // beide Aufgaben am selben Tag "arbeiten"). Die anschließende Wochenend-Rundung sorgt
+            // dafür, dass daraus je nach Arbeitswoche (Mo–Fr/Mo–Sa/Mo–So) automatisch der richtige
+            // nächste Arbeitstag wird.
+            var v = addDays(fromISO(pred.end), lag + 1);
             if (minStart === null || v > minStart) minStart = v;
           } else if (dep.type === 'SS') {
             var v2 = addDays(fromISO(pred.start), lag);
@@ -2068,7 +2073,9 @@ button, input{ font-family:var(--font-family); }
       if (!pred || !pred.start) return;
       var lag = dep.lag || 0;
       if (dep.type === 'FS') {
-        var v = addDays(fromISO(pred.end), lag);
+        // Siehe Kommentar in applyDependencyConstraints: das Ende ist der letzte inklusive
+        // Arbeitstag, der Nachfolger startet deshalb frühestens am Tag danach.
+        var v = addDays(fromISO(pred.end), lag + 1);
         if (minStart === null || v > minStart) minStart = v;
       } else if (dep.type === 'SS') {
         var v2 = addDays(fromISO(pred.start), lag);
