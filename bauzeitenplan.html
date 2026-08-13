@@ -2370,11 +2370,26 @@ button, input{ font-family:var(--font-family); }
     renderAll();
   }
 
-  // Ändert nur, welche Wochentage künftig als Arbeitstage zählen (Dauer-Berechnung, automatische
-  // Terminierung, Wochenend-Schattierung im Zeitstrahl) — rechnet KEINE bereits gesetzten
-  // Start-/Enddaten bestehender Aufgaben um, genau wie ein Kalenderwechsel in MS Project.
+  // Ändert, welche Wochentage künftig als Arbeitstage zählen. Die Arbeitstage-DAUER jeder
+  // bestehenden Aufgabe bleibt dabei erhalten, nur ihre Verteilung auf dem Kalender ändert sich:
+  // 6 Arbeitstage ab Montag sind bei Mo–Sa 6 Kalendertage (bis Samstag), bei Mo–Fr dagegen 8
+  // Kalendertage (Wochenende wird übersprungen, Ende wandert auf den übernächsten Montag) — die
+  // Dauer wird also auf die neue Regel umverteilt statt das alte Enddatum stehen zu lassen.
+  // Meilensteine (Start=Ende, ein fester Termin, keine Spanne) bleiben unangetastet.
   function setWorkWeek(ww) {
+    if (ww === state.workWeek) return;
+    var durations = {};
+    state.tasks.forEach(function (t) {
+      if (!t.milestone) durations[t.id] = Math.max(1, countWorkdays(fromISO(t.start), fromISO(t.end)));
+    });
     state.workWeek = ww;
+    state.tasks.forEach(function (t) {
+      if (!t.milestone) t.end = toISO(addWorkingDays(fromISO(t.start), durations[t.id]));
+    });
+    // Durch die neu verteilten Enddaten können abhängige Folgeaufgaben jetzt zu früh anfangen —
+    // einmal komplett in Abhängigkeits-Reihenfolge nachziehen, damit alle Verknüpfungen (FS/SS/
+    // FF/SF) wieder eingehalten sind.
+    topoOrderTasks().forEach(function (t) { applyDependencyConstraints(t.id); });
     document.querySelectorAll('.workweek-btn').forEach(function (b) {
       b.classList.toggle('active', b.dataset.workweek === ww);
     });
