@@ -3122,11 +3122,18 @@ button, input{ font-family:var(--font-family); }
       predLegendPanel.hidden = !willShow;
       if (willShow) {
         // position:fixed statt absolute, damit das Panel nicht vom overflow-x:clip der
-        // Listen-Spalte (siehe Scroll-Sync-Fix) abgeschnitten wird — Position wird deshalb
-        // hier per JS relativ zum Viewport gesetzt statt rein per CSS.
+        // Listen-Spalte (siehe Scroll-Sync-Fix) abgeschnitten wird. Zusätzlich wird das Panel
+        // direkt an <body> gehängt statt in der .list-header-Struktur zu bleiben — .list-header
+        // (position:sticky + z-index) bildet einen eigenen Stacking-Context, der ein
+        // fixed-positioniertes Kind trotz hohem z-index weiterhin hinter der Zeitstrahl-Spalte
+        // rendern kann. Als direktes body-Kind ist das Panel davon unabhängig.
+        if (predLegendPanel.parentNode !== document.body) document.body.appendChild(predLegendPanel);
         var btnRect = predLegendBtn.getBoundingClientRect();
         var panelW = 300;
-        var left = Math.min(btnRect.left, window.innerWidth - panelW - 8);
+        // Rechtsbündig zum Button öffnen (wächst nach LINKS), da der Button ganz rechts in der
+        // Listen-Spalte sitzt — links-öffnend bleibt das Panel über der Liste statt über den
+        // Zeitstrahl zu ragen.
+        var left = Math.min(btnRect.right - panelW, window.innerWidth - panelW - 8);
         left = Math.max(8, left);
         predLegendPanel.style.left = left + 'px';
         predLegendPanel.style.top = (btnRect.bottom + 6) + 'px';
