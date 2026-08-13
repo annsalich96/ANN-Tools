@@ -128,6 +128,10 @@ button, input{ font-family:var(--font-family); }
 }
 .zoom-btn.active{ background:var(--color-white); color:var(--color-black); box-shadow:0 1px 2px rgba(0,0,0,.08); }
 .toolbar-spacer{ flex:1 1 auto; }
+/* Zusätzlich zum .toolbar-spacer: hält Drucken/PDF-Tabelle exportieren am rechten Rand fest,
+   auch wenn die Toolbar bei schmalerer Breite umbricht — der Spacer wirkt nur auf der ersten
+   Zeile, margin-left:auto zieht diese Gruppe zusätzlich an den rechten Rand IHRER eigenen Zeile. */
+.toolbar-group-end{ margin-left:auto; }
 
 /* ── Legend ───────────────────────────── */
 .legend{
@@ -434,7 +438,7 @@ button, input{ font-family:var(--font-family); }
       <button class="btn" data-action="save-file" title="Aktuellen Stand als Datei speichern, um später weiterzuarbeiten">Speichern</button>
       <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
     </div>
-    <div class="toolbar-group">
+    <div class="toolbar-group toolbar-group-end">
       <button class="btn" data-action="print" title="Öffnet eine eigene Druckseite in neuem Tab — Skalierung dort über den Browser-Druckdialog (wie bei Google Sheets)">Drucken</button>
       <button class="btn" data-action="export-pdf" title="Lädt den Zeitplan als PDF-Tabelle (nur Daten, ohne Balken) herunter">PDF-Tabelle exportieren</button>
     </div>
@@ -1317,7 +1321,27 @@ button, input{ font-family:var(--font-family); }
       var parsed = parsePredecessors(predecessorsInput.value, task, freshMap.numToId);
       task.dependencies = parsed;
       predecessorsInput.value = formatPredecessors(task, freshMap.idToNum);
-      parsed.forEach(function (dep) { applyDependencyConstraints(dep.id); });
+      // Bewusst NICHT nur applyDependencyConstraints() als reine Mindestgrenze nutzen: die Kaskade
+      // kann ein Datum nur nach VORNE schieben, nie zurückholen (siehe deren eigener Kommentar) —
+      // wird eine Bedingung dagegen LOCKERER (z.B. Verzug "3FS+2d" zu "3" bearbeitet, Verzug also
+      // von +2 auf 0 reduziert), müsste die Zeile eigentlich wieder zurückrücken, was die reine
+      // Kaskade nicht leistet. Beim Bearbeiten des Vorgänger-Felds rückt die Zeile deshalb IMMER
+      // exakt an die aktuell aus allen Abhängigkeiten errechnete früheste Position — in beide
+      // Richtungen — und stößt von dort aus erst die normale Kaskade für alles an, was von dieser
+      // Zeile selbst abhängt.
+      if (parsed.length) {
+        var predDur = task.milestone ? 1 : Math.max(1, countWorkdays(fromISO(task.start), fromISO(task.end)));
+        var predRequired = earliestStartFromDeps(task, predDur);
+        if (predRequired !== null) {
+          var predOldStart = fromISO(task.start), predOldEnd = fromISO(task.end);
+          if (task.milestone) {
+            task.start = toISO(predRequired); task.end = task.start;
+          } else {
+            task.start = toISO(predRequired); task.end = toISO(addWorkingDays(predRequired, predDur));
+          }
+          applyDependencyConstraints(task.id, diffDays(fromISO(task.start), predOldStart), diffDays(fromISO(task.end), predOldEnd));
+        }
+      }
       save();
       renderAll();
       // Eine neue Abhängigkeit verschiebt das Datum dieser Zeile und damit meist auch ihre Position
@@ -2246,6 +2270,19 @@ button, input{ font-family:var(--font-family); }
       var refTask = findTask(selectedTaskId);
       if (refTask && refTask.phaseId === phaseId) return addDays(fromISO(refTask.end), 1);
     }
+    // Ohne konkret ausgewählte Aufgabe: hinter das späteste Ende aller bereits vorhandenen
+    // Aufgaben dieser Phase anhängen statt immer "heute" zu nehmen. Sonst häufen sich mehrere
+    // hintereinander angelegte neue Aufgaben auf demselben Datum — verknüpft man dann eine davon
+    // per Vorgänger, springt sie beim Sortieren an den anderen, noch unverknüpften, zufällig
+    // gleich-datierten Aufgaben vorbei, statt sich direkt dahinter einzureihen (Ann: "die
+    // sortieren sich nicht richtig untereinander").
+    var latestEnd = null;
+    state.tasks.forEach(function (t) {
+      if (t.phaseId !== phaseId) return;
+      var e = fromISO(t.end);
+      if (latestEnd === null || e > latestEnd) latestEnd = e;
+    });
+    if (latestEnd !== null) return addDays(latestEnd, 1);
     return midnight(new Date());
   }
 
