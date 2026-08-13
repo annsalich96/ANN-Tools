@@ -148,7 +148,7 @@ button, input{ font-family:var(--font-family); }
    mehr möglich). Horizontal bleibt ausschließlich der Zeitstrahl (.timeline-body) scrollbar. */
 .board{ flex:1 1 auto; min-height:0; display:flex; overflow-y:auto; overflow-x:hidden; }
 
-.list-col{ width:var(--list-w); flex:0 0 var(--list-w); display:flex; flex-direction:column; min-width:0; }
+.list-col{ width:var(--list-w); flex:0 0 var(--list-w); display:flex; flex-direction:column; min-width:0; overflow-x:hidden; overflow-y:visible; }
 .list-header{
   flex:0 0 auto; display:flex; align-items:center; height:56px; gap:8px;
   padding:0 var(--space-4) 0 var(--space-6); border-bottom:1px solid var(--g200); background:var(--g100);
@@ -612,7 +612,10 @@ button, input{ font-family:var(--font-family); }
 
   /* ────────────────────────── list column resize ────────────────────────── */
   (function () {
-    var MIN_W = 320, MAX_W = 900;
+    // MIN_W muss mindestens Platz für alle festbreiten Spalten einer Aufgaben-Zeile bieten
+    // (Icon+Verantwortlich+Start+Ende+Dauer+Lösch-Button+Innenabstände) — sonst lässt sich die
+    // Liste enger ziehen, als die Zeile tatsächlich Platz braucht, und der Inhalt läuft über.
+    var MIN_W = 560, MAX_W = 900;
     if (state.listWidth) {
       document.documentElement.style.setProperty('--list-w', Math.max(MIN_W, Math.min(MAX_W, state.listWidth)) + 'px');
     }
@@ -751,6 +754,10 @@ button, input{ font-family:var(--font-family); }
     listBodyInner.innerHTML = '';
     listRowEls = [];
     listBodyInner.style.height = (rows.length * ROW_H) + 'px';
+    // .col-resize hat selbst keinen Inhalt und wächst deshalb per Flex-Stretch nicht automatisch
+    // über die (jetzt scrollbare, potenziell sehr lange) Listenhöhe hinaus — explizit mitsetzen,
+    // sonst lässt sich die Spaltenbreite ab einer bestimmten Scroll-Position nicht mehr ziehen.
+    colResizeEl.style.height = (56 + rows.length * ROW_H) + 'px';
 
     rows.forEach(function (row, i) {
       var el;
@@ -886,7 +893,15 @@ button, input{ font-family:var(--font-family); }
       save();
       // Verantwortlich beeinflusst den Zeitstrahl nur im Modus "Farbe: Verantwortlich" —
       // im Standard-Modus "Farbe: Phase" hat der Text keine visuelle Auswirkung, also nichts neu rendern.
-      if (state.colorBy === 'assignee') renderTimelineOnly();
+      if (state.colorBy === 'assignee') {
+        rebuildAssigneeIndex();
+        // Swatch direkt hier aktualisieren (nicht erst beim nächsten vollen Render) — sonst
+        // zeigt der kleine Farbpunkt neben dem Feld die neue Farbe erst nach einem Refresh.
+        var newColorIdx = resolveColorIdx(task, row.colorIdx);
+        assigneeSw.className = 'swatch' + (newColorIdx !== null && phaseHatched(newColorIdx) ? ' hatched' : '');
+        assigneeSw.style.background = newColorIdx === null ? 'var(--g400)' : phaseColor(newColorIdx);
+        renderTimelineOnly();
+      }
     });
     el.appendChild(assignee);
 
@@ -935,12 +950,21 @@ button, input{ font-family:var(--font-family); }
     durationInput.value = diffDays(fromISO(task.end), fromISO(task.start)) + 1;
     durationInput.title = 'Dauer in Tagen (inkl. Start- und Endtag) — alternative Eingabe zum Enddatum';
     durationInput.style.visibility = task.milestone ? 'hidden' : 'visible';
+    var durationRenderPending = null;
     durationInput.addEventListener('change', function () {
       var dur = Math.max(1, parseInt(durationInput.value, 10) || 1);
       task.end = toISO(addDays(fromISO(task.start), dur - 1));
       applyDependencyConstraints(task.id);
       save();
-      renderAll();
+      // Die Auf/Ab-Pfeile des Zahlenfelds feuern "change" bei jedem Auto-Repeat-Tick, solange man
+      // sie gedrückt hält — ein volles renderAll() (kompletter DOM-Rebuild von Liste, Zeitstrahl und
+      // Abhängigkeitspfeilen) pro Tick blockiert den Tab spürbar und lässt Safari abstürzen. Daher
+      // wird nur nach der letzten Änderung tatsächlich neu gerendert.
+      if (durationRenderPending) clearTimeout(durationRenderPending);
+      durationRenderPending = setTimeout(function () {
+        durationRenderPending = null;
+        renderAll();
+      }, 150);
     });
     el.appendChild(durationInput);
 
@@ -2083,26 +2107,44 @@ button, input{ font-family:var(--font-family); }
     var cur = new Date(range.start);
     while (cur < range.end) { days.push(new Date(cur)); cur = addDays(cur, 1); }
     var rows = currentRows.filter(function (r) { return r.type !== 'add'; });
+    var zoomCfg = ZOOMS[state.zoom] || ZOOMS.month;
+    var title = state.projectTitle || 'Zeitplan';
 
-    var BASE_DAY_W = 10, BASE_ROW_H = 14, BASE_NAME_W = 130, BASE_ASSIGNEE_W = 65, BASE_DATE_W = 42, BASE_HEADER_H = 20;
+    var BASE_DAY_W = 10, BASE_ROW_H = 14, BASE_NAME_W = 130, BASE_ASSIGNEE_W = 65, BASE_DATE_W = 42, BASE_HEADER_H = 24;
     var baseLabelW = BASE_NAME_W + BASE_ASSIGNEE_W + 2 * BASE_DATE_W;
     var naturalW = baseLabelW + days.length * BASE_DAY_W;
     var naturalH = BASE_HEADER_H + rows.length * BASE_ROW_H;
 
+    var FOOTER_H = 16; // reservierter Platz für die Fußzeile am Seitenende
+    var RUNNING_HEADER_H = 18; // reservierter Platz für die wiederholte Kopfzeile ab Seite 2
     var availW = PAGE_W - 2 * MARGIN;
-    var availH = PAGE_H - 2 * MARGIN;
-    var titleReserve = 30;
+    var availH = PAGE_H - 2 * MARGIN - FOOTER_H;
+    var titleReserve = 30; // Platz für Titel/Untertitel auf Seite 1 (in die Höhen-Fit-Rechnung mit einbezogen)
 
-    // scaleW skaliert nur die Tagesspalten-Breite (Zeitstrahl), scaleH die Zeilenhöhe/Schrift.
-    // Bei "Optimale Breite" bleiben Zeilen/Text bewusst lesbar (nur der Zeitstrahl wird schmaler,
-    // die Tabelle wächst stattdessen über mehrere Seiten nach unten) — sonst macht ein langer
-    // Zeitraum (viele Tagesspalten) den kompletten Text unlesbar klein, nicht nur den Zeitstrahl.
+    // scaleW skaliert die Tagesspalten-Breite (Zeitstrahl), scaleH die Zeilenhöhe/Schrift/Label-Spalten.
     var scaleW, scaleH;
-    if (scaleMode === 'fit-width') { scaleW = Math.min(1, availW / naturalW); scaleH = 1; }
-    else if (scaleMode === 'fit-height') { scaleW = 1; scaleH = Math.min(1, (availH - titleReserve) / naturalH); }
-    else if (scaleMode === 'fit-page') { var s = Math.min(1, availW / naturalW, (availH - titleReserve) / naturalH); scaleW = s; scaleH = s; }
-    else if (scaleMode === 'custom') { var c = Math.max(0.1, customPct / 100); scaleW = c; scaleH = c; }
-    else { scaleW = 1; scaleH = 1; }
+    if (scaleMode === 'fit-width') {
+      // "Optimale Breite": die GESAMTE Breite passt auf eine Seite, die Höhe (Zeilen/Text)
+      // wird proportional zum selben Faktor mitskaliert.
+      var swW = Math.min(1, availW / naturalW);
+      scaleW = swW; scaleH = swW;
+    } else if (scaleMode === 'fit-height') {
+      // "Optimale Höhe": Zeilenhöhe/Text bleiben in normaler, lesbarer Größe — nur die
+      // Tagesspalten-Breite passt sich der Seite an. Reicht die normale Zeilenhöhe nicht auf eine
+      // Seite, läuft die Tabelle einfach auf einer zweiten Seite weiter (kein Schrumpfen des Texts).
+      scaleW = Math.min(1, availW / naturalW);
+      scaleH = 1;
+    } else if (scaleMode === 'fit-page') {
+      // "An Seite anpassen": alles auf genau eine Seite (Breite UND Höhe werden gemeinsam
+      // so weit geschrumpft, wie nötig ist, damit nichts umbricht).
+      var s = Math.min(1, availW / naturalW, (availH - titleReserve) / naturalH);
+      scaleW = s; scaleH = s;
+    } else if (scaleMode === 'custom') {
+      var c = Math.max(0.1, customPct / 100);
+      scaleW = c; scaleH = c;
+    } else {
+      scaleW = 1; scaleH = 1; // Normal (100%)
+    }
 
     var dayW = Math.max(0.4, BASE_DAY_W * scaleW);
     var rowH = Math.max(7, BASE_ROW_H * scaleH);
@@ -2110,12 +2152,16 @@ button, input{ font-family:var(--font-family); }
     var assigneeW = BASE_ASSIGNEE_W * scaleH;
     var dateW = BASE_DATE_W * scaleH;
     var labelW = nameW + assigneeW + 2 * dateW;
-    var headerH = Math.max(9, BASE_HEADER_H * scaleH);
+    var topTierH = Math.max(9, 11 * scaleH);
+    var bottomTierH = Math.max(8, 11 * scaleH);
+    var headerH = topTierH + bottomTierH;
     var fontSize = Math.max(4.5, 7.5 * scaleH);
-    var headerFontSize = Math.max(4.5, 6.5 * scaleH);
-    var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    var headerFontSize = Math.max(4, 6.5 * scaleH);
+    var tickFontSize = Math.max(3.5, 5.5 * scaleH);
+    var fullW = labelW + days.length * dayW;
 
     var pages = [], cur2 = [], y, isFirstPage = true;
+    var pdfTaskGeom = {};
 
     function colorOp(hex) {
       var c = hexToRgbFrac(hex);
@@ -2129,8 +2175,8 @@ button, input{ font-family:var(--font-family); }
     function vLine(xx, y1, y2) {
       cur2.push(xx.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + xx.toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
     }
-    // Zeichnet die senkrechten Spaltentrenner (Aufgabe/Verantw./Start/Ende + jeder Tag) für den
-    // Höhenbereich [yTop, yBottom] einer Kopf- oder Datenzeile.
+    // Zeichnet die senkrechten Spaltentrenner (Aufgabe/Verantw./Start/Ende/Dauer-Grenze + jeder Tag)
+    // für den Höhenbereich [yTop, yBottom] einer Kopf- oder Datenzeile.
     function drawColumnGrid(yTop, yBottom) {
       vLine(MARGIN, yTop, yBottom);
       vLine(MARGIN + nameW, yTop, yBottom);
@@ -2140,37 +2186,57 @@ button, input{ font-family:var(--font-family); }
       for (var i = 0; i <= days.length; i++) vLine(MARGIN + labelW + i * dayW, yTop, yBottom);
     }
 
-    function drawHeaderRow() {
-      var monthGroups = [];
-      days.forEach(function (d) {
-        var label = monthNames[d.getMonth()] + ' ' + d.getFullYear();
-        if (monthGroups.length && monthGroups[monthGroups.length - 1].label === label) monthGroups[monthGroups.length - 1].span++;
-        else monthGroups.push({ label: label, span: 1 });
-      });
+    // Zeitachsen-Kopf mit zwei Ebenen, exakt wie im Live-Zoom gewählt (Woche/Monat/Jahr) —
+    // obere Ebene = zoomCfg.topLabel (z.B. Monat/Jahr), untere Ebene = zoomCfg.bottomLabel
+    // (z.B. Tag/Woche/Monat). Gitterlinien werden ZUERST gezeichnet, damit Balken/Text (in den
+    // Datenzeilen weiter unten) später darüber gemalt werden, nicht umgekehrt.
+    function drawDateHeader() {
       var headerTop = y;
-      cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - headerH).toFixed(2) + ' ' + (labelW + days.length * dayW).toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
-      cur2.push('0 0 0 rg'); // Füllfarbe für Text zurücksetzen — sonst erbt der Text die zuletzt gesetzte Balken-/Flächenfarbe
-      var mx = MARGIN + labelW;
-      monthGroups.forEach(function (g) {
-        var w = g.span * dayW;
-        if (w > 18) cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (mx + 2).toFixed(2) + ' ' + (y - headerFontSize - 2).toFixed(2) + ' Tm (' + pdfEsc(g.label) + ') Tj ET');
-        mx += w;
-      });
+      var midY = y - topTierH;
+      cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - headerH).toFixed(2) + ' ' + fullW.toFixed(2) + ' ' + headerH.toFixed(2) + ' re f');
+      cur2.push('0 0 0 rg');
+
+      var tx = 0, tcur = new Date(range.start);
+      while (tcur < range.end) {
+        var tnext = zoomCfg.topBoundary(tcur);
+        if (tnext > range.end) tnext = range.end;
+        var tw = diffDays(tnext, tcur) * dayW;
+        if (tw > 20) cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + labelW + tx + 2).toFixed(2) + ' ' + (headerTop - topTierH + 3).toFixed(2) + ' Tm (' + pdfEsc(String(zoomCfg.topLabel(tcur))) + ') Tj ET');
+        tx += tw; tcur = tnext;
+      }
+
+      var bx = 0, bcur = new Date(range.start);
+      while (bcur < range.end) {
+        var bnext = zoomCfg.bottomBoundary(bcur);
+        if (bnext > range.end) bnext = range.end;
+        var bw = diffDays(bnext, bcur) * dayW;
+        if (bw > 9) {
+          var lbl = zoomCfg.bottomLabel(bcur);
+          var text = typeof lbl === 'object' ? lbl.main : lbl;
+          cur2.push('BT /F1 ' + tickFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + labelW + bx + 2).toFixed(2) + ' ' + (y - headerH + 3).toFixed(2) + ' Tm (' + pdfEsc(String(text)) + ') Tj ET');
+        }
+        bx += bw; bcur = bnext;
+      }
+
       cur2.push('BT /F2 ' + headerFontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y - headerH + 3).toFixed(2) + ' Tm (Aufgabe) Tj ET');
       y -= headerH;
-      hLine(MARGIN, MARGIN + labelW + days.length * dayW, headerTop);
-      hLine(MARGIN, MARGIN + labelW + days.length * dayW, y);
+      hLine(MARGIN, MARGIN + fullW, headerTop);
+      hLine(MARGIN, MARGIN + fullW, midY);
+      hLine(MARGIN, MARGIN + fullW, y);
       drawColumnGrid(headerTop, y);
     }
 
+    var pageBounds = []; // {top, bottom} je Seite — für die "Heute"-Linie über die volle Zeilenhöhe der Seite
     function newPage() {
-      if (cur2.length) pages.push(cur2);
+      if (cur2.length) {
+        pages.push(cur2);
+        pageBounds[pageBounds.length - 1].bottom = y;
+      }
       cur2 = [];
       cur2.push(gridColorOp);
       cur2.push('0.5 w');
       y = PAGE_H - MARGIN;
       if (isFirstPage) {
-        var title = state.projectTitle || 'Zeitplan';
         cur2.push('0 0 0 rg');
         cur2.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + (y - 12) + ' Tm (' + pdfEsc(title) + ') Tj ET');
         y -= 16;
@@ -2180,11 +2246,21 @@ button, input{ font-family:var(--font-family); }
         }
         y -= 6;
         isFirstPage = false;
+      } else {
+        // laufende Kopfzeile auf jeder weiteren Seite
+        cur2.push('0 0 0 rg');
+        cur2.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (y - 9).toFixed(2) + ' Tm (' + pdfEsc(title) + ') Tj ET');
+        y -= RUNNING_HEADER_H;
       }
-      drawHeaderRow();
+      drawDateHeader();
+      // Senkrechte Spaltentrenner EINMAL über die gesamte nutzbare Höhe der Seite ziehen, statt
+      // (wie zuvor) pro Zeile neu — bei vielen Zeilen und/oder einem großen Datumsbereich erzeugte
+      // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs.
+      drawColumnGrid(y, MARGIN + FOOTER_H);
+      pageBounds.push({ top: y, bottom: y });
     }
 
-    function ensureSpace() { if (y - rowH < MARGIN) newPage(); }
+    function ensureSpace() { if (y - rowH < MARGIN + FOOTER_H) newPage(); }
 
     newPage();
 
@@ -2192,20 +2268,42 @@ button, input{ font-family:var(--font-family); }
       ensureSpace();
       var rowTop = y;
       if (row.type === 'phase') {
-        cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - rowH).toFixed(2) + ' ' + (labelW + days.length * dayW).toFixed(2) + ' ' + rowH.toFixed(2) + ' re f');
-        cur2.push('0 0 0 rg');
-        cur2.push('BT /F2 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y - rowH * 0.7).toFixed(2) + ' Tm (' + pdfEsc(row.phase.name) + ') Tj ET');
+        cur2.push('0.957 0.957 0.957 rg ' + MARGIN + ' ' + (y - rowH).toFixed(2) + ' ' + fullW.toFixed(2) + ' ' + rowH.toFixed(2) + ' re f');
         y -= rowH;
-        hLine(MARGIN, MARGIN + labelW + days.length * dayW, y);
+        hLine(MARGIN, MARGIN + fullW, y);
+        cur2.push('0 0 0 rg');
+        cur2.push('BT /F2 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (MARGIN + 2).toFixed(2) + ' ' + (y + rowH * 0.3).toFixed(2) + ' Tm (' + pdfEsc(row.phase.name) + ') Tj ET');
         return;
       }
       var task = row.task;
       var s = fromISO(task.start), e = fromISO(task.end);
       var colorIdx = resolveColorIdx(task, row.colorIdx);
       var hex = resolvePhaseHex(colorIdx);
+
+      // Waagrechte Zeilentrennlinie — die senkrechten Spaltentrenner sind bereits einmal pro Seite
+      // in newPage() gezogen (siehe drawColumnGrid-Aufruf dort), beides ZUERST gezeichnet, sodass
+      // Balken/Text weiter unten darüber gemalt werden.
+      y -= rowH;
+      hLine(MARGIN, MARGIN + fullW, y);
+
+      var startIdx = Math.max(0, diffDays(s, range.start));
+      var endIdx = Math.min(days.length - 1, diffDays(e, range.start));
+      var barX0 = MARGIN + labelW + startIdx * dayW;
+      if (task.milestone) {
+        var mSize = Math.max(2.5, rowH * 0.45);
+        cur2.push(colorOp(hex) + ' rg ' + (barX0 - mSize / 2).toFixed(2) + ' ' + (rowTop - rowH / 2 - mSize / 2).toFixed(2) + ' ' + mSize.toFixed(2) + ' ' + mSize.toFixed(2) + ' re f');
+        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0, rowTop: rowTop };
+      } else {
+        var barW = Math.max(1, (endIdx - startIdx + 1) * dayW);
+        var barH = Math.max(2, rowH * 0.55);
+        cur2.push(colorOp(hex) + ' rg ' + barX0.toFixed(2) + ' ' + (rowTop - rowH / 2 - barH / 2).toFixed(2) + ' ' + barW.toFixed(2) + ' ' + barH.toFixed(2) + ' re f');
+        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0 + barW, rowTop: rowTop };
+      }
+
+      // Text zuletzt, damit er über Gitter und Balken liegt.
       var tx = MARGIN;
-      var textY = (y - rowH * 0.7).toFixed(2);
-      cur2.push('0 0 0 rg'); // Füllfarbe für Text zurücksetzen — sonst erbt der Text die Balkenfarbe der vorherigen Zeile
+      var textY = (rowTop - rowH * 0.7).toFixed(2);
+      cur2.push('0 0 0 rg');
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + pdfEsc(pdfTruncate(task.name, Math.max(6, Math.floor(nameW / (fontSize * 0.55))))) + ') Tj ET');
       tx += nameW;
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + pdfEsc(pdfTruncate(task.assignee || '', Math.max(4, Math.floor(assigneeW / (fontSize * 0.55))))) + ') Tj ET');
@@ -2213,25 +2311,91 @@ button, input{ font-family:var(--font-family); }
       cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + fmtDE(s) + ') Tj ET');
       tx += dateW;
       if (!task.milestone) cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + fmtDE(e) + ') Tj ET');
-      tx += dateW;
+    });
+    pageBounds[pageBounds.length - 1].bottom = y;
 
-      var startIdx = Math.max(0, diffDays(s, range.start));
-      var endIdx = Math.min(days.length - 1, diffDays(e, range.start));
-      var barX = tx + startIdx * dayW;
-      if (task.milestone) {
-        var mSize = Math.max(2.5, rowH * 0.45);
-        cur2.push(colorOp(hex) + ' rg ' + (barX - mSize / 2).toFixed(2) + ' ' + (y - rowH / 2 - mSize / 2).toFixed(2) + ' ' + mSize.toFixed(2) + ' ' + mSize.toFixed(2) + ' re f');
-      } else {
-        var barW = Math.max(1, (endIdx - startIdx + 1) * dayW);
-        var barH = Math.max(2, rowH * 0.55);
-        cur2.push(colorOp(hex) + ' rg ' + barX.toFixed(2) + ' ' + (y - rowH / 2 - barH / 2).toFixed(2) + ' ' + barW.toFixed(2) + ' ' + barH.toFixed(2) + ' re f');
+    // "Heute"-Linie auf jeder Seite, auf der die Zeitachse den heutigen Tag abdeckt.
+    var todayMid = midnight(new Date());
+    if (todayMid >= range.start && todayMid <= range.end) {
+      var todayX = MARGIN + labelW + diffDays(todayMid, range.start) * dayW;
+      pages.forEach(function (pageArr, idx) {
+        var b = pageBounds[idx];
+        if (!b) return;
+        pageArr.push('0 0 0 RG');
+        pageArr.push('0.8 w');
+        pageArr.push(todayX.toFixed(2) + ' ' + b.top.toFixed(2) + ' m ' + todayX.toFixed(2) + ' ' + b.bottom.toFixed(2) + ' l S');
+      });
+      // auf der aktuellen (noch nicht gepushten) Seite auch zeichnen, falls "heute" dort liegt
+      var curBounds = pageBounds[pageBounds.length - 1];
+      if (pages.length === pageBounds.length - 1) {
+        cur2.push('0 0 0 RG');
+        cur2.push('0.8 w');
+        cur2.push(todayX.toFixed(2) + ' ' + curBounds.top.toFixed(2) + ' m ' + todayX.toFixed(2) + ' ' + curBounds.bottom.toFixed(2) + ' l S');
       }
-      y -= rowH;
-      hLine(MARGIN, MARGIN + labelW + days.length * dayW, y);
-      drawColumnGrid(rowTop, y);
+    }
+
+    // Abhängigkeitspfeile NACH allen Zeilen zeichnen (Geometrie aller Aufgaben ist jetzt bekannt) —
+    // nur innerhalb derselben Seite, seitenübergreifende Pfeile werden ausgelassen.
+    function pageArrFor(pageIndex) { return pageIndex === pages.length ? cur2 : pages[pageIndex]; }
+    var arrowC = hexToRgbFrac('#C7C7C7');
+    var arrowStrokeOp = arrowC.r.toFixed(3) + ' ' + arrowC.g.toFixed(3) + ' ' + arrowC.b.toFixed(3) + ' RG';
+    var arrowFillOp = arrowC.r.toFixed(3) + ' ' + arrowC.g.toFixed(3) + ' ' + arrowC.b.toFixed(3) + ' rg';
+    state.tasks.forEach(function (t) {
+      if (!t.dependsOn || !t.dependsOn.length) return;
+      var succGeom = pdfTaskGeom[t.id];
+      if (!succGeom) return;
+      t.dependsOn.forEach(function (predId) {
+        var predGeom = pdfTaskGeom[predId];
+        if (!predGeom || predGeom.page !== succGeom.page) return;
+        var pageArr = pageArrFor(predGeom.page);
+        var clearance = rowH * 0.28;
+        var x1 = predGeom.x2, y1 = predGeom.rowTop - clearance;
+        var x2 = succGeom.x1, y2 = succGeom.rowTop - clearance;
+        var elbowX = x2 >= x1 + 10 ? (x1 + x2) / 2 : x1 + 14;
+        var arrowSize = Math.max(2, rowH * 0.22);
+        pageArr.push(arrowStrokeOp);
+        pageArr.push('0.75 w');
+        pageArr.push(x1.toFixed(2) + ' ' + y1.toFixed(2) + ' m ' + elbowX.toFixed(2) + ' ' + y1.toFixed(2) + ' l ' + elbowX.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + (x2 - arrowSize).toFixed(2) + ' ' + y2.toFixed(2) + ' l S');
+        pageArr.push(arrowFillOp);
+        pageArr.push((x2 - arrowSize).toFixed(2) + ' ' + (y2 + arrowSize * 0.6).toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + (x2 - arrowSize).toFixed(2) + ' ' + (y2 - arrowSize * 0.6).toFixed(2) + ' l f');
+      });
     });
 
+    // Legende (Phasen- oder Verantwortlich-Farben) am Ende des Inhalts, mehrzeilig falls nötig.
+    var legendItems = state.colorBy === 'assignee'
+      ? assigneeOrder.map(function (name, idx) { return { name: name, hex: resolvePhaseHex(idx) }; })
+      : state.phases.map(function (p, idx) { return { name: p.name, hex: resolvePhaseHex(idx) }; });
+    if (legendItems.length) {
+      if (y - 30 < MARGIN + FOOTER_H) newPage();
+      cur2.push('0 0 0 rg');
+      cur2.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + (y - 10).toFixed(2) + ' Tm (' + pdfEsc(state.colorBy === 'assignee' ? 'Verantwortlich' : 'Phasen/Kategorien') + ') Tj ET');
+      y -= 18;
+      var lx = MARGIN, ly = y;
+      legendItems.forEach(function (item) {
+        var label = pdfTruncate(item.name, 30);
+        var itemW = 16 + label.length * 3.6;
+        if (lx + itemW > MARGIN + availW && lx > MARGIN) { lx = MARGIN; ly -= 14; }
+        if (ly - 12 < MARGIN + FOOTER_H) { newPage(); lx = MARGIN; ly = y; }
+        cur2.push(colorOp(item.hex) + ' rg ' + lx.toFixed(2) + ' ' + (ly - 8).toFixed(2) + ' 8.00 8.00 re f');
+        cur2.push('0 0 0 rg');
+        cur2.push('BT /F1 7.5 Tf 1 0 0 1 ' + (lx + 12).toFixed(2) + ' ' + (ly - 7).toFixed(2) + ' Tm (' + pdfEsc(label) + ') Tj ET');
+        lx += itemW;
+      });
+      y = ly - 16;
+    }
+
     pages.push(cur2);
+
+    // Fußzeile auf jeder Seite: Studio-Absender links, Seitenzahl rechts — erst jetzt möglich,
+    // da die Gesamt-Seitenzahl vorher nicht feststand.
+    var footerY = MARGIN - 4 >= 6 ? MARGIN - 4 : MARGIN * 0.5;
+    pages.forEach(function (pageArr, idx) {
+      pageArr.push('0.6 0.6 0.6 rg');
+      pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + MARGIN.toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (An(n) Architecture Solution) Tj ET');
+      var pageLabel = 'Seite ' + (idx + 1) + ' von ' + pages.length;
+      var pageLabelW = pageLabel.length * 3.6;
+      pageArr.push('BT /F1 7 Tf 1 0 0 1 ' + (PAGE_W - MARGIN - pageLabelW).toFixed(2) + ' ' + footerY.toFixed(2) + ' Tm (' + pageLabel + ') Tj ET');
+    });
 
     var n = pages.length;
     var pagesId = 2;
