@@ -966,13 +966,18 @@ button, input{ font-family:var(--font-family); }
     return { start: midnight(addDays(min, -2)), end: midnight(addDays(max, 2)) };
   }
 
+  // Zeilenreihenfolge ist eine feste Outline (wie in MS Project) — Aufgaben werden NICHT bei jeder
+  // Änderung nach Datum neu sortiert, sondern behalten die Reihenfolge, in der sie in state.tasks
+  // stehen (angelegt/manuell einsortiert). Ein Vorgänger kann aus JEDER Phase/Kategorie kommen; nur
+  // die berechneten Start-/Enddaten (und damit die Balken im Zeitstrahl) richten sich danach, nicht
+  // die Zeilenposition — genau wie in MS Project, wo die Outline-Reihenfolge unabhängig vom
+  // tatsächlichen Kalenderdatum eines Vorgangs ist.
   function buildRows() {
     rebuildAssigneeIndex();
     var rows = [];
     var taskNum = 0;
     state.phases.forEach(function (phase, idx) {
-      var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; })
-        .sort(function (a, b) { return fromISO(a.start) - fromISO(b.start); });
+      var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; });
       rows.push({ type: 'phase', phase: phase, colorIdx: idx, tasks: phaseTasks });
       if (!phase.collapsed) {
         phaseTasks.forEach(function (task) {
@@ -1344,13 +1349,9 @@ button, input{ font-family:var(--font-family); }
       }
       save();
       renderAll();
-      // Eine neue Abhängigkeit verschiebt das Datum dieser Zeile und damit meist auch ihre Position
-      // in der (nach Startdatum sortierten) Liste — ohne sichtbares Feedback wirkt das wie
-      // "die Eingabe hat nichts gemacht". Zeile deshalb danach automatisch markieren und ins
-      // Sichtfeld scrollen, damit klar wird, wohin sie gerade gerückt ist. Die angezeigte
-      // Vorgänger-Nummer kann sich dabei ändern, wenn auch die referenzierte Zeile selbst ihre
-      // Nummer wechselt (Liste ist sortiert, keine festen Positionen) — die Verknüpfung an sich
-      // bleibt davon unberührt korrekt.
+      // Zeile nach der Änderung markieren und ins Sichtfeld scrollen (kleine Orientierungshilfe) —
+      // die Zeilen-POSITION selbst ändert sich dabei nicht mehr (feste Outline-Reihenfolge, siehe
+      // buildRows), nur ihr berechnetes Datum/der Balken im Zeitstrahl.
       selectRow(task.phaseId, task.id);
       var newIdx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === task.id; });
       if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
@@ -1707,9 +1708,8 @@ button, input{ font-family:var(--font-family); }
           applyDependencyConstraints(sourceTask.id);
           save();
           renderAll();
-          // Siehe gleiche Begründung wie im Vorgänger-Textfeld: die Zeile kann durch die neue
-          // Abhängigkeit ihre sortierte Position wechseln — danach markieren und ins Sichtfeld
-          // scrollen, damit sichtbar bleibt, wohin sie gerückt ist.
+          // Zeile markieren und ins Sichtfeld scrollen (Orientierungshilfe) — die Position selbst
+          // bleibt unverändert (feste Outline-Reihenfolge).
           selectRow(targetTask.phaseId, targetTask.id);
           var newIdx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === targetTask.id; });
           if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
@@ -2260,22 +2260,16 @@ button, input{ font-family:var(--font-family); }
     return state.phases[state.phases.length - 1].id;
   }
 
-  // Zeilen sind innerhalb einer Phase immer nach Startdatum sortiert (siehe buildRows) — eine neue
-  // Aufgabe landet also nur dann sichtbar "unter" der angeklickten Zeile, wenn ihr Startdatum auch
-  // tatsächlich später liegt als das der angeklickten Aufgabe. Ist eine Aufgabe (nicht nur eine
-  // Phase) ausgewählt und gehört sie zur Ziel-Phase, startet die neue Zeile deshalb direkt nach
-  // deren Ende statt immer bei "heute" — das sortiert sie zuverlässig direkt darunter ein.
+  // Die Zeilen-POSITION einer neuen Aufgabe bestimmt insertTaskIntoArray() (feste Outline, nicht
+  // datumsabhängig) — diese Funktion legt nur das DEFAULT-Startdatum fest: hinter dem Ende der
+  // ausgewählten Aufgabe (falls in derselben Phase), sonst hinter dem spätesten Ende aller
+  // bereits vorhandenen Aufgaben dieser Phase, statt immer "heute" zu nehmen — verhindert, dass
+  // mehrere hintereinander angelegte Aufgaben sich auf demselben Datum häufen.
   function defaultNewTaskStart(phaseId) {
     if (selectedTaskId) {
       var refTask = findTask(selectedTaskId);
       if (refTask && refTask.phaseId === phaseId) return addDays(fromISO(refTask.end), 1);
     }
-    // Ohne konkret ausgewählte Aufgabe: hinter das späteste Ende aller bereits vorhandenen
-    // Aufgaben dieser Phase anhängen statt immer "heute" zu nehmen. Sonst häufen sich mehrere
-    // hintereinander angelegte neue Aufgaben auf demselben Datum — verknüpft man dann eine davon
-    // per Vorgänger, springt sie beim Sortieren an den anderen, noch unverknüpften, zufällig
-    // gleich-datierten Aufgaben vorbei, statt sich direkt dahinter einzureihen (Ann: "die
-    // sortieren sich nicht richtig untereinander").
     var latestEnd = null;
     state.tasks.forEach(function (t) {
       if (t.phaseId !== phaseId) return;
@@ -2286,6 +2280,27 @@ button, input{ font-family:var(--font-family); }
     return midnight(new Date());
   }
 
+  // Fügt eine neue Aufgabe an einer sinnvollen ARRAY-Position ein (nicht einfach ans Ende von
+  // state.tasks anhängen) — direkt hinter der ausgewählten Aufgabe, falls sie zur Zielphase
+  // gehört, sonst hinter der letzten bereits vorhandenen Aufgabe dieser Phase. Da die Zeilenliste
+  // jetzt eine feste Outline ist (keine Datums-Sortierung mehr, siehe buildRows), bestimmt allein
+  // diese Array-Position, wo die neue Zeile sichtbar erscheint.
+  function insertTaskIntoArray(phaseId, newTask) {
+    var refTask = selectedTaskId ? findTask(selectedTaskId) : null;
+    var anchorId = (refTask && refTask.phaseId === phaseId) ? refTask.id : null;
+    if (!anchorId) {
+      for (var i = state.tasks.length - 1; i >= 0; i--) {
+        if (state.tasks[i].phaseId === phaseId) { anchorId = state.tasks[i].id; break; }
+      }
+    }
+    if (anchorId) {
+      var idx = state.tasks.findIndex(function (t) { return t.id === anchorId; });
+      state.tasks.splice(idx + 1, 0, newTask);
+    } else {
+      state.tasks.push(newTask);
+    }
+  }
+
   function addTask(phaseId) {
     if (!phaseId) phaseId = defaultPhaseId();
     var start = defaultNewTaskStart(phaseId);
@@ -2293,7 +2308,7 @@ button, input{ font-family:var(--font-family); }
       id: uid(), phaseId: phaseId, name: 'Neuer Vorgang', assignee: '',
       start: toISO(start), end: toISO(addDays(start, 7)), progress: 0, milestone: false, dependencies: []
     };
-    state.tasks.push(newTask);
+    insertTaskIntoArray(phaseId, newTask);
     // Auswahl folgt der neu angelegten Zeile — so hängt ein wiederholter Klick auf "+Aufgabe" die
     // nächste Aufgabe jeweils direkt an die zuletzt angelegte an, statt immer wieder an dieselbe
     // Stelle zurückzuspringen.
@@ -2309,7 +2324,7 @@ button, input{ font-family:var(--font-family); }
       id: uid(), phaseId: phaseId, name: 'Neuer Meilenstein', assignee: '',
       start: toISO(start), end: toISO(start), progress: 0, milestone: true, dependencies: []
     };
-    state.tasks.push(newTask);
+    insertTaskIntoArray(phaseId, newTask);
     selectRow(phaseId, newTask.id);
     save();
     renderAll();
@@ -2382,9 +2397,9 @@ button, input{ font-family:var(--font-family); }
     });
   }
 
-  // Aufgabe per Drag&Drop in eine andere Phase/Kategorie verschieben. Die Reihenfolge
-  // innerhalb einer Phase wird immer automatisch nach Startdatum sortiert (buildRows()),
-  // daher genügt es hier, nur die Ziel-Phase zu ermitteln — nicht die Position darin.
+  // Aufgabe per Drag&Drop in eine andere Phase/Kategorie verschieben. Es genügt, während des
+  // Ziehens nur die Ziel-Phase zu ermitteln (nicht die genaue Position) — beim Ablegen wird die
+  // Aufgabe ans Ende der Zielphase einsortiert (siehe onUp unten).
   function attachTaskDrag(handle, taskRowEl, row) {
     var task = row.task;
     handle.addEventListener('pointerdown', function (e) {
@@ -2423,6 +2438,17 @@ button, input{ font-family:var(--font-family); }
         listRowEls.forEach(function (el) { el.classList.remove('drop-target'); });
         if (targetPhase && targetPhase.id !== task.phaseId) {
           task.phaseId = targetPhase.id;
+          // Zusätzlich zum Phasenwechsel auch die Array-Position anpassen: ans Ende der Aufgaben
+          // der Zielphase verschieben, damit die Zeile dort sichtbar bei ihren neuen Phasen-
+          // Nachbarn steht (feste Outline-Reihenfolge, keine Datums-Sortierung mehr, die das
+          // automatisch erledigen würde).
+          var fromIdx = state.tasks.indexOf(task);
+          if (fromIdx !== -1) state.tasks.splice(fromIdx, 1);
+          var lastIdx = -1;
+          for (var i = 0; i < state.tasks.length; i++) {
+            if (state.tasks[i].phaseId === targetPhase.id) lastIdx = i;
+          }
+          state.tasks.splice(lastIdx + 1, 0, task);
           save();
         }
         renderAll();
