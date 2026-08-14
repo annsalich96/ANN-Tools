@@ -431,7 +431,7 @@ button, input{ font-family:var(--font-family); }
     <div class="toolbar-group">
       <button class="btn" data-action="today">Heute</button>
       <button class="btn" data-action="auto-schedule" title="Alle Termine anhand von Vorgänger-Abhängigkeiten und Dauer neu berechnen — Vorgänger/Dauer zuerst festlegen, dann hier ein Startdatum eingeben">Termine automatisch setzen</button>
-      <button class="btn" data-action="reset-dates" title="Alle Start-/Enddaten leeren (Balken fallen auf heute zurück) — für einen leeren Start, um erst Vorgänger und Dauer aufzubauen, bevor Termine berechnet werden">Termine zurücksetzen</button>
+      <button class="btn" data-action="reset-dates" title="Alle Termine ab heute neu berechnen: Vorgänge ohne Vorgänger starten heute, alle anderen richten sich automatisch nach ihrem Vorgänger — Dauer und Verknüpfungen bleiben erhalten">Termine zurücksetzen</button>
     </div>
     <div class="toolbar-spacer"></div>
     <div class="toolbar-group">
@@ -881,22 +881,16 @@ button, input{ font-family:var(--font-family); }
   scheduleCancel.addEventListener('click', closeAutoScheduleDialog);
   scheduleOverlay.addEventListener('click', function (e) { if (e.target === scheduleOverlay) closeAutoScheduleDialog(); });
 
-  // "Leeres Blatt": alle Start-/Enddaten auf einen Platzhalter (heute, Dauer 1 Arbeitstag) zurück-
-  // setzen und als "nicht gesetzt" markieren (task.datesUnset) — die Datumsfelder zeigen dann leer,
-  // bis entweder "Termine automatisch setzen" läuft oder ein Datum manuell eingetragen wird. So
-  // lässt sich erst die komplette Struktur (Vorgänger, Dauer) aufbauen, bevor überhaupt ein Datum
-  // sichtbar wird.
+  // Kurzform von "Termine automatisch setzen" mit "heute" als festem Startdatum, ohne Dialog:
+  // Vorgänge OHNE Vorgänger starten heute, alle anderen richten sich weiterhin ganz normal nach
+  // ihrem Vorgänger + ihrer (unveränderten) Dauer — siehe autoScheduleAll. Vorgänger-Verknüpfungen
+  // und Dauern werden dabei NIE angetastet, nur die daraus resultierenden Datums-Felder.
   function resetAllDates() {
-    showConfirm('Alle Termine zurücksetzen? Start- und Enddaten werden geleert (Balken fallen auf heute zurück), bis du sie manuell einträgst oder erneut "Termine automatisch setzen" klickst.', function () {
-      var today = toISO(midnight(new Date()));
-      state.tasks.forEach(function (t) {
-        t.start = today;
-        t.end = today;
-        t.datesUnset = true;
-      });
+    showConfirm('Alle Termine ab heute neu berechnen? Vorgänge ohne Vorgänger starten heute, alle anderen richten sich automatisch nach ihrem Vorgänger — Dauer und Verknüpfungen bleiben unverändert.', function () {
+      autoScheduleAll(toISO(midnight(new Date())));
       save();
       renderAll();
-    });
+    }, { okLabel: 'Zurücksetzen' });
   }
 
   function showConfirm(message, onYes, options) {
@@ -1262,10 +1256,7 @@ button, input{ font-family:var(--font-family); }
 
     var startInput = document.createElement('input');
     startInput.type = 'date';
-    // Solange die Termine "zurückgesetzt" sind (task.datesUnset), bleibt das Feld leer, auch wenn
-    // intern schon ein Platzhalter-Datum (heute) liegt — erst eine eigene Eingabe hier oder
-    // "Termine automatisch setzen" deckt das echte Datum wieder auf.
-    startInput.value = task.datesUnset ? '' : task.start;
+    startInput.value = task.start;
     startInput.addEventListener('change', function () {
       if (!startInput.value) return;
       var newStart = fromISO(startInput.value);
@@ -1280,7 +1271,6 @@ button, input{ font-family:var(--font-family); }
         task.start = startInput.value;
         task.end = toISO(addWorkingDays(newStart, workDur));
       }
-      delete task.datesUnset;
       // Abhängige Folgeaufgaben werden um genau das Delta verschoben, um das sich Start bzw. Ende
       // DIESER Aufgabe verändert haben — das erhält eine eventuell eingeplante "Pause" zum
       // Nachfolger, statt sie beim Kürzen/Verlängern auf 0 zu setzen (siehe applyDependencyConstraints).
@@ -1292,7 +1282,7 @@ button, input{ font-family:var(--font-family); }
 
     var endInput = document.createElement('input');
     endInput.type = 'date';
-    endInput.value = task.datesUnset ? '' : task.end;
+    endInput.value = task.end;
     endInput.style.visibility = task.milestone ? 'hidden' : 'visible';
     endInput.addEventListener('change', function () {
       if (!endInput.value) return;
@@ -1300,7 +1290,6 @@ button, input{ font-family:var(--font-family); }
       var start = fromISO(task.start);
       var oldEnd = fromISO(task.end);
       if (newEnd < start) { task.end = task.start; } else { task.end = endInput.value; }
-      delete task.datesUnset;
       applyDependencyConstraints(task.id, 0, diffDays(fromISO(task.end), oldEnd));
       save();
       renderAll();
@@ -1358,15 +1347,10 @@ button, input{ font-family:var(--font-family); }
       // wird eine Bedingung dagegen LOCKERER (z.B. Verzug "3FS+2d" zu "3" bearbeitet, Verzug also
       // von +2 auf 0 reduziert), müsste die Zeile eigentlich wieder zurückrücken, was die reine
       // Kaskade nicht leistet. Beim Bearbeiten des Vorgänger-Felds rückt die Zeile deshalb IMMER
-      // exakt an die aktuell aus allen Abhängigkeiten errechnete früheste Position — in beide
-      // Richtungen — und stößt von dort aus erst die normale Kaskade für alles an, was von dieser
-      // Zeile selbst abhängt.
-      // Solange die Termine bewusst "zurückgesetzt" sind (task.datesUnset, siehe resetAllDates),
-      // wird hier NUR die Verknüpfung gemerkt, aber noch KEIN Datum berechnet/angezeigt — Ann will
-      // erst alle Vorgänger+Dauern eintragen und dann in einem Schritt über "Termine automatisch
-      // setzen" alles auf einmal berechnen lassen, statt dass es Zeile für Zeile schon vorzeitig
-      // "aufgedeckt" wird.
-      if (parsed.length && !task.datesUnset) {
+      // sofort — live, ohne Zwischenschritt — exakt an die aktuell aus allen Abhängigkeiten
+      // errechnete früheste Position, in beide Richtungen, und stößt von dort aus erst die normale
+      // Kaskade für alles an, was von dieser Zeile selbst abhängt.
+      if (parsed.length) {
         var predDur = task.milestone ? 1 : Math.max(1, countWorkdays(fromISO(task.start), fromISO(task.end)));
         var predRequired = earliestStartFromDeps(task, predDur);
         if (predRequired !== null) {
@@ -1382,8 +1366,8 @@ button, input{ font-family:var(--font-family); }
       save();
       renderAll();
       // Zeile nach der Änderung markieren und ins Sichtfeld scrollen (kleine Orientierungshilfe) —
-      // die Zeilen-POSITION selbst ändert sich dabei nicht mehr (feste Outline-Reihenfolge, siehe
-      // buildRows), nur ihr berechnetes Datum/der Balken im Zeitstrahl.
+      // die Zeile bleibt innerhalb ihrer eigenen Phase (buildRows sortiert dort nach Startdatum),
+      // kann sich darin aber sofort an eine neue Position verschieben, wenn sich ihr Datum ändert.
       selectRow(task.phaseId, task.id);
       var newIdx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === task.id; });
       if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
@@ -2082,6 +2066,10 @@ button, input{ font-family:var(--font-family); }
 
         var newStart = proposedStart;
         if (effectiveMinStart !== null && newStart < effectiveMinStart) newStart = effectiveMinStart;
+        // Auch das per Delta verschobene Datum kann auf ein Wochenende fallen (der Kalendertage-
+        // Delta des Vorgängers kann ein Wochenende anders "einschließen" als die Zielaufgabe) —
+        // deshalb hier genauso wie effectiveMinStart auf den nächsten Arbeitstag vorrücken.
+        if (!isWorkday(newStart)) { while (!isWorkday(newStart)) newStart = addDays(newStart, 1); }
         if (newStart.getTime() === oldStart.getTime()) return;
         var shiftDelta = diffDays(newStart, oldStart);
         if (t.milestone) {
@@ -2192,8 +2180,6 @@ button, input{ font-family:var(--font-family); }
         t.start = toISO(newStart);
         t.end = toISO(addWorkingDays(newStart, dur));
       }
-      // Deckt zuvor per "Termine zurücksetzen" geleerte Datumsfelder wieder auf.
-      delete t.datesUnset;
     });
   }
 
