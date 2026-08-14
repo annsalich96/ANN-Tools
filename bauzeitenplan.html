@@ -3768,19 +3768,22 @@ button, input{ font-family:var(--font-family); }
     if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
   });
-  // Enter in einem Zeilen-Feld (Name/Verantwortlich/Start/Ende/Dauer/Vorgänger) committet die
-  // Eingabe (blur() löst dasselbe change/blur-Verhalten wie ein Wegklicken aus) UND hebt danach die
-  // Zeilen-Markierung wieder auf — Ann: "wenn ich auf Enter drücke, will ich dass sie nicht mehr blau
-  // wird". Die Markierung entsteht sonst schon beim bloßen Hineinklicken/Fokussieren (focusin) und
-  // blieb bisher bestehen, bis eine ANDERE Zeile angeklickt wurde; Enter ist jetzt ein bewusster
-  // "fertig, Markierung weg"-Schritt. selectRow(null, null) MUSS nach blur() aufgerufen werden, nicht
-  // davor — manche Felder (z.B. Vorgänger) setzen die Markierung in ihrem eigenen change-Handler
-  // (der durch blur() synchron mitausgelöst wird) selbst wieder, das hier ist der letzte Schritt.
+  // Enter hebt die Zeilen-Markierung wieder auf — Ann: "wenn ich auf Enter drücke, will ich dass sie
+  // nicht mehr blau wird". Die Markierung entsteht schon beim bloßen Klick auf die Zeile (auch OHNE
+  // ein Feld zu fokussieren — der Zeilen-Klick-Handler ruft selectRow direkt auf) und blieb bisher
+  // bestehen, bis eine ANDERE Zeile angeklickt wurde. Erste Version dieses Fixes prüfte fälschlich
+  // "war ein <input> fokussiert?" — griff deshalb NICHT, wenn man nur auf die Zeile (nicht in ein
+  // Feld) geklickt hatte, was genau Anns eigentlicher Fall war. Jetzt: Enter deselektiert IMMER
+  // (unabhängig vom Fokus), außer innerhalb eines Bestätigungs-Dialogs (dort hat Enter nichts mit der
+  // Zeilen-Markierung zu tun). War ein <input> fokussiert, wird es zusätzlich geblurrt, um die
+  // Eingabe wie gewohnt zu committen (blur() löst dasselbe change-Verhalten wie Wegklicken aus).
+  // selectRow(null, null) MUSS nach blur() aufgerufen werden, nicht davor — manche Felder (z.B.
+  // Vorgänger) setzen die Markierung in ihrem eigenen change-Handler selbst wieder, das hier ist der
+  // letzte Schritt und gewinnt deshalb zuverlässig.
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
-    if (!e.target || e.target.tagName !== 'INPUT') return;
-    if (!e.target.closest('.task-row, .phase-row')) return;
-    e.target.blur();
+    if (e.target && e.target.closest && e.target.closest('.confirm-overlay')) return;
+    if (e.target && e.target.tagName === 'INPUT') e.target.blur();
     selectRow(null, null);
   });
   renderAll();
