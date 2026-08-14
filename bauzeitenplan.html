@@ -258,6 +258,13 @@ button, input{ font-family:var(--font-family); }
 }
 .task-row:hover .row-del, .phase-row:hover .row-del{ opacity:1; }
 .row-del:hover{ color:var(--error); }
+.row-convert{
+  appearance:none; border:none; background:transparent; color:var(--g400); cursor:pointer;
+  font-size:13px; line-height:1; padding:2px 4px; opacity:0; flex:0 0 auto;
+  width:20px; text-align:center;
+}
+.task-row:hover .row-convert{ opacity:1; }
+.row-convert:hover{ color:var(--color-black); }
 .add-task-inline{
   display:flex; align-items:center; gap:var(--space-3); height:var(--row-h); padding:0 var(--space-4) 0 var(--space-6);
   color:var(--g600); font-size:12px; border-bottom:1px solid var(--g200); box-sizing:border-box;
@@ -1429,6 +1436,29 @@ button, input{ font-family:var(--font-family); }
       if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
     });
     el.appendChild(predecessorsInput);
+
+    // Umwandeln Vorgang <-> Meilenstein: Vorgang -> Meilenstein setzt Ende=Start (Meilensteine haben
+    // keine Dauer); Meilenstein -> Vorgang gibt eine Standard-Dauer von 1 Arbeitstag, die danach ganz
+    // normal über das Dauer-Feld angepasst werden kann. Vorgänger/Nachfolger-Verknüpfungen bleiben
+    // dabei erhalten (alle vier Abhängigkeitstypen funktionieren für beide Vorgangsarten identisch).
+    var convert = document.createElement('button');
+    convert.className = 'row-convert';
+    convert.textContent = '⇄';
+    convert.title = task.milestone ? 'In Vorgang umwandeln' : 'In Meilenstein umwandeln';
+    convert.addEventListener('click', function () {
+      var oldEnd = fromISO(task.end);
+      if (task.milestone) {
+        task.milestone = false;
+        task.end = toISO(addWorkingDays(fromISO(task.start), 1));
+      } else {
+        task.milestone = true;
+        task.end = task.start;
+      }
+      applyDependencyConstraints(task.id, 0, diffDays(fromISO(task.end), oldEnd));
+      save();
+      renderAll();
+    });
+    el.appendChild(convert);
 
     var del = document.createElement('button');
     del.className = 'row-del';
