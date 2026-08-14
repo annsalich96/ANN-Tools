@@ -1355,7 +1355,18 @@ button, input{ font-family:var(--font-family); }
     predecessorsInput.value = formatPredecessors(task, predMap.idToNum);
     predecessorsInput.addEventListener('change', function () {
       var freshMap = buildTaskNumMap();
-      var parsed = parsePredecessors(predecessorsInput.value, task, freshMap.numToId);
+      var rejectedCycleNums = [];
+      var parsed = parsePredecessors(predecessorsInput.value, task, freshMap.numToId, rejectedCycleNums);
+      // Eine wegen Zyklus abgelehnte Nummer verschwand bisher stillschweigend aus dem Feld (sah wie
+      // ein Bug aus — Ann: "ich trage die Zahl ein und sie verschwindet einfach"). Jetzt gibt es
+      // stattdessen einen klaren Hinweis, WARUM die Verknüpfung nicht übernommen wurde — UND die
+      // komplette Eingabe wird verworfen (nicht nur der Zyklus-Teil), damit ein bereits gültiger
+      // Vorgänger, den man beim Tippen überschrieben hat, nicht versehentlich mitgelöscht wird.
+      if (rejectedCycleNums.length) {
+        predecessorsInput.value = formatPredecessors(task, freshMap.idToNum);
+        showConfirm('Zeile ' + rejectedCycleNums.join(', ') + ' kann hier nicht als Vorgänger eingetragen werden: diese Zeile hängt bereits (direkt oder indirekt) von "' + task.name + '" ab — das würde einen Kreis erzeugen. Ändere zuerst die Verknüpfung auf der anderen Zeile, wenn du die Reihenfolge umdrehen willst.', function () {}, { hideCancel: true, okLabel: 'OK' });
+        return;
+      }
       task.dependencies = parsed;
       predecessorsInput.value = formatPredecessors(task, freshMap.idToNum);
       // Bewusst NICHT nur applyDependencyConstraints() als reine Mindestgrenze nutzen: die Kaskade
@@ -1967,7 +1978,11 @@ button, input{ font-family:var(--font-family); }
     return parts.join(', ');
   }
 
-  function parsePredecessors(text, task, numToId) {
+  // rejectedCycleNums (optional): wird, falls übergeben, mit den Zeilennummern befüllt, die NUR
+  // wegen einer zyklischen Abhängigkeit verworfen wurden (nicht wegen ungültiger Syntax/Nummer) —
+  // damit der aufrufende Change-Handler eine sichtbare Fehlermeldung zeigen kann, statt die
+  // abgelehnte Nummer stillschweigend verschwinden zu lassen (siehe predecessorsInput-Handler).
+  function parsePredecessors(text, task, numToId, rejectedCycleNums) {
     var deps = [];
     var seen = {};
     (text || '').split(',').forEach(function (part) {
@@ -1978,7 +1993,10 @@ button, input{ font-family:var(--font-family); }
       var id = numToId[parseInt(m[1], 10)];
       if (!id || id === task.id) return;
       if (seen[id]) return;
-      if (wouldCreateCycle(id, task.id)) return;
+      if (wouldCreateCycle(id, task.id)) {
+        if (rejectedCycleNums) rejectedCycleNums.push(m[1]);
+        return;
+      }
       seen[id] = true;
       deps.push({ id: id, type: (m[2] || 'FS').toUpperCase(), lag: m[3] ? parseInt(m[3], 10) : 0 });
     });
