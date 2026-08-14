@@ -1325,6 +1325,22 @@ button, input{ font-family:var(--font-family); }
         renderAll();
       }, 150);
     });
+    // Sicherheitsnetz gegen einen echten Datenverlust-Bug: der oben debouncte renderAll() (150ms)
+    // kann sonst GENAU dann feuern, wenn man currently in einem ANDEREN Feld (z.B. Vorgänger einer
+    // anderen Zeile) mitten im Tippen ist, aber noch nicht weggeklickt/bestätigt hat — ein volles
+    // renderAll() ersetzt dabei die komplette Liste (innerHTML = ''), wodurch das gerade fokussierte,
+    // noch nicht committete Eingabefeld samt Tastatureingabe verloren geht (reproduziert und verifiziert
+    // per jsdom-Test: Dauer ändern, sofort danach ungespeichert in ein anderes Feld tippen → Text
+    // verschwindet). Fix: beim Verlassen des Dauer-Felds (blur) einen noch ausstehenden Render sofort
+    // auslösen, statt bis zu 150ms lang offen zu lassen — dieses Zeitfenster ist damit geschlossen,
+    // ohne den Debounce-Vorteil während des Spinner-Klickens selbst zu verlieren.
+    durationInput.addEventListener('blur', function () {
+      if (durationRenderPending) {
+        clearTimeout(durationRenderPending);
+        durationRenderPending = null;
+        renderAll();
+      }
+    });
     el.appendChild(durationInput);
 
     // Vorgänger-Feld: Zeilennummer(n) der Aufgabe(n), von denen diese abhängt, MS-Project-Syntax
