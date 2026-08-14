@@ -3768,6 +3768,21 @@ button, input{ font-family:var(--font-family); }
     if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
   });
+  // Enter in einem Zeilen-Feld (Name/Verantwortlich/Start/Ende/Dauer/Vorgänger) committet die
+  // Eingabe (blur() löst dasselbe change/blur-Verhalten wie ein Wegklicken aus) UND hebt danach die
+  // Zeilen-Markierung wieder auf — Ann: "wenn ich auf Enter drücke, will ich dass sie nicht mehr blau
+  // wird". Die Markierung entsteht sonst schon beim bloßen Hineinklicken/Fokussieren (focusin) und
+  // blieb bisher bestehen, bis eine ANDERE Zeile angeklickt wurde; Enter ist jetzt ein bewusster
+  // "fertig, Markierung weg"-Schritt. selectRow(null, null) MUSS nach blur() aufgerufen werden, nicht
+  // davor — manche Felder (z.B. Vorgänger) setzen die Markierung in ihrem eigenen change-Handler
+  // (der durch blur() synchron mitausgelöst wird) selbst wieder, das hier ist der letzte Schritt.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    if (!e.target || e.target.tagName !== 'INPUT') return;
+    if (!e.target.closest('.task-row, .phase-row')) return;
+    e.target.blur();
+    selectRow(null, null);
+  });
   renderAll();
   requestAnimationFrame(scrollToToday);
 })();
