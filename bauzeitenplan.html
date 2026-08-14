@@ -391,6 +391,10 @@ button, input{ font-family:var(--font-family); }
   background:var(--color-white); box-shadow:0 6px 16px rgba(0,0,0,.15); position:relative; z-index:20;
 }
 .phase-row.drop-target{ background:var(--g200); }
+.task-row.drop-target-before{ box-shadow:inset 0 2px 0 0 var(--color-black); }
+.task-row.drop-target-after{ box-shadow:inset 0 -2px 0 0 var(--color-black); }
+.phase-row.drop-target-before{ box-shadow:inset 0 2px 0 0 var(--color-black); }
+.add-task-inline.drop-target-before{ box-shadow:inset 0 2px 0 0 var(--color-black); }
 
 ::-webkit-scrollbar{ height:10px; width:10px; }
 ::-webkit-scrollbar-track{ background:var(--g100); }
@@ -439,6 +443,7 @@ button, input{ font-family:var(--font-family); }
       <button class="btn" data-action="today">Heute</button>
       <button class="btn" data-action="auto-schedule" title="Alle Termine anhand von Vorgänger-Abhängigkeiten und Dauer neu berechnen — Vorgänger/Dauer zuerst festlegen, dann hier ein Startdatum eingeben">Termine automatisch setzen</button>
       <button class="btn" data-action="reset-dates" title="Alle Termine ab heute neu berechnen: Vorgänge ohne Vorgänger starten heute, alle anderen richten sich automatisch nach ihrem Vorgänger — Dauer und Verknüpfungen bleiben erhalten">Termine zurücksetzen</button>
+      <button class="btn" data-action="sort-by-date" title="Zeilen innerhalb jeder Phase einmalig nach ihrem aktuellen Startdatum neu anordnen (wie in MS Project: kein Automatismus, nur auf Wunsch — danach frei per Ziehen-Griff sortierbar)">Nach Datum sortieren</button>
     </div>
     <div class="toolbar-spacer"></div>
     <div class="toolbar-group">
@@ -900,6 +905,26 @@ button, input{ font-family:var(--font-family); }
     }, { okLabel: 'Zurücksetzen' });
   }
 
+  // Entspricht MS Projects "Sort" (View → Sort → by Start Date): eine bewusste, EINMALIGE Aktion,
+  // kein Automatismus (siehe buildRows-Kommentar) — ordnet die Zeilen jeder Phase nach ihrem
+  // AKTUELLEN Startdatum neu an, Array.prototype.sort ist stabil, gleiche Daten behalten also ihre
+  // bisherige Reihenfolge zueinander. Phasenreihenfolge und -zugehörigkeit bleiben unangetastet, nur
+  // die Reihenfolge INNERHALB jeder Phase ändert sich. Danach wieder ganz normal per Ziehen-Griff frei
+  // verschiebbar.
+  function sortTasksByDate() {
+    showConfirm('Zeilen jeder Phase einmalig nach ihrem aktuellen Startdatum neu anordnen? Das lässt sich danach jederzeit per Ziehen-Griff wieder von Hand ändern.', function () {
+      var newTasks = [];
+      state.phases.forEach(function (phase) {
+        var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; });
+        phaseTasks.sort(function (a, b) { return fromISO(a.start) - fromISO(b.start); });
+        newTasks = newTasks.concat(phaseTasks);
+      });
+      state.tasks = newTasks;
+      save();
+      renderAll();
+    }, { okLabel: 'Sortieren' });
+  }
+
   function showConfirm(message, onYes, options) {
     options = options || {};
     confirmMsg.textContent = message;
@@ -986,19 +1011,19 @@ button, input{ font-family:var(--font-family); }
     return { start: midnight(addDays(min, -2)), end: midnight(addDays(max, 2)) };
   }
 
-  // Eine Aufgabe bleibt immer im Block ihrer EIGENEN Phase/Kategorie (Phasen-Überschriften bleiben
-  // fix, keine Zeile wandert in eine fremde Phase) — INNERHALB ihrer Phase sortiert sie sich aber
-  // nach ihrem berechneten Startdatum, das durchaus von einem Vorgänger in einer ANDEREN Phase
-  // abhängen kann (der Vorgänger bestimmt das Datum, das Datum bestimmt die Position innerhalb der
-  // eigenen Phase). Bei gleichem Datum entscheidet die Array-Reihenfolge (stabiler Sort) — die von
-  // insertTaskIntoArray/attachTaskDrag bewusst sinnvoll gepflegt wird.
+  // Zeilenreihenfolge nach echtem MS-Project-Prinzip (siehe Recherche vom 2026-08-14, Ann hat dem
+  // Umbau zugestimmt): Project sortiert NIE automatisch nach Datum — Standard ist die feste
+  // Anlage-/ID-Reihenfolge, die unabhängig davon bleibt, wie sich Termine durch Vorgänger-Kaskaden
+  // verschieben. Nur der Balken im Zeitstrahl wandert, die Zeilen-POSITION in der Tabelle bleibt
+  // stehen. Deshalb hier bewusst KEIN Sortieren nach Startdatum mehr — `state.tasks` ist die
+  // maßgebliche Reihenfolge (gepflegt von insertTaskIntoArray beim Anlegen und attachTaskDrag beim
+  // manuellen Verschieben pro Zeile), buildRows filtert hier nur noch nach Phase.
   function buildRows() {
     rebuildAssigneeIndex();
     var rows = [];
     var taskNum = 0;
     state.phases.forEach(function (phase, idx) {
-      var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; })
-        .sort(function (a, b) { return fromISO(a.start) - fromISO(b.start); });
+      var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; });
       rows.push({ type: 'phase', phase: phase, colorIdx: idx, tasks: phaseTasks });
       if (!phase.collapsed) {
         phaseTasks.forEach(function (task) {
@@ -1429,8 +1454,8 @@ button, input{ font-family:var(--font-family); }
       save();
       renderAll();
       // Zeile nach der Änderung markieren und ins Sichtfeld scrollen (kleine Orientierungshilfe) —
-      // die Zeile bleibt innerhalb ihrer eigenen Phase (buildRows sortiert dort nach Startdatum),
-      // kann sich darin aber sofort an eine neue Position verschieben, wenn sich ihr Datum ändert.
+      // die Zeilen-POSITION selbst ändert sich dabei nie mehr (feste Anlage-/Drag-Reihenfolge wie in
+      // echtem MS Project, siehe buildRows), nur das berechnete Datum bzw. der Balken im Zeitstrahl.
       selectRow(task.phaseId, task.id);
       var newIdx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === task.id; });
       if (newIdx !== -1 && listRowEls[newIdx]) listRowEls[newIdx].scrollIntoView({ block: 'nearest' });
@@ -2510,37 +2535,63 @@ button, input{ font-family:var(--font-family); }
     });
   }
 
-  // Aufgabe per Drag&Drop in eine andere Phase/Kategorie verschieben. Es genügt, während des
-  // Ziehens nur die Ziel-Phase zu ermitteln (nicht die genaue Position) — beim Ablegen wird die
-  // Aufgabe ans Ende der Zielphase einsortiert (siehe onUp unten).
+  // Aufgabe per Drag&Drop frei verschieben — sowohl in eine andere Phase/Kategorie ALS AUCH auf eine
+  // exakte Position innerhalb einer Phase (nötig, seit buildRows nicht mehr automatisch nach Datum
+  // sortiert, siehe dortiger Kommentar: die Zeilenreihenfolge ist jetzt reine Anlage-/Drag-Reihen-
+  // folge wie in echtem MS Project, muss sich also manuell per Drag anpassen lassen). Während des
+  // Ziehens wird pro Bewegung die Zeile ermittelt, über der der Mauszeiger gerade steht, plus ob man
+  // in deren oberer oder unterer Hälfte ist (davor/danach einfügen) — beim Loslassen wird die
+  // Aufgabe exakt dorthin gespleißt.
   function attachTaskDrag(handle, taskRowEl, row) {
     var task = row.task;
     handle.addEventListener('pointerdown', function (e) {
       e.preventDefault();
       handle.setPointerCapture(e.pointerId);
-      var blocks = computePhaseBlocks();
       var startIdx = currentRows.indexOf(row);
-      if (startIdx === -1 || !blocks.length) return;
+      if (startIdx === -1) return;
       var startTop = startIdx * ROW_H;
       var startClientY = e.clientY;
-      var targetPhase = state.phases.find(function (p) { return p.id === task.phaseId; });
+      var pending = null; // { phaseId, beforeTaskId, afterTaskId } — genau eines von before/after ist gesetzt (oder keins = ans Phasenende)
       taskRowEl.classList.add('task-dragging');
 
-      function highlightTarget(phase) {
-        listRowEls.forEach(function (el) { el.classList.remove('drop-target'); });
-        if (!phase) return;
-        var idx = currentRows.findIndex(function (r) { return r.type === 'phase' && r.phase.id === phase.id; });
-        if (idx !== -1 && listRowEls[idx]) listRowEls[idx].classList.add('drop-target');
+      function clearHighlight() {
+        listRowEls.forEach(function (el) { el.classList.remove('drop-target', 'drop-target-before', 'drop-target-after'); });
+      }
+
+      function computeTarget(clientY) {
+        var dy = clientY - startClientY;
+        var currentMid = startTop + dy + ROW_H / 2;
+        var idx = Math.max(0, Math.min(currentRows.length - 1, Math.floor(currentMid / ROW_H)));
+        var r = currentRows[idx];
+        if (r.type === 'phase') {
+          // Über dem Phasenkopf losgelassen -> ganz an den Anfang dieser Phase.
+          var firstTask = r.tasks[0];
+          return { phaseId: r.phase.id, beforeTaskId: firstTask ? firstTask.id : null, afterTaskId: null, highlightIdx: idx, pos: 'before' };
+        }
+        if (r.type === 'add') {
+          // Über der "+ Vorgang/+ Meilenstein"-Zeile losgelassen -> ans Ende dieser Phase.
+          return { phaseId: r.phase.id, beforeTaskId: null, afterTaskId: null, highlightIdx: idx, pos: 'before' };
+        }
+        // r.type === 'task': je nachdem ob man in der oberen oder unteren Zeilenhälfte ist, davor
+        // oder danach einfügen.
+        var withinRow = currentMid - idx * ROW_H;
+        var before = withinRow < ROW_H / 2;
+        return {
+          phaseId: r.phase.id,
+          beforeTaskId: before ? r.task.id : null,
+          afterTaskId: before ? null : r.task.id,
+          highlightIdx: idx,
+          pos: before ? 'before' : 'after'
+        };
       }
 
       function onMove(ev) {
         var dy = ev.clientY - startClientY;
         taskRowEl.style.transform = 'translateY(' + dy + 'px)';
-        var currentMid = startTop + dy + ROW_H / 2;
-        var found = blocks.find(function (b) { return currentMid >= b.top && currentMid < b.top + b.height; });
-        if (!found) found = currentMid < blocks[0].top ? blocks[0] : blocks[blocks.length - 1];
-        targetPhase = found.phase;
-        highlightTarget(targetPhase);
+        pending = computeTarget(ev.clientY);
+        clearHighlight();
+        var el = listRowEls[pending.highlightIdx];
+        if (el) el.classList.add(pending.pos === 'before' ? 'drop-target-before' : 'drop-target-after');
       }
       function onUp(ev) {
         handle.releasePointerCapture(ev.pointerId);
@@ -2548,20 +2599,33 @@ button, input{ font-family:var(--font-family); }
         handle.removeEventListener('pointerup', onUp);
         taskRowEl.style.transform = '';
         taskRowEl.classList.remove('task-dragging');
-        listRowEls.forEach(function (el) { el.classList.remove('drop-target'); });
-        if (targetPhase && targetPhase.id !== task.phaseId) {
-          task.phaseId = targetPhase.id;
-          // Zusätzlich zum Phasenwechsel auch die Array-Position anpassen: ans Ende der Aufgaben
-          // der Zielphase verschieben, damit die Zeile dort sichtbar bei ihren neuen Phasen-
-          // Nachbarn steht (feste Outline-Reihenfolge, keine Datums-Sortierung mehr, die das
-          // automatisch erledigen würde).
+        clearHighlight();
+        // Wenn direkt vor/nach der eigenen Zeile losgelassen wird, ist das effektiv keine Bewegung —
+        // ohne diesen Schutz würde die Suche nach beforeTaskId/afterTaskId ins Leere laufen (die
+        // eigene Aufgabe ist zu dem Zeitpunkt schon aus dem Array entfernt) und die Zeile fälschlich
+        // ans Phasenende springen.
+        if (pending && pending.beforeTaskId === task.id) pending = null;
+        if (pending && pending.afterTaskId === task.id) pending = null;
+        if (pending) {
+          task.phaseId = pending.phaseId;
           var fromIdx = state.tasks.indexOf(task);
           if (fromIdx !== -1) state.tasks.splice(fromIdx, 1);
-          var lastIdx = -1;
-          for (var i = 0; i < state.tasks.length; i++) {
-            if (state.tasks[i].phaseId === targetPhase.id) lastIdx = i;
+          var insertIdx;
+          if (pending.beforeTaskId) {
+            insertIdx = state.tasks.findIndex(function (t) { return t.id === pending.beforeTaskId; });
+            if (insertIdx === -1) insertIdx = state.tasks.length;
+          } else if (pending.afterTaskId) {
+            var afterIdx = state.tasks.findIndex(function (t) { return t.id === pending.afterTaskId; });
+            insertIdx = afterIdx === -1 ? state.tasks.length : afterIdx + 1;
+          } else {
+            // Kein Nachbar getroffen (leere Phase oder "+"-Zeile) -> ans Ende der Zielphase.
+            insertIdx = -1;
+            for (var i = 0; i < state.tasks.length; i++) {
+              if (state.tasks[i].phaseId === pending.phaseId) insertIdx = i;
+            }
+            insertIdx = insertIdx === -1 ? state.tasks.length : insertIdx + 1;
           }
-          state.tasks.splice(lastIdx + 1, 0, task);
+          state.tasks.splice(insertIdx, 0, task);
           save();
         }
         renderAll();
@@ -3619,6 +3683,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'redo') redo();
       else if (action === 'auto-schedule') openAutoScheduleDialog();
       else if (action === 'reset-dates') resetAllDates();
+      else if (action === 'sort-by-date') sortTasksByDate();
       else if (action === 'export-pdf') exportPDF();
       else if (action === 'print') openPrintPreview();
       else if (action === 'save-file') saveProjectFile();
