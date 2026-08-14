@@ -1215,9 +1215,21 @@ button, input{ font-family:var(--font-family); }
     var status = taskStatus(task);
     var icon = document.createElement('span');
     icon.className = 'status-icon' + (status ? ' ' + status : '');
-    if (status === 'done') { icon.textContent = '✓'; icon.title = 'Fertig'; }
-    else if (status === 'late') { icon.textContent = '!'; icon.title = 'Verzögert'; }
-    else { icon.textContent = task.milestone ? '◆' : ''; }
+    if (status === 'done') { icon.textContent = '✓'; icon.title = 'Fertig — klicken zum Zurücksetzen'; }
+    else if (status === 'late') { icon.textContent = '!'; icon.title = 'Verzögert (Enddatum liegt in der Vergangenheit) — als fertig markieren, um das zu entfernen'; }
+    else { icon.textContent = task.milestone ? '◆' : ''; icon.title = 'Als fertig markieren'; }
+    // Seit das %-Fortschrittsfeld entfernt wurde (war verwirrend), gab es keine Bedienung mehr, um
+    // eine Aufgabe als "fertig" zu markieren — das "!" (Verzögert) blieb dadurch permanent hängen,
+    // sobald das Enddatum in der Vergangenheit lag, ohne Möglichkeit, es wieder zu entfernen (Ann:
+    // "manchmal kommt ganz links ein Ausrufezeichen und das bleibt dann"). Fix: das Icon selbst ist
+    // jetzt klickbar und schaltet fertig/nicht fertig um (progress 100/0) — ohne die frühere,
+    // als verwirrend empfundene Prozent-Eingabe wieder einzuführen.
+    icon.style.cursor = 'pointer';
+    icon.addEventListener('click', function () {
+      task.progress = task.progress >= 100 ? 0 : 100;
+      save();
+      renderAll();
+    });
     el.appendChild(icon);
 
     var name = document.createElement('input');
@@ -1237,6 +1249,7 @@ button, input{ font-family:var(--font-family); }
     assignee.className = 'assignee-input';
     assignee.placeholder = 'Firma / Person';
     assignee.value = task.assignee || '';
+    var assigneeRenderPending = null;
     assignee.addEventListener('input', function () {
       task.assignee = assignee.value;
       save();
@@ -1249,6 +1262,22 @@ button, input{ font-family:var(--font-family); }
         var newColorIdx = resolveColorIdx(task, row.colorIdx);
         assigneeSw.className = 'swatch' + (newColorIdx !== null && phaseHatched(newColorIdx) ? ' hatched' : '');
         assigneeSw.style.background = newColorIdx === null ? 'var(--g400)' : phaseColor(newColorIdx);
+        // renderTimelineOnly() baut den GESAMTEN Zeitstrahl (alle Balken + Abhängigkeitspfeile) neu
+        // auf — bei jedem einzelnen Tastendruck macht das die Eingabe spürbar ruckelig (Ann: "es
+        // hackt so sehr, super langsam"). Genau wie beim Dauer-Feld (siehe dort) deshalb debounced,
+        // mit sofortigem Flush beim Verlassen des Felds (blur), damit kein veralteter Zeitstrahl-
+        // Zustand stehen bleibt und keine Race Condition mit anderen Feldern entstehen kann.
+        if (assigneeRenderPending) clearTimeout(assigneeRenderPending);
+        assigneeRenderPending = setTimeout(function () {
+          assigneeRenderPending = null;
+          renderTimelineOnly();
+        }, 150);
+      }
+    });
+    assignee.addEventListener('blur', function () {
+      if (assigneeRenderPending) {
+        clearTimeout(assigneeRenderPending);
+        assigneeRenderPending = null;
         renderTimelineOnly();
       }
     });
