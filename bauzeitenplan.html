@@ -2552,10 +2552,17 @@ button, input{ font-family:var(--font-family); }
       var startTop = startIdx * ROW_H;
       var startClientY = e.clientY;
       var pending = null; // { phaseId, beforeTaskId, afterTaskId } — genau eines von before/after ist gesetzt (oder keins = ans Phasenende)
+      var lastHighlightEl = null, lastHighlightPos = null;
       taskRowEl.classList.add('task-dragging');
 
+      // pointermove feuert sehr häufig (60+/s), meist auf derselben Zielzeile — ein volles
+      // "alle Zeilen durchgehen und Klassen entfernen" bei JEDEM Tick war spürbar unruhig beim
+      // Ziehen (Ann: "es hackt ... wenn ich Objekte verschiebe"). Jetzt wird nur noch die zuletzt
+      // markierte Zeile angefasst, nicht mehr die komplette Liste.
       function clearHighlight() {
-        listRowEls.forEach(function (el) { el.classList.remove('drop-target', 'drop-target-before', 'drop-target-after'); });
+        if (lastHighlightEl) lastHighlightEl.classList.remove('drop-target-before', 'drop-target-after');
+        lastHighlightEl = null;
+        lastHighlightPos = null;
       }
 
       function computeTarget(clientY) {
@@ -2589,9 +2596,15 @@ button, input{ font-family:var(--font-family); }
         var dy = ev.clientY - startClientY;
         taskRowEl.style.transform = 'translateY(' + dy + 'px)';
         pending = computeTarget(ev.clientY);
-        clearHighlight();
         var el = listRowEls[pending.highlightIdx];
+        // Nur anfassen, wenn sich die Zielzeile oder die Davor/Danach-Seite tatsächlich geändert hat
+        // — bei Mausbewegungen INNERHALB derselben Zielzeile (der Normalfall zwischen zwei Ticks)
+        // passiert dadurch gar nichts am DOM mehr.
+        if (el === lastHighlightEl && pending.pos === lastHighlightPos) return;
+        clearHighlight();
         if (el) el.classList.add(pending.pos === 'before' ? 'drop-target-before' : 'drop-target-after');
+        lastHighlightEl = el;
+        lastHighlightPos = pending.pos;
       }
       function onUp(ev) {
         handle.releasePointerCapture(ev.pointerId);
