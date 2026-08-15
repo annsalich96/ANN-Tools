@@ -98,6 +98,8 @@ button, input{ font-family:var(--font-family); }
 .btn.primary{ background:var(--color-black); color:var(--color-white); border-color:var(--color-black); height:35px; }
 .btn.primary:hover{ background:#242424; }
 .btn.danger-text{ color:var(--error); border-color:var(--g200); }
+.btn:disabled{ opacity:.4; cursor:default; }
+.btn:disabled:hover{ background:var(--color-white); border-color:var(--g200); }
 
 .zoom-group{ background:var(--g100); border-radius:4px; padding:3px; gap:0; height:36px; box-sizing:border-box; }
 .zoom-btn{
@@ -133,7 +135,7 @@ button, input{ font-family:var(--font-family); }
 .icon-btn{
   appearance:none; border:1px solid transparent; background:transparent; color:var(--g600);
   width:28px; height:28px; border-radius:3px; cursor:pointer; font-size:14px;
-  display:inline-flex; align-items:center; justify-content:center; line-height:1;
+  display:inline-flex; align-items:center; justify-content:center; line-height:1; flex:0 0 auto;
 }
 .icon-btn:hover{ background:var(--color-white); border-color:var(--g200); color:var(--color-black); }
 .icon-btn.danger:hover{ color:var(--error); border-color:var(--error); }
@@ -148,12 +150,16 @@ button, input{ font-family:var(--font-family); }
   padding-top:var(--space-2); padding-bottom:var(--space-2);
 }
 .position-row:last-of-type{ border-bottom:none; }
+.col-active{ flex:0 0 20px; display:flex; align-items:center; justify-content:center; }
+.col-active input[type=checkbox]{ width:14px; height:14px; cursor:pointer; accent-color:var(--color-black); }
+.col-nr{ flex:0 0 36px; font-size:12px; color:var(--g600); }
 .col-bez{ flex:1 1 auto; min-width:0; }
-.col-menge{ flex:0 0 90px; }
-.col-einheit{ flex:0 0 90px; }
-.col-ep{ flex:0 0 110px; }
-.col-gesamt{ flex:0 0 120px; text-align:right; }
-.col-del{ flex:0 0 28px; }
+.col-menge{ flex:0 0 80px; }
+.col-einheit{ flex:0 0 80px; }
+.col-ep{ flex:0 0 100px; }
+.col-gesamt{ flex:0 0 110px; text-align:right; }
+.col-lib{ flex:0 0 26px; }
+.col-del{ flex:0 0 26px; }
 
 .position-row input{
   border:1px solid transparent; outline:none; background:transparent; width:100%;
@@ -163,26 +169,31 @@ button, input{ font-family:var(--font-family); }
 .position-row input:focus{ border-color:var(--g400); background:var(--color-white); }
 .position-row input.col-menge-input, .position-row input.col-ep-input{ text-align:right; }
 .position-row .col-gesamt{ font-size:13px; font-weight:500; color:var(--color-black); }
+.position-row.inactive{ opacity:.45; }
+.position-row.inactive .col-gesamt, .position-row.inactive input{ text-decoration:line-through; }
 
 .add-inline-btn{
   appearance:none; border:1px dashed var(--g200); border-radius:4px; cursor:pointer;
   background:var(--color-white); color:var(--g600); font-size:12px; font-weight:500;
-  margin:var(--space-3) var(--space-4); padding:8px; text-align:left;
+  padding:8px; text-align:left;
 }
 .add-inline-btn:hover{ color:var(--color-black); border-color:var(--g400); background:var(--g100); }
+.add-inline-row{ display:flex; gap:var(--space-2); margin:var(--space-3) var(--space-4); }
+.add-inline-row .add-inline-btn{ flex:1 1 auto; margin:0; }
 
+.add-massnahme-row{ display:flex; gap:var(--space-2); }
 .add-massnahme-btn{
   appearance:none; border:1px dashed var(--g200); border-radius:6px; cursor:pointer;
   background:var(--color-white); color:var(--g600); font-size:13px; font-weight:500;
-  padding:var(--space-4); text-align:center;
+  padding:var(--space-4); text-align:center; flex:1 1 auto;
 }
 .add-massnahme-btn:hover{ color:var(--color-black); border-color:var(--g400); background:var(--g100); }
 
 /* ── Summary panel ────────────────────── */
-.summary-col{ flex:0 0 var(--summary-w); position:sticky; top:var(--space-6); }
+.summary-col{ flex:0 0 var(--summary-w); position:sticky; top:var(--space-6); display:flex; flex-direction:column; gap:var(--space-4); }
 .summary-card{ border:1px solid var(--g200); border-radius:6px; padding:var(--space-5); }
 .summary-title{ font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--g600); margin:0 0 var(--space-4) 0; }
-.summary-line{ display:flex; align-items:baseline; justify-content:space-between; font-size:13px; color:var(--color-black); padding:6px 0; }
+.summary-line{ display:flex; align-items:baseline; justify-content:space-between; font-size:13px; color:var(--color-black); padding:6px 0; gap:8px; }
 .summary-line .label{ color:var(--g600); }
 .summary-line .value{ font-weight:500; white-space:nowrap; }
 .summary-line.total{ border-top:1px solid var(--g200); margin-top:var(--space-2); padding-top:var(--space-4); font-size:15px; font-weight:600; }
@@ -193,6 +204,9 @@ button, input{ font-family:var(--font-family); }
 .breakdown-row .name{ flex:1 1 auto; min-width:0; color:var(--color-black); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .breakdown-row .pct{ color:var(--g600); flex:0 0 auto; }
 .breakdown-row .amt{ color:var(--color-black); font-weight:500; flex:0 0 auto; width:80px; text-align:right; }
+
+.snapshot-actions{ display:flex; flex-direction:column; gap:var(--space-2); }
+.snapshot-count{ font-size:12px; color:var(--g600); }
 
 /* ── Confirm dialog ───────────────────── */
 .confirm-overlay{
@@ -207,8 +221,57 @@ button, input{ font-family:var(--font-family); }
 .confirm-msg{ font-size:13px; color:var(--color-black); margin:0 0 var(--space-5) 0; line-height:1.5; }
 .confirm-actions{ display:flex; justify-content:flex-end; gap:var(--space-2); }
 
+/* ── Generic modal ────────────────────── */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(10,10,10,.4); display:none;
+  align-items:flex-start; justify-content:center; z-index:60; overflow-y:auto; padding:var(--space-12) var(--space-6);
+}
+.modal-overlay.show{ display:flex; }
+.modal-box{
+  background:var(--color-white); border-radius:6px; width:520px; max-width:100%;
+  box-shadow:0 12px 32px rgba(0,0,0,.2); font-family:var(--font-family);
+}
+.modal-box.wide{ width:860px; }
+.modal-head{ display:flex; align-items:center; justify-content:space-between; padding:var(--space-5) var(--space-6); border-bottom:1px solid var(--g200); }
+.modal-head h3{ margin:0; font-size:16px; font-weight:600; }
+.modal-body{ padding:var(--space-6); max-height:70vh; overflow-y:auto; }
+.modal-actions{ display:flex; justify-content:flex-end; gap:var(--space-2); margin-top:var(--space-5); }
+.form-field{ display:flex; flex-direction:column; gap:6px; margin-bottom:var(--space-4); }
+.form-field label{ font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--g600); }
+.form-field input, .form-field select{
+  border:1px solid var(--g200); border-radius:3px; padding:8px 10px; font-size:13px;
+  font-family:var(--font-family); color:var(--color-black); background:var(--color-white);
+}
+.form-field input:focus, .form-field select:focus{ outline:none; border-color:var(--g400); }
+.pdf-mode-options{ display:flex; flex-direction:column; gap:var(--space-3); }
+.pdf-mode-option{
+  border:1px solid var(--g200); border-radius:6px; padding:var(--space-4); cursor:pointer; text-align:left;
+  background:var(--color-white); font-family:var(--font-family); width:100%;
+}
+.pdf-mode-option:hover{ border-color:var(--g400); background:var(--g100); }
+.pdf-mode-option .t{ font-size:14px; font-weight:600; color:var(--color-black); margin-bottom:2px; }
+.pdf-mode-option .d{ font-size:12px; color:var(--g600); }
+
+.lib-tabs{ display:flex; gap:var(--space-2); margin-bottom:var(--space-4); border-bottom:1px solid var(--g200); }
+.lib-tab{ appearance:none; border:none; background:transparent; padding:8px 4px 12px; font-size:13px; font-weight:500; color:var(--g600); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.lib-tab.active{ color:var(--color-black); border-bottom-color:var(--color-black); }
+.lib-list{ display:flex; flex-direction:column; gap:var(--space-2); }
+.lib-item{ display:flex; align-items:center; gap:var(--space-3); border:1px solid var(--g200); border-radius:4px; padding:var(--space-3) var(--space-4); }
+.lib-item .info{ flex:1 1 auto; min-width:0; }
+.lib-item .info .n{ font-size:13px; font-weight:500; color:var(--color-black); }
+.lib-item .info .d{ font-size:12px; color:var(--g600); }
+.lib-empty{ color:var(--g600); font-size:13px; padding:var(--space-6) 0; text-align:center; }
+
+.compare-table-wrap{ overflow-x:auto; }
+table.compare-table{ border-collapse:collapse; width:100%; font-size:13px; }
+table.compare-table th, table.compare-table td{ padding:8px 12px; border-bottom:1px solid var(--g200); white-space:nowrap; text-align:right; }
+table.compare-table th:first-child, table.compare-table td:first-child{ text-align:left; position:sticky; left:0; background:var(--color-white); }
+table.compare-table thead th{ font-size:11px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--g600); }
+table.compare-table tr.grand td{ font-weight:700; border-top:2px solid var(--color-black); border-bottom:none; }
+table.compare-table td.del-cell{ text-align:center; }
+
 @media print{
-  .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-massnahme-btn{ display:none !important; }
+  .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-massnahme-btn, .col-lib, .col-del{ display:none !important; }
   .board{ display:block; }
   .summary-col{ position:static; margin-top:var(--space-6); width:100%; flex:none; }
   .massnahme-card{ break-inside:avoid; }
@@ -245,11 +308,17 @@ button, input{ font-family:var(--font-family); }
     </div>
     <div class="toolbar-spacer"></div>
     <div class="toolbar-group">
+      <button class="btn" data-action="open-library" title="Wiederverwendbare Positionen &amp; Maßnahmen-Pakete verwalten">Bibliothek</button>
+      <button class="btn" data-action="save-snapshot" title="Aktuellen Stand als Schnappschuss sichern, um ihn später zu vergleichen">Stand sichern</button>
+      <button class="btn" data-action="open-compare" title="Gesicherte Stände vergleichen">Vergleich</button>
+    </div>
+    <div class="toolbar-group">
       <button class="btn" data-action="open-file" title="Eine gespeicherte Kostenberechnung (.json) öffnen">Öffnen</button>
       <button class="btn" data-action="save-file" title="Aktuellen Stand als Datei speichern, um später weiterzuarbeiten">Speichern</button>
       <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
     </div>
     <div class="toolbar-group">
+      <button class="btn" data-action="open-pdf-options" title="Als PDF-Datei herunterladen">PDF exportieren</button>
       <button class="btn" data-action="print" title="Öffnet den Druckdialog des Browsers">Drucken</button>
     </div>
   </div>
@@ -283,11 +352,14 @@ button, input{ font-family:var(--font-family); }
   </div>
 </div>
 
+<div class="modal-overlay" id="modalOverlay"></div>
+
 <script>
 (function () {
   'use strict';
 
   var STORAGE_KEY = 'kostenberechnung_state_v1';
+  var LIBRARY_KEY = 'kostenberechnung_library_v1';
   var UNITS = ['m²', 'm³', 'lfm', 'Stk', 'psch', 'kg', 'h', 'Std.', 'pauschal', 't', 'Satz'];
   var RESERVE_DEFAULTS = { schaetzung: 15, berechnung: 10, anschlag: 5 };
   var KOSTENSTAND_LABELS = { schaetzung: 'Kostenschätzung', berechnung: 'Kostenberechnung', anschlag: 'Kostenanschlag' };
@@ -305,7 +377,9 @@ button, input{ font-family:var(--font-family); }
   }
   function pad2(n) { return String(n).padStart(2, '0'); }
   function fmtDE(d) { return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear(); }
+  function fmtDEDateTime(iso) { var d = new Date(iso); return fmtDE(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
   function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function deepClone(x) { return JSON.parse(JSON.stringify(x)); }
 
   function seedData() {
     return {
@@ -318,10 +392,11 @@ button, input{ font-family:var(--font-family); }
         {
           id: uid(), name: 'Rückbau / Demontage',
           positions: [
-            { id: uid(), bez: '', menge: null, einheit: 'psch', ep: null }
+            { id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true }
           ]
         }
-      ]
+      ],
+      snapshots: []
     };
   }
 
@@ -330,13 +405,36 @@ button, input{ font-family:var(--font-family); }
       var raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.massnahmen)) return parsed;
+        if (parsed && Array.isArray(parsed.massnahmen)) return normalizeState(parsed);
       }
     } catch (e) { /* ignore corrupted storage */ }
     return seedData();
   }
 
+  function normalizeState(parsed) {
+    if (!Array.isArray(parsed.snapshots)) parsed.snapshots = [];
+    parsed.massnahmen.forEach(function (m) {
+      m.positions.forEach(function (p) { if (p.active === undefined) p.active = true; });
+    });
+    return parsed;
+  }
+
+  function loadLibrary() {
+    try {
+      var raw = localStorage.getItem(LIBRARY_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.positions) && Array.isArray(parsed.massnahmen)) return parsed;
+      }
+    } catch (e) { /* ignore corrupted storage */ }
+    return { positions: [], massnahmen: [] };
+  }
+  function saveLibrary() {
+    try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(library)); } catch (e) { /* storage unavailable */ }
+  }
+
   var state = load();
+  var library = loadLibrary();
   var saveScheduled = false;
   function save() {
     if (saveScheduled) return;
@@ -365,20 +463,44 @@ button, input{ font-family:var(--font-family); }
     $('#confirmCancel').addEventListener('click', no);
   }
 
-  /* ── Calculations ───────────────────────────────────── */
-  function positionTotal(p) { return (Number(p.menge) || 0) * (Number(p.ep) || 0); }
-  function massnahmeTotal(m) { return m.positions.reduce(function (sum, p) { return sum + positionTotal(p); }, 0); }
-  function grandNetTotal() { return state.massnahmen.reduce(function (sum, m) { return sum + massnahmeTotal(m); }, 0); }
+  /* ── Generic modal ──────────────────────────────────── */
+  function showModal(titleText, bodyHTML, opts) {
+    opts = opts || {};
+    var overlay = $('#modalOverlay');
+    overlay.innerHTML = '<div class="modal-box' + (opts.wide ? ' wide' : '') + '">' +
+      '<div class="modal-head"><h3>' + escHtml(titleText) + '</h3><button class="icon-btn" id="modalCloseBtn" title="Schließen">✕</button></div>' +
+      '<div class="modal-body">' + bodyHTML + '</div>' +
+      '</div>';
+    overlay.classList.add('show');
+    $('#modalCloseBtn').addEventListener('click', closeModal);
+    overlay.onclick = function (e) { if (e.target === overlay) closeModal(); };
+    if (opts.onOpen) opts.onOpen(overlay);
+  }
+  function closeModal() {
+    var overlay = $('#modalOverlay');
+    overlay.classList.remove('show');
+    overlay.innerHTML = '';
+    overlay.onclick = null;
+  }
 
-  function computeSummary() {
-    var netto = grandNetTotal();
-    var reserve = netto * (Number(state.reservePct) || 0) / 100;
-    var nebenkosten = netto * (Number(state.nkPct) || 0) / 100;
+  /* ── Calculations ───────────────────────────────────── */
+  function rawPositionAmount(p) { return (Number(p.menge) || 0) * (Number(p.ep) || 0); }
+  function positionTotal(p) { return p.active === false ? 0 : rawPositionAmount(p); }
+  function massnahmeTotal(m) { return m.positions.reduce(function (sum, p) { return sum + positionTotal(p); }, 0); }
+  function grandNetTotal(massnahmen) {
+    return (massnahmen || state.massnahmen).reduce(function (sum, m) { return sum + massnahmeTotal(m); }, 0);
+  }
+
+  function computeTotals(cfg) {
+    var netto = grandNetTotal(cfg.massnahmen);
+    var reserve = netto * (Number(cfg.reservePct) || 0) / 100;
+    var nebenkosten = netto * (Number(cfg.nkPct) || 0) / 100;
     var zwischensumme = netto + reserve + nebenkosten;
-    var mwst = zwischensumme * (Number(state.mwstPct) || 0) / 100;
+    var mwst = zwischensumme * (Number(cfg.mwstPct) || 0) / 100;
     var brutto = zwischensumme + mwst;
     return { netto: netto, reserve: reserve, nebenkosten: nebenkosten, zwischensumme: zwischensumme, mwst: mwst, brutto: brutto };
   }
+  function computeSummary() { return computeTotals(state); }
 
   /* ── Rendering ──────────────────────────────────────── */
   function renderAll() {
@@ -403,40 +525,51 @@ button, input{ font-family:var(--font-family); }
     $('#mwstPct').value = state.mwstPct;
   }
 
-  function positionRowHTML(m, p) {
+  function positionRowHTML(m, p, mIdx, pIdx) {
+    var nr = (mIdx + 1) + '.' + (pIdx + 1);
     return '' +
-      '<div class="position-row" data-position-id="' + p.id + '">' +
+      '<div class="position-row' + (p.active === false ? ' inactive' : '') + '" data-position-id="' + p.id + '">' +
+        '<div class="col-active"><input type="checkbox" class="col-active-input" ' + (p.active === false ? '' : 'checked') + ' title="Position in Summe berücksichtigen"></div>' +
+        '<div class="col-nr">' + nr + '</div>' +
         '<div class="col-bez"><input type="text" class="col-bez-input" placeholder="Bezeichnung / Leistung" value="' + escHtml(p.bez) + '"></div>' +
         '<div class="col-menge"><input type="number" class="col-menge-input" step="any" placeholder="0" value="' + (p.menge == null ? '' : p.menge) + '"></div>' +
         '<div class="col-einheit"><input type="text" class="col-einheit-input" list="unitList" placeholder="Einheit" value="' + escHtml(p.einheit || '') + '"></div>' +
         '<div class="col-ep"><input type="number" class="col-ep-input" step="any" placeholder="0,00" value="' + (p.ep == null ? '' : p.ep) + '"></div>' +
-        '<div class="col-gesamt">' + fmtEUR(positionTotal(p)) + '</div>' +
+        '<div class="col-gesamt">' + fmtEUR(rawPositionAmount(p)) + '</div>' +
+        '<div class="col-lib"><button class="icon-btn" data-action="save-position-template" title="Als Vorlage in Bibliothek speichern">☆</button></div>' +
         '<div class="col-del"><button class="icon-btn danger" data-action="delete-position" title="Position löschen">✕</button></div>' +
       '</div>';
   }
 
   function massnahmeCardHTML(m, idx, total) {
-    var rows = m.positions.map(function (p) { return positionRowHTML(m, p); }).join('');
+    var rows = m.positions.map(function (p, pIdx) { return positionRowHTML(m, p, idx, pIdx); }).join('');
     return '' +
       '<div class="massnahme-card" data-massnahme-id="' + m.id + '">' +
         '<div class="massnahme-header">' +
           '<input class="massnahme-name" value="' + escHtml(m.name) + '" placeholder="Maßnahme / Gewerk">' +
           '<div class="massnahme-total">' + fmtEUR(total) + '</div>' +
+          '<button class="icon-btn" data-action="save-massnahme-template" title="Als Paket in Bibliothek speichern">☆</button>' +
           '<button class="icon-btn" data-action="move-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
           '<button class="icon-btn" data-action="move-down" title="Nach unten" ' + (idx === state.massnahmen.length - 1 ? 'disabled' : '') + '>↓</button>' +
           '<button class="icon-btn danger" data-action="delete-massnahme" title="Maßnahme löschen">✕</button>' +
         '</div>' +
         '<div class="positions-table">' +
           '<div class="positions-header-row">' +
+            '<div class="col-active"></div>' +
+            '<div class="col-nr">Nr.</div>' +
             '<div class="col-bez">Bezeichnung</div>' +
             '<div class="col-menge">Menge</div>' +
             '<div class="col-einheit">Einheit</div>' +
             '<div class="col-ep">EP €</div>' +
             '<div class="col-gesamt">Gesamt €</div>' +
+            '<div class="col-lib"></div>' +
             '<div class="col-del"></div>' +
           '</div>' +
           rows +
-          '<button class="add-inline-btn" data-action="add-position">+ Position</button>' +
+          '<div class="add-inline-row">' +
+            '<button class="add-inline-btn" data-action="add-position">+ Position</button>' +
+            '<button class="add-inline-btn" data-action="add-position-from-library">+ Aus Bibliothek</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
   }
@@ -450,7 +583,10 @@ button, input{ font-family:var(--font-family); }
         return massnahmeCardHTML(m, idx, massnahmeTotal(m));
       }).join('');
     }
-    col.innerHTML += '<button class="add-massnahme-btn" data-action="add-massnahme">+ Maßnahme hinzufügen</button>';
+    col.innerHTML += '<div class="add-massnahme-row">' +
+      '<button class="add-massnahme-btn" data-action="add-massnahme">+ Maßnahme hinzufügen</button>' +
+      '<button class="add-massnahme-btn" data-action="add-massnahme-from-library">+ Paket aus Bibliothek</button>' +
+      '</div>';
 
     if (!$('#unitList')) {
       var dl = document.createElement('datalist');
@@ -482,6 +618,15 @@ button, input{ font-family:var(--font-family); }
       '<div class="summary-line"><span class="label">MwSt. (' + fmtPct(state.mwstPct) + ')</span><span class="value">' + fmtEUR(s.mwst) + '</span></div>' +
       '<div class="summary-line grand"><span class="label">Gesamt brutto</span><span class="value">' + fmtEUR(s.brutto) + '</span></div>' +
       (state.massnahmen.length ? '<div class="summary-breakdown">' + breakdown + '</div>' : '');
+
+    var existingSnapCard = document.querySelector('.snapshot-actions');
+    if (existingSnapCard) existingSnapCard.remove();
+    $('#summaryCard').insertAdjacentHTML('afterend',
+      '<div class="summary-card snapshot-actions">' +
+        '<p class="summary-title">Schnappschüsse</p>' +
+        '<div class="snapshot-count">' + state.snapshots.length + ' gesichert' + (state.snapshots.length ? ' — zuletzt ' + fmtDEDateTime(state.snapshots[state.snapshots.length - 1].createdAt) : '') + '</div>' +
+      '</div>'
+    );
   }
 
   function updateTotalsOnly() {
@@ -491,7 +636,8 @@ button, input{ font-family:var(--font-family); }
       card.querySelectorAll('.position-row').forEach(function (row) {
         var p = m.positions.find(function (x) { return x.id === row.getAttribute('data-position-id'); });
         if (!p) return;
-        row.querySelector('.col-gesamt').textContent = fmtEUR(positionTotal(p));
+        row.querySelector('.col-gesamt').textContent = fmtEUR(rawPositionAmount(p));
+        row.classList.toggle('inactive', p.active === false);
       });
       card.querySelector('.massnahme-total').textContent = fmtEUR(massnahmeTotal(m));
     });
@@ -501,9 +647,10 @@ button, input{ font-family:var(--font-family); }
   /* ── Mutations ──────────────────────────────────────── */
   function findMassnahme(id) { return state.massnahmen.find(function (m) { return m.id === id; }); }
   function findPosition(m, id) { return m.positions.find(function (p) { return p.id === id; }); }
+  function newPosition() { return { id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true }; }
 
   function addMassnahme() {
-    state.massnahmen.push({ id: uid(), name: '', positions: [{ id: uid(), bez: '', menge: null, einheit: 'psch', ep: null }] });
+    state.massnahmen.push({ id: uid(), name: '', positions: [newPosition()] });
     save(); renderMassnahmen(); renderSummary();
     var cards = document.querySelectorAll('.massnahme-card');
     var last = cards[cards.length - 1];
@@ -531,7 +678,7 @@ button, input{ font-family:var(--font-family); }
   function addPosition(massnahmeId) {
     var m = findMassnahme(massnahmeId);
     if (!m) return;
-    m.positions.push({ id: uid(), bez: '', menge: null, einheit: 'psch', ep: null });
+    m.positions.push(newPosition());
     save(); renderMassnahmen(); renderSummary();
     var card = document.querySelector('.massnahme-card[data-massnahme-id="' + massnahmeId + '"]');
     if (card) {
@@ -546,6 +693,82 @@ button, input{ font-family:var(--font-family); }
     if (!m) return;
     m.positions = m.positions.filter(function (p) { return p.id !== positionId; });
     save(); renderMassnahmen(); renderSummary();
+  }
+
+  /* ── Bibliothek ─────────────────────────────────────── */
+  function saveLibraryPosition(massnahmeId, positionId) {
+    var m = findMassnahme(massnahmeId);
+    var p = m && findPosition(m, positionId);
+    if (!p) return;
+    library.positions.push({ id: uid(), bez: p.bez, einheit: p.einheit, ep: p.ep });
+    saveLibrary();
+  }
+
+  function saveLibraryMassnahme(massnahmeId) {
+    var m = findMassnahme(massnahmeId);
+    if (!m) return;
+    library.massnahmen.push({
+      id: uid(), name: m.name,
+      positions: m.positions.map(function (p) { return { bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep }; })
+    });
+    saveLibrary();
+  }
+
+  function libraryPositionPickerHTML(onEmpty) {
+    if (!library.positions.length) return '<div class="lib-empty">' + onEmpty + '</div>';
+    return '<div class="lib-list">' + library.positions.map(function (lp) {
+      return '<div class="lib-item" data-lib-position-id="' + lp.id + '">' +
+        '<div class="info"><div class="n">' + escHtml(lp.bez || 'Ohne Bezeichnung') + '</div>' +
+        '<div class="d">' + escHtml(lp.einheit || '') + ' · ' + fmtEUR(lp.ep || 0) + '</div></div>' +
+        '<button class="btn" data-action="insert-library-position" data-lib-position-id="' + lp.id + '">Einfügen</button>' +
+        '<button class="icon-btn danger" data-action="delete-library-position" data-lib-position-id="' + lp.id + '" title="Aus Bibliothek löschen">✕</button>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function libraryMassnahmenPickerHTML(onEmpty) {
+    if (!library.massnahmen.length) return '<div class="lib-empty">' + onEmpty + '</div>';
+    return '<div class="lib-list">' + library.massnahmen.map(function (lm) {
+      var t = lm.positions.reduce(function (s, p) { return s + (Number(p.menge) || 0) * (Number(p.ep) || 0); }, 0);
+      return '<div class="lib-item" data-lib-massnahme-id="' + lm.id + '">' +
+        '<div class="info"><div class="n">' + escHtml(lm.name || 'Ohne Namen') + '</div>' +
+        '<div class="d">' + lm.positions.length + ' Position(en) · ' + fmtEUR(t) + '</div></div>' +
+        '<button class="btn" data-action="insert-library-massnahme" data-lib-massnahme-id="' + lm.id + '">Einfügen</button>' +
+        '<button class="icon-btn danger" data-action="delete-library-massnahme" data-lib-massnahme-id="' + lm.id + '" title="Aus Bibliothek löschen">✕</button>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function openLibraryModal() {
+    var body = '<div class="lib-tabs">' +
+      '<button class="lib-tab active" data-lib-tab="positions">Einzelpositionen</button>' +
+      '<button class="lib-tab" data-lib-tab="massnahmen">Maßnahmen-Pakete</button>' +
+      '</div>' +
+      '<div id="libTabPositions">' + libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek. Speichere eine Position über das ☆-Symbol.') + '</div>' +
+      '<div id="libTabMassnahmen" style="display:none">' + libraryMassnahmenPickerHTML('Noch keine Maßnahmen-Pakete in der Bibliothek. Speichere eine Maßnahme über das ☆-Symbol im Kopf einer Maßnahme.') + '</div>';
+    showModal('Bibliothek', body, {
+      wide: true,
+      onOpen: function (overlay) {
+        overlay.querySelectorAll('.lib-tab').forEach(function (tab) {
+          tab.addEventListener('click', function () {
+            overlay.querySelectorAll('.lib-tab').forEach(function (t) { t.classList.remove('active'); });
+            tab.classList.add('active');
+            var which = tab.getAttribute('data-lib-tab');
+            $('#libTabPositions').style.display = which === 'positions' ? '' : 'none';
+            $('#libTabMassnahmen').style.display = which === 'massnahmen' ? '' : 'none';
+          });
+        });
+      }
+    });
+  }
+
+  function openLibraryPositionPickerForMassnahme(massnahmeId) {
+    var body = libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek.');
+    showModal('Position aus Bibliothek einfügen', body, {
+      onOpen: function (overlay) {
+        overlay.setAttribute('data-target-massnahme', massnahmeId);
+      }
+    });
   }
 
   /* ── Event delegation ───────────────────────────────── */
@@ -567,7 +790,68 @@ button, input{ font-family:var(--font-family); }
     else if (action === 'open-file') $('#fileInput').click();
     else if (action === 'save-file') saveToFile();
     else if (action === 'print') window.print();
+    else if (action === 'save-position-template') { saveLibraryPosition(massnahmeId, positionId); }
+    else if (action === 'save-massnahme-template') { saveLibraryMassnahme(massnahmeId); }
+    else if (action === 'add-position-from-library') openLibraryPositionPickerForMassnahme(massnahmeId);
+    else if (action === 'add-massnahme-from-library') openLibraryModal();
+    else if (action === 'open-library') openLibraryModal();
+    else if (action === 'save-snapshot') openSnapshotModal();
+    else if (action === 'open-compare') openCompareModal();
+    else if (action === 'open-pdf-options') openPdfOptionsModal();
+    else if (action === 'insert-library-position') {
+      var libPosId = actionEl.getAttribute('data-lib-position-id');
+      var overlay = $('#modalOverlay');
+      var targetMassnahmeId = overlay.getAttribute('data-target-massnahme');
+      insertLibraryPosition(libPosId, targetMassnahmeId);
+    }
+    else if (action === 'delete-library-position') {
+      var delPosId = actionEl.getAttribute('data-lib-position-id');
+      library.positions = library.positions.filter(function (x) { return x.id !== delPosId; });
+      saveLibrary();
+      actionEl.closest('.lib-item').remove();
+    }
+    else if (action === 'insert-library-massnahme') {
+      var libMassId = actionEl.getAttribute('data-lib-massnahme-id');
+      insertLibraryMassnahme(libMassId);
+      closeModal();
+    }
+    else if (action === 'delete-library-massnahme') {
+      var delMassId = actionEl.getAttribute('data-lib-massnahme-id');
+      library.massnahmen = library.massnahmen.filter(function (x) { return x.id !== delMassId; });
+      saveLibrary();
+      actionEl.closest('.lib-item').remove();
+    }
+    else if (action === 'delete-snapshot') {
+      var delSnapId = actionEl.getAttribute('data-snapshot-id');
+      state.snapshots = state.snapshots.filter(function (x) { return x.id !== delSnapId; });
+      save();
+      openCompareModal();
+    }
+    else if (action === 'pdf-download') {
+      var mode = actionEl.getAttribute('data-pdf-mode');
+      downloadKostenPDF(mode);
+      closeModal();
+    }
   });
+
+  function insertLibraryPosition(libPosId, massnahmeId) {
+    var lp = library.positions.find(function (x) { return x.id === libPosId; });
+    var m = findMassnahme(massnahmeId);
+    if (!lp || !m) return;
+    m.positions.push({ id: uid(), bez: lp.bez, menge: null, einheit: lp.einheit, ep: lp.ep, active: true });
+    save(); renderMassnahmen(); renderSummary();
+    closeModal();
+  }
+
+  function insertLibraryMassnahme(libMassId) {
+    var lm = library.massnahmen.find(function (x) { return x.id === libMassId; });
+    if (!lm) return;
+    state.massnahmen.push({
+      id: uid(), name: lm.name,
+      positions: lm.positions.map(function (p) { return { id: uid(), bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, active: true }; })
+    });
+    save(); renderMassnahmen(); renderSummary();
+  }
 
   document.addEventListener('input', function (e) {
     var t = e.target;
@@ -594,6 +878,7 @@ button, input{ font-family:var(--font-family); }
     else if (t.classList.contains('col-menge-input')) p.menge = t.value === '' ? null : Number(t.value);
     else if (t.classList.contains('col-einheit-input')) p.einheit = t.value;
     else if (t.classList.contains('col-ep-input')) p.ep = t.value === '' ? null : Number(t.value);
+    else if (t.classList.contains('col-active-input')) { p.active = t.checked; save(); updateTotalsOnly(); return; }
     else return;
 
     save(); updateTotalsOnly();
@@ -607,6 +892,230 @@ button, input{ font-family:var(--font-family); }
     state.reservePct = RESERVE_DEFAULTS[val];
     save(); renderToolbar(); renderSummary();
   });
+
+  /* ── Schnappschüsse & Vergleich ─────────────────────── */
+  function openSnapshotModal() {
+    var defaultLabel = KOSTENSTAND_LABELS[state.kostenstand] + ' – ' + fmtDE(new Date());
+    var body = '<div class="form-field"><label>Bezeichnung</label><input type="text" id="snapshotLabelInput" value="' + escHtml(defaultLabel) + '"></div>' +
+      '<div class="modal-actions"><button class="btn" id="snapshotCancelBtn">Abbrechen</button><button class="btn primary" id="snapshotSaveBtn">Sichern</button></div>';
+    showModal('Aktuellen Stand sichern', body, {
+      onOpen: function () {
+        $('#snapshotCancelBtn').addEventListener('click', closeModal);
+        $('#snapshotSaveBtn').addEventListener('click', function () {
+          var label = $('#snapshotLabelInput').value.trim() || defaultLabel;
+          state.snapshots.push({
+            id: uid(), label: label, createdAt: new Date().toISOString(), kostenstand: state.kostenstand,
+            reservePct: state.reservePct, nkPct: state.nkPct, mwstPct: state.mwstPct,
+            massnahmen: deepClone(state.massnahmen), totals: computeSummary()
+          });
+          save(); renderSummary(); closeModal();
+        });
+        $('#snapshotLabelInput').focus();
+        $('#snapshotLabelInput').select();
+      }
+    });
+  }
+
+  function openCompareModal() {
+    if (!state.snapshots.length) {
+      showModal('Vergleich', '<div class="lib-empty">Noch keine Schnappschüsse gesichert. Nutze „Stand sichern" in der Werkzeugleiste.</div>');
+      return;
+    }
+    var columns = state.snapshots.map(function (snap) {
+      return { label: snap.label, kostenstand: KOSTENSTAND_LABELS[snap.kostenstand], massnahmen: snap.massnahmen, totals: snap.totals, snapshotId: snap.id };
+    });
+    columns.push({ label: 'Aktuell', kostenstand: KOSTENSTAND_LABELS[state.kostenstand], massnahmen: state.massnahmen, totals: computeSummary(), snapshotId: null });
+
+    var names = [];
+    columns.forEach(function (col) {
+      col.massnahmen.forEach(function (m) {
+        var n = m.name || 'Ohne Namen';
+        if (names.indexOf(n) === -1) names.push(n);
+      });
+    });
+
+    function amountFor(col, name) {
+      var sum = 0;
+      col.massnahmen.forEach(function (m) {
+        if ((m.name || 'Ohne Namen') === name) {
+          sum += m.positions.reduce(function (s, p) { return s + (p.active === false ? 0 : (Number(p.menge) || 0) * (Number(p.ep) || 0)); }, 0);
+        }
+      });
+      return sum;
+    }
+
+    var head = '<tr><th></th>' + columns.map(function (col) {
+      return '<th>' + escHtml(col.label) + '<br><span style="font-weight:400;text-transform:none;">' + escHtml(col.kostenstand) + '</span>' +
+        (col.snapshotId ? '<br><button class="icon-btn danger" data-action="delete-snapshot" data-snapshot-id="' + col.snapshotId + '" title="Schnappschuss löschen" style="margin-top:4px;">✕</button>' : '') +
+        '</th>';
+    }).join('') + '</tr>';
+
+    var rows = names.map(function (name) {
+      return '<tr><td>' + escHtml(name) + '</td>' + columns.map(function (col) {
+        return '<td>' + fmtEUR(amountFor(col, name)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+
+    var totalRows = ['netto', 'reserve', 'nebenkosten', 'zwischensumme', 'mwst', 'brutto'].map(function (key) {
+      var labels = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
+      return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + labels[key] + '</td>' + columns.map(function (col) {
+        return '<td>' + fmtEUR(col.totals[key]) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+
+    var body = '<div class="compare-table-wrap"><table class="compare-table"><thead>' + head + '</thead><tbody>' + rows + totalRows + '</tbody></table></div>';
+    showModal('Vergleich der Kostenstände', body, { wide: true });
+  }
+
+  /* ── PDF-Export (reine PDF-Syntax, keine externe Bibliothek) ─── */
+  var PDF_CHAR_MAP = { 0x2013: 0x96, 0x2014: 0x97, 0x2018: 0x91, 0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2026: 0x85, 0x2022: 0x95, 0x20AC: 0x80 };
+  function pdfEsc(s) {
+    s = String(s == null ? '' : s);
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c > 255) c = PDF_CHAR_MAP.hasOwnProperty(c) ? PDF_CHAR_MAP[c] : 63;
+      out += String.fromCharCode(c);
+    }
+    return out.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  }
+  function pdfTruncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function pdfPad10(n) { n = String(Math.floor(n)); while (n.length < 10) n = '0' + n; return n; }
+
+  function openPdfOptionsModal() {
+    var body = '<div class="pdf-mode-options">' +
+      '<button class="pdf-mode-option" data-action="pdf-download" data-pdf-mode="summary">' +
+        '<div class="t">Kurz-Zusammenfassung</div><div class="d">Summen je Maßnahme + Gesamtkosten, 1–2 Seiten</div>' +
+      '</button>' +
+      '<button class="pdf-mode-option" data-action="pdf-download" data-pdf-mode="full">' +
+        '<div class="t">Vollständige Positionsliste</div><div class="d">Jede Position mit Menge, Einheit, EP und Gesamt</div>' +
+      '</button>' +
+      '</div>';
+    showModal('PDF exportieren', body);
+  }
+
+  function buildKostenPDF(mode) {
+    var PAGE_W = 595, PAGE_H = 842, MARGIN = 40, ROW_H_PDF = 15;
+    var pages = [];
+    var cur = [];
+    var y;
+
+    function newPage(withTitle) {
+      if (cur.length) pages.push(cur);
+      cur = [];
+      y = PAGE_H - 50;
+      if (withTitle) {
+        cur.push('BT /F2 16 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(state.title || 'Kostenberechnung') + ') Tj ET');
+        y -= 20;
+        if (state.subtitle) {
+          cur.push('BT /F1 10 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(state.subtitle) + ') Tj ET');
+          y -= 16;
+        }
+        var today = new Date();
+        cur.push('BT /F1 8 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(KOSTENSTAND_LABELS[state.kostenstand] + ' — erstellt am ' + fmtDE(today)) + ') Tj ET');
+        y -= 22;
+        if (mode === 'full') {
+          cur.push('BT /F2 8 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Nr.) Tj ET');
+          cur.push('BT /F2 8 Tf 1 0 0 1 80 ' + y + ' Tm (Bezeichnung) Tj ET');
+          cur.push('BT /F2 8 Tf 1 0 0 1 300 ' + y + ' Tm (Menge) Tj ET');
+          cur.push('BT /F2 8 Tf 1 0 0 1 350 ' + y + ' Tm (Einheit) Tj ET');
+          cur.push('BT /F2 8 Tf 1 0 0 1 410 ' + y + ' Tm (EP EUR) Tj ET');
+          cur.push('BT /F2 8 Tf 1 0 0 1 480 ' + y + ' Tm (Gesamt EUR) Tj ET');
+          y -= ROW_H_PDF;
+        }
+      }
+    }
+    function ensureSpace(min) { if (y < (min || 55)) newPage(false); }
+
+    newPage(true);
+    state.massnahmen.forEach(function (m, mi) {
+      ensureSpace(70);
+      y -= 4;
+      ensureSpace(70);
+      cur.push('BT /F2 11 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(m.name || 'Ohne Namen', 60)) + ') Tj ET');
+      cur.push('BT /F2 11 Tf 1 0 0 1 480 ' + y + ' Tm (' + pdfEsc(fmtEUR(massnahmeTotal(m))) + ') Tj ET');
+      y -= ROW_H_PDF;
+      if (mode === 'full') {
+        m.positions.filter(function (p) { return p.active !== false; }).forEach(function (p) {
+          ensureSpace();
+          var nr = (mi + 1) + '.' + (m.positions.indexOf(p) + 1);
+          cur.push('BT /F1 9 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(nr) + ') Tj ET');
+          cur.push('BT /F1 9 Tf 1 0 0 1 80 ' + y + ' Tm (' + pdfEsc(pdfTruncate(p.bez || '', 40)) + ') Tj ET');
+          cur.push('BT /F1 9 Tf 1 0 0 1 300 ' + y + ' Tm (' + pdfEsc(p.menge == null ? '' : String(p.menge)) + ') Tj ET');
+          cur.push('BT /F1 9 Tf 1 0 0 1 350 ' + y + ' Tm (' + pdfEsc(p.einheit || '') + ') Tj ET');
+          cur.push('BT /F1 9 Tf 1 0 0 1 410 ' + y + ' Tm (' + pdfEsc(fmtEUR(p.ep || 0)) + ') Tj ET');
+          cur.push('BT /F1 9 Tf 1 0 0 1 480 ' + y + ' Tm (' + pdfEsc(fmtEUR(rawPositionAmount(p))) + ') Tj ET');
+          y -= ROW_H_PDF;
+        });
+      }
+    });
+
+    var s = computeSummary();
+    ensureSpace(140);
+    y -= 10;
+    ensureSpace(140);
+    var totalLines = [
+      ['Baukosten netto', s.netto, 'F1', 10],
+      ['Reserve / Unvorhergesehenes (' + fmtPct(state.reservePct) + ')', s.reserve, 'F1', 10],
+      ['Baunebenkosten (' + fmtPct(state.nkPct) + ')', s.nebenkosten, 'F1', 10],
+      ['Zwischensumme netto', s.zwischensumme, 'F2', 10],
+      ['MwSt. (' + fmtPct(state.mwstPct) + ')', s.mwst, 'F1', 10],
+      ['Gesamt brutto', s.brutto, 'F2', 13]
+    ];
+    totalLines.forEach(function (line) {
+      ensureSpace();
+      cur.push('BT /' + line[2] + ' ' + line[3] + ' Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(line[0]) + ') Tj ET');
+      cur.push('BT /' + line[2] + ' ' + line[3] + ' Tf 1 0 0 1 480 ' + y + ' Tm (' + pdfEsc(fmtEUR(line[1])) + ') Tj ET');
+      y -= line[3] + 6;
+    });
+    pages.push(cur);
+
+    var n = pages.length;
+    var pagesId = 2;
+    var pageIds = [], contentIds = [];
+    for (var i = 0; i < n; i++) pageIds.push(3 + i);
+    for (var i = 0; i < n; i++) contentIds.push(3 + n + i);
+    var fontF1Id = 3 + 2 * n;
+    var fontF2Id = 4 + 2 * n;
+    var catalogId = 1;
+
+    var objects = [];
+    objects[catalogId] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
+    objects[pagesId] = '<< /Type /Pages /Kids [' + pageIds.map(function (id) { return id + ' 0 R'; }).join(' ') + '] /Count ' + n + ' >>';
+    for (var i = 0; i < n; i++) {
+      objects[pageIds[i]] = '<< /Type /Page /Parent ' + pagesId + ' 0 R /Resources << /Font << /F1 ' + fontF1Id + ' 0 R /F2 ' + fontF2Id + ' 0 R >> >> /MediaBox [0 0 ' + PAGE_W + ' ' + PAGE_H + '] /Contents ' + contentIds[i] + ' 0 R >>';
+      var stream = pages[i].join('\n');
+      objects[contentIds[i]] = '<< /Length ' + stream.length + ' >>\nstream\n' + stream + '\nendstream';
+    }
+    objects[fontF1Id] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    objects[fontF2Id] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+
+    var maxId = fontF2Id;
+    var out = '%PDF-1.4\n';
+    var offsets = [0];
+    for (var id = 1; id <= maxId; id++) {
+      offsets[id] = out.length;
+      out += id + ' 0 obj\n' + objects[id] + '\nendobj\n';
+    }
+    var xrefStart = out.length;
+    out += 'xref\n0 ' + (maxId + 1) + '\n0000000000 65535 f \n';
+    for (var id = 1; id <= maxId; id++) out += pdfPad10(offsets[id]) + ' 00000 n \n';
+    out += 'trailer\n<< /Size ' + (maxId + 1) + ' /Root ' + catalogId + ' 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';
+    return out;
+  }
+
+  function downloadKostenPDF(mode) {
+    var pdfText = buildKostenPDF(mode);
+    var bytes = new Uint8Array(pdfText.length);
+    for (var i = 0; i < pdfText.length; i++) bytes[i] = pdfText.charCodeAt(i) & 0xff;
+    var blob = new Blob([bytes], { type: 'application/pdf' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var name = (state.title || 'Kostenberechnung').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'Kostenberechnung';
+    a.href = url; a.download = name + (mode === 'summary' ? '_Zusammenfassung' : '_Vollstaendig') + '.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+  }
 
   /* ── Open / Save as file ────────────────────────────── */
   function saveToFile() {
@@ -627,7 +1136,7 @@ button, input{ font-family:var(--font-family); }
       try {
         var parsed = JSON.parse(reader.result);
         if (parsed && Array.isArray(parsed.massnahmen)) {
-          state = parsed;
+          state = normalizeState(parsed);
           save(); renderAll();
         } else {
           showConfirm('Diese Datei enthält keine gültige Kostenberechnung.', function () {});
