@@ -131,6 +131,37 @@ button, input{ font-family:var(--font-family); }
   font-size:15px; font-weight:600; color:var(--color-black); padding:2px 4px; border-radius:2px;
 }
 .massnahme-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
+.din-badge{
+  appearance:none; border:1px solid var(--g400); background:var(--color-white); color:var(--color-black);
+  font-size:11px; font-weight:600; letter-spacing:0.02em; padding:3px 8px; border-radius:3px; cursor:pointer;
+  white-space:nowrap; flex:0 0 auto;
+}
+.din-badge:hover{ background:var(--g200); }
+.din-badge-empty{ border-style:dashed; color:var(--g600); font-weight:500; }
+
+.din-picker-search{ margin-bottom:var(--space-4); }
+.din-picker-list{ display:flex; flex-direction:column; max-height:50vh; overflow-y:auto; border:1px solid var(--g200); border-radius:4px; }
+.din-picker-item{
+  appearance:none; border:none; border-bottom:1px solid var(--g100); background:var(--color-white);
+  text-align:left; padding:8px 12px; cursor:pointer; font-size:13px; color:var(--color-black);
+  display:flex; gap:10px; align-items:baseline; font-family:var(--font-family);
+}
+.din-picker-item:last-child{ border-bottom:none; }
+.din-picker-item:hover{ background:var(--g100); }
+.din-picker-item .code{ flex:0 0 40px; font-weight:600; color:var(--g600); }
+.din-picker-item.level-1{ font-weight:700; background:var(--g100); }
+.din-picker-item.level-1 .code{ color:var(--color-black); }
+.din-picker-item.level-2{ font-weight:600; }
+.din-picker-item.level-3{ padding-left:24px; color:var(--color-black); }
+.din-picker-empty{ padding:var(--space-6); text-align:center; color:var(--g600); font-size:13px; }
+.din-picker-clear{ margin-top:var(--space-3); }
+
+.din-suggest-list{ display:flex; flex-direction:column; gap:var(--space-2); }
+.din-suggest-row{ display:flex; align-items:center; gap:var(--space-3); border:1px solid var(--g200); border-radius:4px; padding:var(--space-3) var(--space-4); }
+.din-suggest-row .info{ flex:1 1 auto; min-width:0; }
+.din-suggest-row .info .n{ font-size:13px; font-weight:500; color:var(--color-black); }
+.din-suggest-row .info .d{ font-size:12px; color:var(--g600); margin-top:2px; }
+.din-suggest-row .info .d.none{ font-style:italic; }
 .massnahme-total{ font-size:14px; font-weight:600; color:var(--color-black); white-space:nowrap; }
 .icon-btn{
   appearance:none; border:1px solid transparent; background:transparent; color:var(--g600);
@@ -334,6 +365,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       <button class="btn" data-action="open-compare" title="Gesicherte Stände vergleichen">Vergleich</button>
     </div>
     <div class="toolbar-group">
+      <button class="btn" data-action="suggest-din" title="Für Maßnahmen ohne DIN-Zuordnung eine passende Kostengruppe vorschlagen">Nach DIN einordnen</button>
+      <button class="btn" data-action="seed-din-skeleton" title="Die 8 Kostengruppen der 1. Ebene nach DIN 276 als leere Maßnahmen anlegen">DIN-Gerüst anlegen</button>
+    </div>
+    <div class="toolbar-group">
       <button class="btn" data-action="open-file" title="Eine gespeicherte Kostenberechnung (.json) öffnen">Öffnen</button>
       <button class="btn" data-action="save-file" title="Aktuellen Stand als Datei speichern, um später weiterzuarbeiten">Speichern</button>
       <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
@@ -394,6 +429,409 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   var RESERVE_DEFAULTS = { schaetzung: 15, berechnung: 10, anschlag: 5 };
   var KOSTENSTAND_LABELS = { schaetzung: 'Kostenschätzung', berechnung: 'Kostenberechnung', anschlag: 'Kostenanschlag' };
 
+  /* ── DIN 276:2018-12 – Kostengliederung "Tabelle 1" ──────────────────
+     Reine Klassifikation (Code + Kurztitel je Kostengruppe), keine Vervielfältigung
+     der Norm selbst (keine Erläuterungstexte/"Anmerkungen"-Spalte übernommen). */
+  var DIN276_KOSTENGRUPPEN = [
+    { code: '100', level: 1, title: 'Grundstück' },
+    { code: '110', level: 2, title: 'Grundstückswert' },
+    { code: '120', level: 2, title: 'Grundstücksnebenkosten' },
+    { code: '121', level: 3, title: 'Vermessungsgebühren' },
+    { code: '122', level: 3, title: 'Gerichtsgebühren' },
+    { code: '123', level: 3, title: 'Notargebühren' },
+    { code: '124', level: 3, title: 'Grunderwerbsteuer' },
+    { code: '125', level: 3, title: 'Untersuchungen' },
+    { code: '126', level: 3, title: 'Wertermittlungen' },
+    { code: '127', level: 3, title: 'Genehmigungsgebühren' },
+    { code: '128', level: 3, title: 'Bodenordnung' },
+    { code: '129', level: 3, title: 'Sonstiges zur KG 120' },
+    { code: '130', level: 2, title: 'Rechte Dritter' },
+    { code: '131', level: 3, title: 'Abfindungen' },
+    { code: '132', level: 3, title: 'Ablösen dinglicher Rechte' },
+    { code: '139', level: 3, title: 'Sonstiges zur KG 130' },
+    { code: '200', level: 1, title: 'Vorbereitende Maßnahmen' },
+    { code: '210', level: 2, title: 'Herrichten' },
+    { code: '211', level: 3, title: 'Sicherungsmaßnahmen' },
+    { code: '212', level: 3, title: 'Abbruchmaßnahmen' },
+    { code: '213', level: 3, title: 'Altlastenbeseitigung' },
+    { code: '214', level: 3, title: 'Herrichten der Geländeoberfläche' },
+    { code: '215', level: 3, title: 'Kampfmittelräumung' },
+    { code: '216', level: 3, title: 'Kulturhistorische Funde' },
+    { code: '219', level: 3, title: 'Sonstiges zur KG 210' },
+    { code: '220', level: 2, title: 'Öffentliche Erschließung' },
+    { code: '221', level: 3, title: 'Abwasserentsorgung' },
+    { code: '222', level: 3, title: 'Wasserversorgung' },
+    { code: '223', level: 3, title: 'Gasversorgung' },
+    { code: '224', level: 3, title: 'Fernwärmeversorgung' },
+    { code: '225', level: 3, title: 'Stromversorgung' },
+    { code: '226', level: 3, title: 'Telekommunikation' },
+    { code: '227', level: 3, title: 'Verkehrserschließung' },
+    { code: '228', level: 3, title: 'Abfallentsorgung' },
+    { code: '229', level: 3, title: 'Sonstiges zur KG 220' },
+    { code: '230', level: 2, title: 'Nichtöffentliche Erschließung' },
+    { code: '240', level: 2, title: 'Ausgleichsmaßnahmen und -abgaben' },
+    { code: '241', level: 3, title: 'Ausgleichsmaßnahmen' },
+    { code: '242', level: 3, title: 'Ausgleichsabgaben' },
+    { code: '249', level: 3, title: 'Sonstiges zur KG 240' },
+    { code: '250', level: 2, title: 'Übergangsmaßnahmen' },
+    { code: '251', level: 3, title: 'Bauliche Maßnahmen' },
+    { code: '252', level: 3, title: 'Organisatorische Maßnahmen' },
+    { code: '259', level: 3, title: 'Sonstiges zur KG 250' },
+    { code: '300', level: 1, title: 'Bauwerk – Baukonstruktionen' },
+    { code: '310', level: 2, title: 'Baugrube/Erdbau' },
+    { code: '311', level: 3, title: 'Herstellung' },
+    { code: '312', level: 3, title: 'Umschließung' },
+    { code: '313', level: 3, title: 'Wasserhaltung' },
+    { code: '314', level: 3, title: 'Vortrieb' },
+    { code: '319', level: 3, title: 'Sonstiges zur KG 310' },
+    { code: '320', level: 2, title: 'Gründung, Unterbau' },
+    { code: '321', level: 3, title: 'Baugrundverbesserung' },
+    { code: '322', level: 3, title: 'Flachgründungen und Bodenplatten' },
+    { code: '323', level: 3, title: 'Tiefgründungen' },
+    { code: '324', level: 3, title: 'Gründungsbeläge' },
+    { code: '325', level: 3, title: 'Abdichtungen und Bekleidungen' },
+    { code: '326', level: 3, title: 'Dränagen' },
+    { code: '329', level: 3, title: 'Sonstiges zur KG 320' },
+    { code: '330', level: 2, title: 'Außenwände/Vertikale Baukonstruktionen, außen' },
+    { code: '331', level: 3, title: 'Tragende Außenwände' },
+    { code: '332', level: 3, title: 'Nichttragende Außenwände' },
+    { code: '333', level: 3, title: 'Außenstützen' },
+    { code: '334', level: 3, title: 'Außenwandöffnungen' },
+    { code: '335', level: 3, title: 'Außenwandbekleidungen, außen' },
+    { code: '336', level: 3, title: 'Außenwandbekleidungen, innen' },
+    { code: '337', level: 3, title: 'Elementierte Außenwandkonstruktionen' },
+    { code: '338', level: 3, title: 'Lichtschutz zur KG 330' },
+    { code: '339', level: 3, title: 'Sonstiges zur KG 330' },
+    { code: '340', level: 2, title: 'Innenwände/Vertikale Baukonstruktionen, innen' },
+    { code: '341', level: 3, title: 'Tragende Innenwände' },
+    { code: '342', level: 3, title: 'Nichttragende Innenwände' },
+    { code: '343', level: 3, title: 'Innenstützen' },
+    { code: '344', level: 3, title: 'Innenwandöffnungen' },
+    { code: '345', level: 3, title: 'Innenwandbekleidungen' },
+    { code: '346', level: 3, title: 'Elementierte Innenwandkonstruktionen' },
+    { code: '347', level: 3, title: 'Lichtschutz zur KG 340' },
+    { code: '349', level: 3, title: 'Sonstiges zur KG 340' },
+    { code: '350', level: 2, title: 'Decken/Horizontale Baukonstruktionen' },
+    { code: '351', level: 3, title: 'Deckenkonstruktionen' },
+    { code: '352', level: 3, title: 'Deckenöffnungen' },
+    { code: '353', level: 3, title: 'Deckenbeläge' },
+    { code: '354', level: 3, title: 'Deckenbekleidungen' },
+    { code: '355', level: 3, title: 'Elementierte Deckenkonstruktionen' },
+    { code: '359', level: 3, title: 'Sonstiges zur KG 350' },
+    { code: '360', level: 2, title: 'Dächer' },
+    { code: '361', level: 3, title: 'Dachkonstruktionen' },
+    { code: '362', level: 3, title: 'Dachöffnungen' },
+    { code: '363', level: 3, title: 'Dachbeläge' },
+    { code: '364', level: 3, title: 'Dachbekleidungen' },
+    { code: '365', level: 3, title: 'Elementierte Dachkonstruktionen' },
+    { code: '366', level: 3, title: 'Lichtschutz zur KG 360' },
+    { code: '369', level: 3, title: 'Sonstiges zur KG 360' },
+    { code: '370', level: 2, title: 'Infrastrukturanlagen' },
+    { code: '371', level: 3, title: 'Anlagen für den Straßenverkehr' },
+    { code: '372', level: 3, title: 'Anlagen für den Schienenverkehr' },
+    { code: '373', level: 3, title: 'Anlagen für den Flugverkehr' },
+    { code: '374', level: 3, title: 'Anlagen des Wasserbaus' },
+    { code: '375', level: 3, title: 'Anlagen der Abwasserentsorgung' },
+    { code: '376', level: 3, title: 'Anlagen der Wasserversorgung' },
+    { code: '377', level: 3, title: 'Anlagen der Energie- und Informationsversorgung' },
+    { code: '378', level: 3, title: 'Anlagen der Abfallentsorgung' },
+    { code: '379', level: 3, title: 'Sonstiges zur KG 370' },
+    { code: '380', level: 2, title: 'Baukonstruktive Einbauten' },
+    { code: '381', level: 3, title: 'Allgemeine Einbauten' },
+    { code: '382', level: 3, title: 'Besondere Einbauten' },
+    { code: '383', level: 3, title: 'Landschaftsgestalterische Einbauten' },
+    { code: '384', level: 3, title: 'Mechanische Einbauten' },
+    { code: '385', level: 3, title: 'Einbauten in Konstruktionen des Ingenieurbaus' },
+    { code: '386', level: 3, title: 'Orientierungs- und Informationssysteme' },
+    { code: '387', level: 3, title: 'Schutzeinbauten' },
+    { code: '389', level: 3, title: 'Sonstiges zur KG 380' },
+    { code: '390', level: 2, title: 'Sonstige Maßnahmen für Baukonstruktionen' },
+    { code: '391', level: 3, title: 'Baustelleneinrichtung' },
+    { code: '392', level: 3, title: 'Gerüste' },
+    { code: '393', level: 3, title: 'Sicherungsmaßnahmen' },
+    { code: '394', level: 3, title: 'Abbruchmaßnahmen' },
+    { code: '395', level: 3, title: 'Instandsetzungen' },
+    { code: '396', level: 3, title: 'Materialentsorgung' },
+    { code: '397', level: 3, title: 'Zusätzliche Maßnahmen' },
+    { code: '398', level: 3, title: 'Provisorische Baukonstruktionen' },
+    { code: '399', level: 3, title: 'Sonstiges zur KG 390' },
+    { code: '400', level: 1, title: 'Bauwerk – Technische Anlagen' },
+    { code: '410', level: 2, title: 'Abwasser-, Wasser-, Gasanlagen' },
+    { code: '411', level: 3, title: 'Abwasseranlagen' },
+    { code: '412', level: 3, title: 'Wasseranlagen' },
+    { code: '413', level: 3, title: 'Gasanlagen' },
+    { code: '419', level: 3, title: 'Sonstiges zur KG 410' },
+    { code: '420', level: 2, title: 'Wärmeversorgungsanlagen' },
+    { code: '421', level: 3, title: 'Wärmeerzeugungsanlagen' },
+    { code: '422', level: 3, title: 'Wärmeverteilnetze' },
+    { code: '423', level: 3, title: 'Raumheizflächen' },
+    { code: '424', level: 3, title: 'Verkehrsheizflächen' },
+    { code: '429', level: 3, title: 'Sonstiges zur KG 420' },
+    { code: '430', level: 2, title: 'Raumlufttechnische Anlagen' },
+    { code: '431', level: 3, title: 'Lüftungsanlagen' },
+    { code: '432', level: 3, title: 'Teilklimaanlagen' },
+    { code: '433', level: 3, title: 'Klimaanlagen' },
+    { code: '434', level: 3, title: 'Kälteanlagen' },
+    { code: '439', level: 3, title: 'Sonstiges zur KG 430' },
+    { code: '440', level: 2, title: 'Elektrische Anlagen' },
+    { code: '441', level: 3, title: 'Hoch- und Mittelspannungsanlagen' },
+    { code: '442', level: 3, title: 'Eigenstromversorgungsanlagen' },
+    { code: '443', level: 3, title: 'Niederspannungsschaltanlagen' },
+    { code: '444', level: 3, title: 'Niederspannungsinstallationsanlagen' },
+    { code: '445', level: 3, title: 'Beleuchtungsanlagen' },
+    { code: '446', level: 3, title: 'Blitzschutz- und Erdungsanlagen' },
+    { code: '447', level: 3, title: 'Fahrleitungssysteme' },
+    { code: '449', level: 3, title: 'Sonstiges zur KG 440' },
+    { code: '450', level: 2, title: 'Kommunikations-, sicherheits- und informationstechnische Anlagen' },
+    { code: '451', level: 3, title: 'Telekommunikationsanlagen' },
+    { code: '452', level: 3, title: 'Such- und Signalanlagen' },
+    { code: '453', level: 3, title: 'Zeitdienstanlagen' },
+    { code: '454', level: 3, title: 'Elektroakustische Anlagen' },
+    { code: '455', level: 3, title: 'Audiovisuelle Medien- und Antennenanlagen' },
+    { code: '456', level: 3, title: 'Gefahrenmelde- und Alarmanlagen' },
+    { code: '457', level: 3, title: 'Datenübertragungsnetze' },
+    { code: '458', level: 3, title: 'Verkehrsbeeinflussungsanlagen' },
+    { code: '459', level: 3, title: 'Sonstiges zur KG 450' },
+    { code: '460', level: 2, title: 'Förderanlagen' },
+    { code: '461', level: 3, title: 'Aufzugsanlagen' },
+    { code: '462', level: 3, title: 'Fahrtreppen, Fahrsteige' },
+    { code: '463', level: 3, title: 'Befahranlagen' },
+    { code: '464', level: 3, title: 'Transportanlagen' },
+    { code: '465', level: 3, title: 'Krananlagen' },
+    { code: '466', level: 3, title: 'Hydraulikanlagen' },
+    { code: '469', level: 3, title: 'Sonstiges zur KG 460' },
+    { code: '470', level: 2, title: 'Nutzungsspezifische und verfahrenstechnische Anlagen' },
+    { code: '471', level: 3, title: 'Küchentechnische Anlagen' },
+    { code: '472', level: 3, title: 'Wäscherei-, Reinigungs- und badetechnische Anlagen' },
+    { code: '473', level: 3, title: 'Medienversorgungsanlagen, Medizin- und labortechnische Anlagen' },
+    { code: '474', level: 3, title: 'Feuerlöschanlagen' },
+    { code: '475', level: 3, title: 'Prozesswärme-, kälte- und -luftanlagen' },
+    { code: '476', level: 3, title: 'Weitere nutzungsspezifische Anlagen' },
+    { code: '477', level: 3, title: 'Verfahrenstechnische Anlagen, Wasser, Abwasser und Gase' },
+    { code: '478', level: 3, title: 'Verfahrenstechnische Anlagen, Feststoffe, Wertstoffe und Abfälle' },
+    { code: '479', level: 3, title: 'Sonstiges zur KG 470' },
+    { code: '480', level: 2, title: 'Gebäude- und Anlagenautomation' },
+    { code: '481', level: 3, title: 'Automationseinrichtungen' },
+    { code: '482', level: 3, title: 'Schaltschränke, Automationsschwerpunkte' },
+    { code: '483', level: 3, title: 'Automationsmanagement' },
+    { code: '484', level: 3, title: 'Kabel, Leitungen und Verlegesysteme' },
+    { code: '485', level: 3, title: 'Datenübertragungsnetze' },
+    { code: '489', level: 3, title: 'Sonstiges zur KG 480' },
+    { code: '490', level: 2, title: 'Sonstige Maßnahmen für technische Anlagen' },
+    { code: '491', level: 3, title: 'Baustelleneinrichtung' },
+    { code: '492', level: 3, title: 'Gerüste' },
+    { code: '493', level: 3, title: 'Sicherungsmaßnahmen' },
+    { code: '494', level: 3, title: 'Abbruchmaßnahmen' },
+    { code: '495', level: 3, title: 'Instandsetzungen' },
+    { code: '496', level: 3, title: 'Materialentsorgung' },
+    { code: '497', level: 3, title: 'Zusätzliche Maßnahmen' },
+    { code: '498', level: 3, title: 'Provisorische technische Anlagen' },
+    { code: '499', level: 3, title: 'Sonstiges zur KG 490' },
+    { code: '500', level: 1, title: 'Außenanlagen und Freiflächen' },
+    { code: '510', level: 2, title: 'Erdbau' },
+    { code: '511', level: 3, title: 'Herstellung' },
+    { code: '512', level: 3, title: 'Umschließung' },
+    { code: '513', level: 3, title: 'Wasserhaltung' },
+    { code: '514', level: 3, title: 'Vortrieb' },
+    { code: '519', level: 3, title: 'Sonstiges zur KG 510' },
+    { code: '520', level: 2, title: 'Gründung, Unterbau' },
+    { code: '521', level: 3, title: 'Baugrundverbesserung' },
+    { code: '522', level: 3, title: 'Gründungen und Bodenplatten' },
+    { code: '523', level: 3, title: 'Gründungsbeläge' },
+    { code: '524', level: 3, title: 'Abdichtungen und Bekleidungen' },
+    { code: '525', level: 3, title: 'Dränagen' },
+    { code: '529', level: 3, title: 'Sonstiges zur KG 520' },
+    { code: '530', level: 2, title: 'Oberbau, Deckschichten' },
+    { code: '531', level: 3, title: 'Wege' },
+    { code: '532', level: 3, title: 'Straßen' },
+    { code: '533', level: 3, title: 'Plätze, Höfe, Terrassen' },
+    { code: '534', level: 3, title: 'Stellplätze' },
+    { code: '535', level: 3, title: 'Sportplatzflächen' },
+    { code: '536', level: 3, title: 'Spielplatzflächen' },
+    { code: '537', level: 3, title: 'Gleisanlagen' },
+    { code: '538', level: 3, title: 'Flugplatzflächen' },
+    { code: '539', level: 3, title: 'Sonstiges zur KG 530' },
+    { code: '540', level: 2, title: 'Baukonstruktionen' },
+    { code: '541', level: 3, title: 'Einfriedungen' },
+    { code: '542', level: 3, title: 'Schutzkonstruktionen' },
+    { code: '543', level: 3, title: 'Wandkonstruktionen' },
+    { code: '544', level: 3, title: 'Rampen, Treppen, Tribünen' },
+    { code: '545', level: 3, title: 'Überdachungen' },
+    { code: '546', level: 3, title: 'Stege' },
+    { code: '547', level: 3, title: 'Kanal- und Schachtkonstruktionen' },
+    { code: '548', level: 3, title: 'Wasserbecken' },
+    { code: '549', level: 3, title: 'Sonstiges zur KG 540' },
+    { code: '550', level: 2, title: 'Technische Anlagen' },
+    { code: '551', level: 3, title: 'Abwasseranlagen' },
+    { code: '552', level: 3, title: 'Wasseranlagen' },
+    { code: '553', level: 3, title: 'Anlagen für Gase und Flüssigkeiten' },
+    { code: '554', level: 3, title: 'Wärmeversorgungsanlagen' },
+    { code: '555', level: 3, title: 'Raumlufttechnische Anlagen' },
+    { code: '556', level: 3, title: 'Elektrische Anlagen' },
+    { code: '557', level: 3, title: 'Kommunikations-, sicherheits- und informationstechnische Anlagen, Automation' },
+    { code: '558', level: 3, title: 'Nutzungsspezifische Anlagen' },
+    { code: '559', level: 3, title: 'Sonstiges zur KG 550' },
+    { code: '560', level: 2, title: 'Einbauten in Außenanlagen und Freiflächen' },
+    { code: '561', level: 3, title: 'Allgemeine Einbauten' },
+    { code: '562', level: 3, title: 'Besondere Einbauten' },
+    { code: '563', level: 3, title: 'Orientierungs- und Informationssysteme' },
+    { code: '569', level: 3, title: 'Sonstiges zur KG 560' },
+    { code: '570', level: 2, title: 'Vegetationsflächen' },
+    { code: '571', level: 3, title: 'Vegetationstechnische Bodenbearbeitung' },
+    { code: '572', level: 3, title: 'Sicherungsbauweisen' },
+    { code: '573', level: 3, title: 'Pflanzflächen' },
+    { code: '574', level: 3, title: 'Rasen- und Saatflächen' },
+    { code: '579', level: 3, title: 'Sonstiges zur KG 570' },
+    { code: '580', level: 2, title: 'Wasserflächen' },
+    { code: '581', level: 3, title: 'Befestigungen' },
+    { code: '582', level: 3, title: 'Abdichtungen' },
+    { code: '583', level: 3, title: 'Bepflanzungen' },
+    { code: '589', level: 3, title: 'Sonstiges zur KG 580' },
+    { code: '590', level: 2, title: 'Sonstige Maßnahmen für Außenanlagen und Freiflächen' },
+    { code: '591', level: 3, title: 'Baustelleneinrichtung' },
+    { code: '592', level: 3, title: 'Gerüste' },
+    { code: '593', level: 3, title: 'Sicherungsmaßnahmen' },
+    { code: '594', level: 3, title: 'Abbruchmaßnahmen' },
+    { code: '595', level: 3, title: 'Instandsetzungen' },
+    { code: '596', level: 3, title: 'Materialentsorgung' },
+    { code: '597', level: 3, title: 'Zusätzliche Maßnahmen' },
+    { code: '598', level: 3, title: 'Provisorische Außenanlagen und Freiflächen' },
+    { code: '599', level: 3, title: 'Sonstiges zur KG 590' },
+    { code: '600', level: 1, title: 'Ausstattung und Kunstwerke' },
+    { code: '610', level: 2, title: 'Allgemeine Ausstattung' },
+    { code: '620', level: 2, title: 'Besondere Ausstattung' },
+    { code: '630', level: 2, title: 'Informationstechnische Ausstattung' },
+    { code: '640', level: 2, title: 'Künstlerische Ausstattung' },
+    { code: '641', level: 3, title: 'Kunstobjekte' },
+    { code: '642', level: 3, title: 'Künstlerische Gestaltung des Bauwerks' },
+    { code: '643', level: 3, title: 'Künstlerische Gestaltung der Außenanlagen und Freiflächen' },
+    { code: '649', level: 3, title: 'Sonstiges zur KG 640' },
+    { code: '690', level: 2, title: 'Sonstige Ausstattung' },
+    { code: '700', level: 1, title: 'Baunebenkosten' },
+    { code: '710', level: 2, title: 'Bauherrenaufgaben' },
+    { code: '711', level: 3, title: 'Projektleitung' },
+    { code: '712', level: 3, title: 'Bedarfsplanung' },
+    { code: '713', level: 3, title: 'Projektsteuerung' },
+    { code: '714', level: 3, title: 'Sicherheits- und Gesundheitsschutzkoordination' },
+    { code: '715', level: 3, title: 'Vergabeverfahren' },
+    { code: '719', level: 3, title: 'Sonstiges zur KG 710' },
+    { code: '720', level: 2, title: 'Vorbereitung der Objektplanung' },
+    { code: '721', level: 3, title: 'Untersuchungen' },
+    { code: '722', level: 3, title: 'Wertermittlungen' },
+    { code: '723', level: 3, title: 'Städtebauliche Leistungen' },
+    { code: '724', level: 3, title: 'Landschaftsplanerische Leistungen' },
+    { code: '725', level: 3, title: 'Wettbewerbe' },
+    { code: '729', level: 3, title: 'Sonstiges zur KG 720' },
+    { code: '730', level: 2, title: 'Objektplanung' },
+    { code: '731', level: 3, title: 'Gebäude und Innenräume' },
+    { code: '732', level: 3, title: 'Freianlagen' },
+    { code: '733', level: 3, title: 'Ingenieurbauwerke' },
+    { code: '734', level: 3, title: 'Verkehrsanlagen' },
+    { code: '739', level: 3, title: 'Sonstiges zur KG 730' },
+    { code: '740', level: 2, title: 'Fachplanung' },
+    { code: '741', level: 3, title: 'Tragwerksplanung' },
+    { code: '742', level: 3, title: 'Technische Ausrüstung' },
+    { code: '743', level: 3, title: 'Bauphysik' },
+    { code: '744', level: 3, title: 'Geotechnik' },
+    { code: '745', level: 3, title: 'Ingenieurvermessung' },
+    { code: '746', level: 3, title: 'Lichttechnik, Tageslichttechnik' },
+    { code: '747', level: 3, title: 'Brandschutz' },
+    { code: '748', level: 3, title: 'Altlasten, Kampfmittel, kulturhistorische Funde' },
+    { code: '749', level: 3, title: 'Sonstiges zur KG 740' },
+    { code: '750', level: 2, title: 'Künstlerische Leistungen' },
+    { code: '751', level: 3, title: 'Kunstwettbewerbe' },
+    { code: '752', level: 3, title: 'Honorare' },
+    { code: '759', level: 3, title: 'Sonstiges zur KG 750' },
+    { code: '760', level: 2, title: 'Allgemeine Baunebenkosten' },
+    { code: '761', level: 3, title: 'Gutachten und Beratung' },
+    { code: '762', level: 3, title: 'Prüfungen, Genehmigungen, Abnahmen' },
+    { code: '763', level: 3, title: 'Bewirtschaftungskosten' },
+    { code: '764', level: 3, title: 'Bemusterungskosten' },
+    { code: '765', level: 3, title: 'Betriebskosten nach der Abnahme' },
+    { code: '766', level: 3, title: 'Versicherungen' },
+    { code: '769', level: 3, title: 'Sonstiges zur KG 760' },
+    { code: '790', level: 2, title: 'Sonstige Baunebenkosten' },
+    { code: '791', level: 3, title: 'Bestandsdokumentation' },
+    { code: '799', level: 3, title: 'Sonstiges zur KG 790' },
+    { code: '800', level: 1, title: 'Finanzierung' },
+    { code: '810', level: 2, title: 'Finanzierungsnebenkosten' },
+    { code: '820', level: 2, title: 'Fremdkapitalzinsen' },
+    { code: '830', level: 2, title: 'Eigenkapitalzinsen' },
+    { code: '840', level: 2, title: 'Bürgschaften' },
+    { code: '890', level: 2, title: 'Sonstige Finanzierungskosten' }
+  ];
+  var DIN276_BY_CODE = {};
+  DIN276_KOSTENGRUPPEN.forEach(function (kg) { DIN276_BY_CODE[kg.code] = kg; });
+
+  /* Heuristische Stichwort-Zuordnung für "Nach DIN einordnen" — ein Vorschlag,
+     kein verbindliches Ergebnis. Trifft die Heuristik keine Aussage, wird nichts
+     vorgeschlagen statt geraten. */
+  var DIN_KEYWORDS = [
+    ['394', ['rückbau', 'abbruch', 'demontage', 'entkernung']],
+    ['391', ['baustelleneinrichtung', 'bauzaun', 'baucontainer']],
+    ['392', ['gerüst']],
+    ['322', ['bodenplatte', 'fundament']],
+    ['331', ['tragende außenwand']],
+    ['332', ['nichttragende außenwand']],
+    ['334', ['fenster', 'außentür', 'haustür']],
+    ['335', ['fassade', 'wdvs', 'außenputz', 'fassadenanstrich']],
+    ['341', ['tragende innenwand', 'tragwand']],
+    ['342', ['trennwand', 'leichtbauwand', 'trockenbauwand', 'gipskartonwand']],
+    ['344', ['innentür', 'zimmertür']],
+    ['345', ['innenputz', 'tapete', 'wandanstrich', 'wandbekleidung', 'wandfliesen']],
+    ['351', ['deckenkonstruktion', 'betondecke']],
+    ['353', ['bodenbelag', 'fußboden', 'estrich', 'parkett', 'laminat', 'vinylboden', 'teppichboden', 'bodenfliesen', 'epoxidharzboden', 'epoxidboden']],
+    ['354', ['deckenverkleidung', 'abgehängte decke', 'deckenbekleidung', 'akustikdecke']],
+    ['361', ['dachkonstruktion', 'dachstuhl']],
+    ['362', ['dachfenster', 'oberlicht']],
+    ['363', ['dacheindeckung', 'dachziegel', 'flachdachabdichtung']],
+    ['411', ['abwasserleitung', 'abwasseranlage']],
+    ['412', ['trinkwasserleitung', 'wasseranlage', 'sanitärinstallation']],
+    ['413', ['gasleitung', 'gasanlage']],
+    ['421', ['heizkessel', 'wärmepumpe', 'wärmeerzeuger']],
+    ['422', ['heizungsrohr', 'wärmeverteilung']],
+    ['423', ['heizkörper', 'fußbodenheizung']],
+    ['431', ['lüftungsanlage', 'lüftung']],
+    ['433', ['klimaanlage', 'klimatisierung']],
+    ['441', ['mittelspannung', 'trafostation']],
+    ['444', ['elektroinstallation', 'steckdose', 'schalter', 'unterverteilung']],
+    ['445', ['beleuchtung', 'leuchte', 'lampe']],
+    ['446', ['blitzschutz']],
+    ['451', ['telefonanlage', 'telekommunikation']],
+    ['456', ['brandmeldeanlage', 'einbruchmeldeanlage', 'alarmanlage']],
+    ['461', ['aufzug', 'fahrstuhl']],
+    ['471', ['küchentechnik', 'gewerbeküche']],
+    ['474', ['sprinkleranlage', 'feuerlöschanlage']],
+    ['531', ['gehweg']],
+    ['532', ['fahrbahn', 'fahrbahnmarkierung']],
+    ['533', ['terrasse', 'innenhof']],
+    ['534', ['stellplatz', 'parkplatz', 'parkdeck', 'radstopper']],
+    ['541', ['einfriedung', 'zaun']],
+    ['573', ['pflanzung', 'bepflanzung', 'innenbepflanzung']],
+    ['610', ['möbel', 'einbauschrank', 'maßmöbel', 'fertigmöbel']],
+    ['620', ['kücheneinrichtung']],
+    ['630', ['edv-ausstattung', 'it-ausstattung']],
+    ['640', ['kunstobjekt', 'kunstwerk']],
+    ['690', ['wegweiser', 'signaletik']],
+    ['711', ['projektleitung']],
+    ['713', ['projektsteuerung']],
+    ['731', ['architektenleistung', 'entwurfsplanung']],
+    ['741', ['statik', 'tragwerksplanung']],
+    ['747', ['brandschutzkonzept', 'brandschutzplanung']]
+  ];
+
+  function suggestDinCode(m) {
+    var text = ((m.name || '') + ' ' + m.positions.map(function (p) { return p.bez || ''; }).join(' ')).toLowerCase();
+    var best = null, bestScore = 0;
+    DIN_KEYWORDS.forEach(function (entry) {
+      var code = entry[0], words = entry[1];
+      var score = 0;
+      words.forEach(function (w) { if (text.indexOf(w) !== -1) score++; });
+      if (score > bestScore) { bestScore = score; best = code; }
+    });
+    return best;
+  }
+
   function uid() { return 'id' + (uidCounter++) + '_' + Math.random().toString(36).slice(2, 7); }
   var uidCounter = 1;
 
@@ -420,7 +858,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       mwstPct: 19,
       massnahmen: [
         {
-          id: uid(), name: 'Rückbau / Demontage',
+          id: uid(), name: 'Rückbau / Demontage', dinCode: null,
           positions: [
             { id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true }
           ]
@@ -444,6 +882,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   function normalizeState(parsed) {
     if (!Array.isArray(parsed.snapshots)) parsed.snapshots = [];
     parsed.massnahmen.forEach(function (m) {
+      if (m.dinCode === undefined) m.dinCode = null;
       m.positions.forEach(function (p) { if (p.active === undefined) p.active = true; });
     });
     return parsed;
@@ -576,6 +1015,9 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     return '' +
       '<div class="massnahme-card" data-massnahme-id="' + m.id + '">' +
         '<div class="massnahme-header">' +
+          (m.dinCode ?
+            '<button class="din-badge" data-action="pick-din-code" title="DIN-Kostengruppe ändern">KG ' + escHtml(m.dinCode) + '</button>' :
+            '<button class="din-badge din-badge-empty" data-action="pick-din-code" title="DIN-Kostengruppe zuordnen">+ KG</button>') +
           '<input class="massnahme-name" value="' + escHtml(m.name) + '" placeholder="Maßnahme / Gewerk">' +
           '<div class="massnahme-total">' + fmtEUR(total) + '</div>' +
           '<button class="icon-btn" data-action="save-massnahme-template" title="Als Paket in Bibliothek speichern">☆</button>' +
@@ -616,6 +1058,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     col.innerHTML += '<div class="add-massnahme-row">' +
       '<button class="add-massnahme-btn" data-action="add-massnahme">+ Maßnahme hinzufügen</button>' +
       '<button class="add-massnahme-btn" data-action="add-massnahme-from-library">+ Paket aus Bibliothek</button>' +
+      '<button class="add-massnahme-btn" data-action="add-massnahme-from-din">+ Kostengruppe aus DIN 276</button>' +
       '</div>';
 
     if (!$('#unitList')) {
@@ -801,13 +1244,131 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     });
   }
 
+  /* ── DIN 276 – Zuordnung, Vorschlag, Gerüst ──────────────────────── */
+  function dinPickerListHTML(filterText) {
+    var q = (filterText || '').trim().toLowerCase();
+    var items = DIN276_KOSTENGRUPPEN.filter(function (kg) {
+      if (!q) return true;
+      return kg.code.indexOf(q) === 0 || kg.title.toLowerCase().indexOf(q) !== -1;
+    });
+    if (!items.length) return '<div class="din-picker-empty">Keine Kostengruppe gefunden.</div>';
+    return items.map(function (kg) {
+      return '<button class="din-picker-item level-' + kg.level + '" data-action="apply-din-code" data-din-code="' + kg.code + '">' +
+        '<span class="code">' + kg.code + '</span><span class="title">' + escHtml(kg.title) + '</span>' +
+      '</button>';
+    }).join('');
+  }
+
+  function openDinPickerForMassnahme(massnahmeId) {
+    var m = findMassnahme(massnahmeId);
+    var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Fliesen"></div>' +
+      '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>' +
+      (m && m.dinCode ? '<button class="btn din-picker-clear" data-action="apply-din-code" data-din-code="">Zuordnung entfernen</button>' : '');
+    showModal('DIN-Kostengruppe zuordnen', body, {
+      onOpen: function (overlay) {
+        overlay.setAttribute('data-target-massnahme', massnahmeId);
+        var input = $('#dinPickerSearch');
+        input.addEventListener('input', function () {
+          $('#dinPickerList').innerHTML = dinPickerListHTML(input.value);
+        });
+        input.focus();
+      }
+    });
+  }
+
+  function openDinPickerForNewMassnahme() {
+    var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Fliesen"></div>' +
+      '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>';
+    showModal('Maßnahme aus DIN 276 anlegen', body, {
+      onOpen: function (overlay) {
+        overlay.setAttribute('data-target-massnahme', 'NEW');
+        var input = $('#dinPickerSearch');
+        input.addEventListener('input', function () {
+          $('#dinPickerList').innerHTML = dinPickerListHTML(input.value);
+        });
+        input.focus();
+      }
+    });
+  }
+
+  function applyDinCode(massnahmeId, code) {
+    if (massnahmeId === 'NEW') {
+      var kg = DIN276_BY_CODE[code];
+      if (!kg) return;
+      state.massnahmen.push({ id: uid(), name: kg.title, dinCode: kg.code, positions: [newPosition()] });
+      save(); renderMassnahmen(); renderSummary();
+      closeModal();
+      return;
+    }
+    var m = findMassnahme(massnahmeId);
+    if (!m) return;
+    m.dinCode = code || null;
+    save(); renderMassnahmen(); renderSummary();
+    closeModal();
+  }
+
+  function openDinSuggestModal() {
+    var candidates = state.massnahmen.filter(function (m) { return !m.dinCode; });
+    if (!candidates.length) {
+      showModal('Nach DIN einordnen', '<div class="lib-empty">Alle Maßnahmen haben bereits eine DIN-Kostengruppe zugeordnet.</div>');
+      return;
+    }
+    var suggestions = {};
+    candidates.forEach(function (m) { suggestions[m.id] = suggestDinCode(m); });
+
+    var rows = candidates.map(function (m) {
+      var code = suggestions[m.id];
+      var kg = code ? DIN276_BY_CODE[code] : null;
+      return '<div class="din-suggest-row" data-massnahme-id="' + m.id + '">' +
+        '<div class="info"><div class="n">' + escHtml(m.name || 'Ohne Namen') + '</div>' +
+        (kg ? '<div class="d">Vorschlag: KG ' + kg.code + ' – ' + escHtml(kg.title) + '</div>' : '<div class="d none">Kein automatischer Vorschlag – bitte manuell wählen</div>') +
+        '</div>' +
+        (kg ? '<button class="btn primary" data-action="accept-din-suggestion" data-massnahme-id="' + m.id + '" data-din-code="' + kg.code + '">Übernehmen</button>' : '') +
+        '<button class="btn" data-action="pick-din-code" data-massnahme-id="' + m.id + '">Manuell wählen</button>' +
+      '</div>';
+    }).join('');
+
+    var acceptableCount = candidates.filter(function (m) { return suggestions[m.id]; }).length;
+    var body = '<div class="din-suggest-list">' + rows + '</div>' +
+      (acceptableCount > 1 ? '<div class="modal-actions"><button class="btn primary" id="dinAcceptAllBtn">Alle Vorschläge übernehmen (' + acceptableCount + ')</button></div>' : '');
+
+    showModal('Nach DIN einordnen', body, {
+      wide: true,
+      onOpen: function () {
+        var allBtn = document.getElementById('dinAcceptAllBtn');
+        if (allBtn) allBtn.addEventListener('click', function () {
+          candidates.forEach(function (m) { if (suggestions[m.id]) m.dinCode = suggestions[m.id]; });
+          save(); renderMassnahmen(); renderSummary();
+          closeModal();
+        });
+      }
+    });
+  }
+
+  function seedDinSkeleton() {
+    var toAdd = DIN276_KOSTENGRUPPEN.filter(function (kg) {
+      if (kg.level !== 1) return false;
+      return !state.massnahmen.some(function (m) { return m.dinCode === kg.code; });
+    });
+    if (!toAdd.length) {
+      showModal('DIN-Gerüst anlegen', '<div class="lib-empty">Alle 8 Kostengruppen der 1. Ebene sind bereits als Maßnahmen angelegt.</div>');
+      return;
+    }
+    showConfirm('Die ' + toAdd.length + ' fehlenden Kostengruppen der 1. Ebene (' + toAdd.map(function (kg) { return kg.code; }).join(', ') + ') als leere Maßnahmen anlegen?', function () {
+      toAdd.forEach(function (kg) {
+        state.massnahmen.push({ id: uid(), name: kg.title, dinCode: kg.code, positions: [] });
+      });
+      save(); renderMassnahmen(); renderSummary();
+    });
+  }
+
   /* ── Event delegation ───────────────────────────────── */
   document.addEventListener('click', function (e) {
     var actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
     var action = actionEl.getAttribute('data-action');
     var card = actionEl.closest('.massnahme-card');
-    var massnahmeId = card ? card.getAttribute('data-massnahme-id') : null;
+    var massnahmeId = actionEl.getAttribute('data-massnahme-id') || (card ? card.getAttribute('data-massnahme-id') : null);
     var row = actionEl.closest('.position-row');
     var positionId = row ? row.getAttribute('data-position-id') : null;
 
@@ -863,6 +1424,19 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       downloadKostenPDF(mode);
       closeModal();
     }
+    else if (action === 'pick-din-code') openDinPickerForMassnahme(massnahmeId);
+    else if (action === 'add-massnahme-from-din') openDinPickerForNewMassnahme();
+    else if (action === 'apply-din-code') {
+      var overlayDin = $('#modalOverlay');
+      var targetForDin = overlayDin.getAttribute('data-target-massnahme');
+      applyDinCode(targetForDin, actionEl.getAttribute('data-din-code'));
+    }
+    else if (action === 'suggest-din') openDinSuggestModal();
+    else if (action === 'accept-din-suggestion') {
+      applyDinCode(massnahmeId, actionEl.getAttribute('data-din-code'));
+      openDinSuggestModal();
+    }
+    else if (action === 'seed-din-skeleton') seedDinSkeleton();
   });
 
   function insertLibraryPosition(libPosId, massnahmeId) {
