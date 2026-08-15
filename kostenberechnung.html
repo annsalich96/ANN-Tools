@@ -273,6 +273,23 @@ table.compare-table th:first-child, table.compare-table td:first-child{ text-ali
 table.compare-table thead th{ font-size:11px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--g600); }
 table.compare-table tr.grand td{ font-weight:700; border-top:2px solid var(--color-black); border-bottom:none; }
 table.compare-table td.del-cell{ text-align:center; }
+table.compare-table tr.group-header td{ font-weight:600; background:var(--g100); border-top:1px solid var(--g200); }
+table.compare-table tr.position-row-cmp td{ color:var(--g600); font-size:12px; }
+table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space-6); }
+
+/* ── Vergleichsseite (eigener Vollbild-Bereich statt Pop-up) ─ */
+.compare-page{
+  position:fixed; inset:0; background:var(--color-white); z-index:70;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.compare-page-header{
+  flex:0 0 auto; display:flex; align-items:center; gap:var(--space-5);
+  padding:var(--space-4) var(--space-6); border-bottom:1px solid var(--g200);
+}
+.compare-page-header h2{ margin:0; font-size:18px; font-weight:600; flex:1 1 auto; }
+.compare-page-body{ flex:1 1 auto; overflow-y:auto; padding:var(--space-6); }
+.compare-page-body .compare-toggles{ max-width:900px; }
+.compare-page-body .compare-table-wrap{ max-width:100%; }
 
 @media print{
   .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-massnahme-btn, .col-lib, .col-del{ display:none !important; }
@@ -357,6 +374,15 @@ table.compare-table td.del-cell{ text-align:center; }
 </div>
 
 <div class="modal-overlay" id="modalOverlay"></div>
+
+<div class="compare-page" id="comparePage" style="display:none">
+  <header class="compare-page-header">
+    <button class="btn" data-action="close-compare-page">← Zurück</button>
+    <h2 id="comparePageTitle">Vergleich der Kostenstände</h2>
+    <button class="btn primary" id="comparePdfBtn">Als PDF exportieren</button>
+  </header>
+  <div class="compare-page-body" id="comparePageBody"></div>
+</div>
 
 <script>
 (function () {
@@ -800,7 +826,8 @@ table.compare-table td.del-cell{ text-align:center; }
     else if (action === 'add-massnahme-from-library') openLibraryModal();
     else if (action === 'open-library') openLibraryModal();
     else if (action === 'save-snapshot') openSnapshotModal();
-    else if (action === 'open-compare') openCompareModal();
+    else if (action === 'open-compare') openComparePage();
+    else if (action === 'close-compare-page') closeComparePage();
     else if (action === 'open-pdf-options') openPdfOptionsModal();
     else if (action === 'insert-library-position') {
       var libPosId = actionEl.getAttribute('data-lib-position-id');
@@ -829,7 +856,7 @@ table.compare-table td.del-cell{ text-align:center; }
       var delSnapId = actionEl.getAttribute('data-snapshot-id');
       state.snapshots = state.snapshots.filter(function (x) { return x.id !== delSnapId; });
       save();
-      openCompareModal();
+      if ($('#comparePage').style.display !== 'none') openComparePage();
     }
     else if (action === 'pdf-download') {
       var mode = actionEl.getAttribute('data-pdf-mode');
@@ -938,74 +965,122 @@ table.compare-table td.del-cell{ text-align:center; }
     return sum;
   }
 
-  function openCompareModal() {
-    if (!state.snapshots.length) {
-      showModal('Vergleich', '<div class="lib-empty">Noch keine Schnappschüsse gesichert. Nutze „Stand sichern" in der Werkzeugleiste, z. B. einmal bei Kostenschätzung, einmal bei Kostenberechnung und einmal bei Kostenanschlag.</div>');
-      return;
+  /* Bestimmt eine stabile Reihenfolge: Struktur der zuletzt ausgewählten Spalte zuerst,
+     alles, was nur in älteren Spalten vorkommt, wird hinten angehängt. */
+  function orderedNames(visible, getListFn) {
+    var ordered = [];
+    var seen = {};
+    for (var i = visible.length - 1; i >= 0; i--) {
+      getListFn(visible[i]).forEach(function (n) { if (!seen[n]) { seen[n] = true; ordered.push(n); } });
     }
-    var columns = allCompareColumns();
-    var selected = {};
-    columns.forEach(function (c) { selected[c.key] = true; });
-    renderCompare();
+    return ordered;
+  }
 
-    function renderCompare() {
-      var visible = columns.filter(function (c) { return selected[c.key]; });
+  function compareMassnahmeNames(visible) {
+    return orderedNames(visible, function (col) {
+      return col.massnahmen.map(function (m) { return m.name || 'Ohne Namen'; });
+    });
+  }
 
-      var toggles = '<div class="compare-toggles">' + columns.map(function (c) {
-        return '<label class="compare-toggle"><input type="checkbox" class="compare-toggle-input" data-col-key="' + c.key + '" ' + (selected[c.key] ? 'checked' : '') + '> ' + escHtml(c.label) + ' <span class="compare-toggle-stand">(' + escHtml(c.kostenstand) + ')</span></label>';
-      }).join('') + '</div>';
-
-      var tableHtml;
-      if (!visible.length) {
-        tableHtml = '<div class="lib-empty">Mindestens einen Stand auswählen, um ihn zu vergleichen.</div>';
-      } else {
-        var names = [];
-        visible.forEach(function (col) {
-          col.massnahmen.forEach(function (m) {
-            var n = m.name || 'Ohne Namen';
-            if (names.indexOf(n) === -1) names.push(n);
-          });
-        });
-
-        var head = '<tr><th></th>' + visible.map(function (col) {
-          return '<th>' + escHtml(col.label) + '<br><span style="font-weight:400;text-transform:none;">' + escHtml(col.kostenstand) + '</span>' +
-            (col.snapshotId ? '<br><button class="icon-btn danger" data-action="delete-snapshot" data-snapshot-id="' + col.snapshotId + '" title="Schnappschuss löschen" style="margin-top:4px;">✕</button>' : '') +
-            '</th>';
-        }).join('') + '</tr>';
-
-        var rows = names.map(function (name) {
-          return '<tr><td>' + escHtml(name) + '</td>' + visible.map(function (col) {
-            return '<td>' + fmtEUR(compareAmountFor(col, name)) + '</td>';
-          }).join('') + '</tr>';
-        }).join('');
-
-        var totalRows = ['netto', 'reserve', 'nebenkosten', 'zwischensumme', 'mwst', 'brutto'].map(function (key) {
-          var labels = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
-          return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + labels[key] + '</td>' + visible.map(function (col) {
-            return '<td>' + fmtEUR(col.totals[key]) + '</td>';
-          }).join('') + '</tr>';
-        }).join('');
-
-        tableHtml = '<div class="compare-table-wrap"><table class="compare-table"><thead>' + head + '</thead><tbody>' + rows + totalRows + '</tbody></table></div>';
-      }
-
-      var body = toggles + tableHtml +
-        '<div class="modal-actions"><button class="btn primary" id="comparePdfBtn"' + (visible.length ? '' : ' disabled') + '>Als PDF exportieren</button></div>';
-
-      showModal('Vergleich der Kostenstände', body, {
-        wide: true,
-        onOpen: function (overlay) {
-          overlay.querySelectorAll('.compare-toggle-input').forEach(function (cb) {
-            cb.addEventListener('change', function () {
-              selected[cb.getAttribute('data-col-key')] = cb.checked;
-              renderCompare();
-            });
-          });
-          var pdfBtn = document.getElementById('comparePdfBtn');
-          if (pdfBtn) pdfBtn.addEventListener('click', function () { downloadComparePDF(visible); });
+  function comparePositionLabels(visible, massnahmeName) {
+    return orderedNames(visible, function (col) {
+      var labels = [];
+      col.massnahmen.forEach(function (m) {
+        if ((m.name || 'Ohne Namen') === massnahmeName) {
+          m.positions.forEach(function (p) { labels.push((p.bez || '').trim() || '(ohne Bezeichnung)'); });
         }
       });
+      return labels;
+    });
+  }
+
+  function comparePositionAmountFor(col, massnahmeName, label) {
+    var sum = 0;
+    col.massnahmen.forEach(function (m) {
+      if ((m.name || 'Ohne Namen') === massnahmeName) {
+        m.positions.forEach(function (p) {
+          var l = (p.bez || '').trim() || '(ohne Bezeichnung)';
+          if (l === label) sum += (p.active === false ? 0 : (Number(p.menge) || 0) * (Number(p.ep) || 0));
+        });
+      }
+    });
+    return sum;
+  }
+
+  var compareSelected = null;
+
+  function closeComparePage() {
+    $('#comparePage').style.display = 'none';
+    $('.app').style.display = '';
+  }
+
+  function openComparePage() {
+    if (!state.snapshots.length) {
+      showConfirm('Noch keine Schnappschüsse gesichert. Nutze „Stand sichern" in der Werkzeugleiste, z. B. einmal bei Kostenschätzung, einmal bei Kostenberechnung und einmal bei Kostenanschlag.', function () {});
+      return;
     }
+    $('.app').style.display = 'none';
+    $('#comparePage').style.display = 'flex';
+
+    var columns = allCompareColumns();
+    if (!compareSelected) {
+      compareSelected = {};
+      columns.forEach(function (c) { compareSelected[c.key] = true; });
+    }
+    renderComparePage(columns);
+  }
+
+  function renderComparePage(columns) {
+    var visible = columns.filter(function (c) { return compareSelected[c.key]; });
+
+    var toggles = '<div class="compare-toggles">' + columns.map(function (c) {
+      return '<label class="compare-toggle"><input type="checkbox" class="compare-toggle-input" data-col-key="' + c.key + '" ' + (compareSelected[c.key] ? 'checked' : '') + '> ' + escHtml(c.label) + ' <span class="compare-toggle-stand">(' + escHtml(c.kostenstand) + ')</span></label>';
+    }).join('') + '</div>';
+
+    var tableHtml;
+    if (!visible.length) {
+      tableHtml = '<div class="lib-empty">Mindestens einen Stand auswählen, um ihn zu vergleichen.</div>';
+    } else {
+      var names = compareMassnahmeNames(visible);
+
+      var head = '<tr><th>Maßnahme / Position</th>' + visible.map(function (col) {
+        return '<th>' + escHtml(col.label) + '<br><span style="font-weight:400;text-transform:none;">' + escHtml(col.kostenstand) + '</span>' +
+          (col.snapshotId ? '<br><button class="icon-btn danger" data-action="delete-snapshot" data-snapshot-id="' + col.snapshotId + '" title="Schnappschuss löschen" style="margin-top:4px;">✕</button>' : '') +
+          '</th>';
+      }).join('') + '</tr>';
+
+      var rows = names.map(function (name) {
+        var groupRow = '<tr class="group-header"><td>' + escHtml(name) + '</td>' + visible.map(function (col) {
+          return '<td>' + fmtEUR(compareAmountFor(col, name)) + '</td>';
+        }).join('') + '</tr>';
+        var positionRows = comparePositionLabels(visible, name).map(function (label) {
+          return '<tr class="position-row-cmp"><td>' + escHtml(label) + '</td>' + visible.map(function (col) {
+            return '<td>' + fmtEUR(comparePositionAmountFor(col, name, label)) + '</td>';
+          }).join('') + '</tr>';
+        }).join('');
+        return groupRow + positionRows;
+      }).join('');
+
+      var totalRows = ['netto', 'reserve', 'nebenkosten', 'zwischensumme', 'mwst', 'brutto'].map(function (key) {
+        var labels = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
+        return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + labels[key] + '</td>' + visible.map(function (col) {
+          return '<td>' + fmtEUR(col.totals[key]) + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+
+      tableHtml = '<div class="compare-table-wrap"><table class="compare-table"><thead>' + head + '</thead><tbody>' + rows + totalRows + '</tbody></table></div>';
+    }
+
+    $('#comparePageBody').innerHTML = toggles + tableHtml;
+    $('#comparePageBody').querySelectorAll('.compare-toggle-input').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        compareSelected[cb.getAttribute('data-col-key')] = cb.checked;
+        renderComparePage(columns);
+      });
+    });
+    var pdfBtn = $('#comparePdfBtn');
+    pdfBtn.disabled = !visible.length;
+    pdfBtn.onclick = function () { downloadComparePDF(visible); };
   }
 
   /* ── PDF-Export (reine PDF-Syntax, keine externe Bibliothek) ─── */
@@ -1201,21 +1276,23 @@ table.compare-table td.del-cell{ text-align:center; }
 
     newPage(true);
 
-    var names = [];
-    columns.forEach(function (col) {
-      col.massnahmen.forEach(function (m) {
-        var n = m.name || 'Ohne Namen';
-        if (names.indexOf(n) === -1) names.push(n);
-      });
-    });
+    var names = compareMassnahmeNames(columns);
 
     names.forEach(function (name) {
-      ensureSpace();
-      cur.push('BT /F1 9 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(name, 28)) + ') Tj ET');
+      ensureSpace(70);
+      cur.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(name, 28)) + ') Tj ET');
       columns.forEach(function (col, i) {
-        cur.push('BT /F1 9 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(compareAmountFor(col, name))) + ') Tj ET');
+        cur.push('BT /F2 9 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(compareAmountFor(col, name))) + ') Tj ET');
       });
       y -= ROW_H_PDF;
+      comparePositionLabels(columns, name).forEach(function (label) {
+        ensureSpace();
+        cur.push('BT /F1 8 Tf 1 0 0 1 ' + (MARGIN + 12) + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(label, 30)) + ') Tj ET');
+        columns.forEach(function (col, i) {
+          cur.push('BT /F1 8 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(comparePositionAmountFor(col, name, label))) + ') Tj ET');
+        });
+        y -= ROW_H_PDF - 2;
+      });
     });
 
     y -= 6;
