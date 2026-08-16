@@ -33,7 +33,7 @@ body{
   -webkit-font-smoothing:antialiased;
   font-weight:500;
 }
-button, input{ font-family:var(--font-family); }
+button, input, textarea, select{ font-family:var(--font-family); }
 
 .app{ display:flex; flex-direction:column; min-height:100vh; }
 
@@ -118,51 +118,28 @@ button, input{ font-family:var(--font-family); }
 
 /* ── Board ────────────────────────────── */
 .board{ flex:1 1 auto; display:flex; align-items:flex-start; padding:var(--space-6); gap:var(--space-6); }
-.massnahmen-col{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:var(--space-4); }
+.bereiche-col{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:var(--space-4); }
 .empty-hint{ color:var(--g600); font-size:13px; padding:var(--space-8) 0; text-align:center; }
 
-.massnahme-card{ border:1px solid var(--g200); border-radius:6px; overflow:hidden; }
-.massnahme-header{
+/* ── Bereich (Ebene 1) ────────────────── */
+.bereich-card{ border:1px solid var(--color-black); border-radius:6px; overflow:hidden; }
+.bereich-header{
   display:flex; align-items:center; gap:var(--space-2);
-  padding:var(--space-3) var(--space-4); background:var(--g100); border-bottom:1px solid var(--g200);
+  padding:var(--space-3) var(--space-4); background:var(--color-black); color:var(--color-white);
 }
-.massnahme-name{
+.bereich-nr{
+  flex:0 0 44px; border:1px solid rgba(255,255,255,.3); outline:none; background:transparent;
+  color:var(--color-white); font-size:13px; font-weight:600; padding:4px 6px; border-radius:3px; text-align:center;
+}
+.bereich-name{
   flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
-  font-size:15px; font-weight:600; color:var(--color-black); padding:2px 4px; border-radius:2px;
+  font-size:15px; font-weight:600; color:var(--color-white); padding:2px 4px; border-radius:2px;
 }
-.massnahme-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
-.din-badge{
-  appearance:none; border:1px solid var(--g400); background:var(--color-white); color:var(--color-black);
-  font-size:11px; font-weight:600; letter-spacing:0.02em; padding:3px 8px; border-radius:3px; cursor:pointer;
-  white-space:nowrap; flex:0 0 auto;
-}
-.din-badge:hover{ background:var(--g200); }
-.din-badge-empty{ border-style:dashed; color:var(--g600); font-weight:500; }
+.bereich-name::placeholder{ color:rgba(255,255,255,.5); }
+.bereich-name:focus{ background:rgba(255,255,255,.12); }
+.bereich-total{ font-size:14px; font-weight:600; color:var(--color-white); white-space:nowrap; }
+.bereich-body{ padding:var(--space-3) var(--space-4); display:flex; flex-direction:column; gap:var(--space-3); }
 
-.din-picker-search{ margin-bottom:var(--space-4); }
-.din-picker-list{ display:flex; flex-direction:column; max-height:50vh; overflow-y:auto; border:1px solid var(--g200); border-radius:4px; }
-.din-picker-item{
-  appearance:none; border:none; border-bottom:1px solid var(--g100); background:var(--color-white);
-  text-align:left; padding:8px 12px; cursor:pointer; font-size:13px; color:var(--color-black);
-  display:flex; gap:10px; align-items:baseline; font-family:var(--font-family);
-}
-.din-picker-item:last-child{ border-bottom:none; }
-.din-picker-item:hover{ background:var(--g100); }
-.din-picker-item .code{ flex:0 0 40px; font-weight:600; color:var(--g600); }
-.din-picker-item.level-1{ font-weight:700; background:var(--g100); }
-.din-picker-item.level-1 .code{ color:var(--color-black); }
-.din-picker-item.level-2{ font-weight:600; }
-.din-picker-item.level-3{ padding-left:24px; color:var(--color-black); }
-.din-picker-empty{ padding:var(--space-6); text-align:center; color:var(--g600); font-size:13px; }
-.din-picker-clear{ margin-top:var(--space-3); }
-
-.din-suggest-list{ display:flex; flex-direction:column; gap:var(--space-2); }
-.din-suggest-row{ display:flex; align-items:center; gap:var(--space-3); border:1px solid var(--g200); border-radius:4px; padding:var(--space-3) var(--space-4); }
-.din-suggest-row .info{ flex:1 1 auto; min-width:0; }
-.din-suggest-row .info .n{ font-size:13px; font-weight:500; color:var(--color-black); }
-.din-suggest-row .info .d{ font-size:12px; color:var(--g600); margin-top:2px; }
-.din-suggest-row .info .d.none{ font-style:italic; }
-.massnahme-total{ font-size:14px; font-weight:600; color:var(--color-black); white-space:nowrap; }
 .icon-btn{
   appearance:none; border:1px solid transparent; background:transparent; color:var(--g600);
   width:28px; height:28px; border-radius:3px; cursor:pointer; font-size:14px;
@@ -170,25 +147,46 @@ button, input{ font-family:var(--font-family); }
 }
 .icon-btn:hover{ background:var(--color-white); border-color:var(--g200); color:var(--color-black); }
 .icon-btn.danger:hover{ color:var(--error); border-color:var(--error); }
+.icon-btn.on-dark{ color:rgba(255,255,255,.7); }
+.icon-btn.on-dark:hover{ background:rgba(255,255,255,.15); border-color:transparent; color:var(--color-white); }
 
+/* ── Titel (Ebene 2) ──────────────────── */
+.titel-card{ border:1px solid var(--g200); border-radius:5px; overflow:hidden; }
+.titel-header{
+  display:flex; align-items:center; gap:var(--space-2);
+  padding:8px var(--space-3); background:var(--g100); border-bottom:1px solid var(--g200);
+}
+.titel-nr{
+  flex:0 0 52px; border:1px solid var(--g200); outline:none; background:var(--color-white);
+  color:var(--color-black); font-size:12px; font-weight:600; padding:4px 6px; border-radius:3px; text-align:center;
+}
+.titel-name{
+  flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
+  font-size:13px; font-weight:600; color:var(--color-black); padding:2px 4px; border-radius:2px;
+}
+.titel-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
+.titel-total{ font-size:13px; font-weight:600; color:var(--color-black); white-space:nowrap; }
+
+/* ── Positionen ───────────────────────── */
 .positions-table{ display:flex; flex-direction:column; }
 .positions-header-row, .position-row{
   display:flex; align-items:center; gap:var(--space-2);
-  padding:6px var(--space-4); border-bottom:1px solid var(--g100);
+  padding:6px var(--space-3); border-bottom:1px solid var(--g100);
 }
 .positions-header-row{
-  font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--g600);
-  padding-top:var(--space-2); padding-bottom:var(--space-2);
+  font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--g600);
+  padding-top:6px; padding-bottom:6px;
 }
 .position-row:last-of-type{ border-bottom:none; }
 .col-active{ flex:0 0 20px; display:flex; align-items:center; justify-content:center; }
 .col-active input[type=checkbox]{ width:14px; height:14px; cursor:pointer; accent-color:var(--color-black); }
-.col-nr{ flex:0 0 36px; font-size:12px; color:var(--g600); }
+.col-nr{ flex:0 0 26px; font-size:12px; color:var(--g600); }
+.col-kg{ flex:0 0 56px; }
 .col-bez{ flex:1 1 auto; min-width:0; }
-.col-menge{ flex:0 0 80px; }
-.col-einheit{ flex:0 0 80px; }
-.col-ep{ flex:0 0 100px; }
-.col-gesamt{ flex:0 0 110px; text-align:right; }
+.col-menge{ flex:0 0 74px; }
+.col-einheit{ flex:0 0 68px; }
+.col-ep{ flex:0 0 92px; }
+.col-gesamt{ flex:0 0 100px; text-align:right; }
 .col-lib{ flex:0 0 26px; }
 .col-del{ flex:0 0 26px; }
 
@@ -199,6 +197,7 @@ button, input{ font-family:var(--font-family); }
 .position-row input:hover{ border-color:var(--g200); }
 .position-row input:focus{ border-color:var(--g400); background:var(--color-white); }
 .position-row input.col-menge-input, .position-row input.col-ep-input{ text-align:right; }
+.position-row input.col-kg-input{ text-align:center; font-weight:600; }
 .position-row .col-gesamt{ font-size:13px; font-weight:500; color:var(--color-black); }
 .position-row.inactive{ opacity:.45; }
 .position-row.inactive .col-gesamt, .position-row.inactive input{ text-decoration:line-through; }
@@ -209,16 +208,15 @@ button, input{ font-family:var(--font-family); }
   padding:8px; text-align:left;
 }
 .add-inline-btn:hover{ color:var(--color-black); border-color:var(--g400); background:var(--g100); }
-.add-inline-row{ display:flex; gap:var(--space-2); margin:var(--space-3) var(--space-4); }
-.add-inline-row .add-inline-btn{ flex:1 1 auto; margin:0; }
+.add-inline-row{ display:flex; gap:var(--space-2); }
 
-.add-massnahme-row{ display:flex; gap:var(--space-2); }
-.add-massnahme-btn{
+.add-bereich-row{ display:flex; gap:var(--space-2); }
+.add-bereich-btn{
   appearance:none; border:1px dashed var(--g200); border-radius:6px; cursor:pointer;
   background:var(--color-white); color:var(--g600); font-size:13px; font-weight:500;
   padding:var(--space-4); text-align:center; flex:1 1 auto;
 }
-.add-massnahme-btn:hover{ color:var(--color-black); border-color:var(--g400); background:var(--g100); }
+.add-bereich-btn:hover{ color:var(--color-black); border-color:var(--g400); background:var(--g100); }
 
 /* ── Summary panel ────────────────────── */
 .summary-col{ flex:0 0 var(--summary-w); position:sticky; top:var(--space-6); display:flex; flex-direction:column; gap:var(--space-4); }
@@ -269,11 +267,18 @@ button, input{ font-family:var(--font-family); }
 .modal-actions{ display:flex; justify-content:flex-end; gap:var(--space-2); margin-top:var(--space-5); }
 .form-field{ display:flex; flex-direction:column; gap:6px; margin-bottom:var(--space-4); }
 .form-field label{ font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--g600); }
-.form-field input, .form-field select{
+.form-field input, .form-field select, .form-field textarea{
   border:1px solid var(--g200); border-radius:3px; padding:8px 10px; font-size:13px;
   font-family:var(--font-family); color:var(--color-black); background:var(--color-white);
 }
-.form-field input:focus, .form-field select:focus{ outline:none; border-color:var(--g400); }
+.form-field textarea{ resize:vertical; min-height:60px; line-height:1.5; }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus{ outline:none; border-color:var(--g400); }
+.form-grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--space-4); }
+.form-section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-black); margin:var(--space-6) 0 var(--space-3) 0; border-top:1px solid var(--g200); padding-top:var(--space-5); }
+.form-section-title:first-child{ margin-top:0; border-top:none; padding-top:0; }
+.radio-row{ display:flex; gap:var(--space-4); }
+.radio-row label{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-black); cursor:pointer; }
+
 .pdf-mode-options{ display:flex; flex-direction:column; gap:var(--space-3); }
 .pdf-mode-option{
   border:1px solid var(--g200); border-radius:6px; padding:var(--space-4); cursor:pointer; text-align:left;
@@ -293,40 +298,68 @@ button, input{ font-family:var(--font-family); }
 .lib-item .info .d{ font-size:12px; color:var(--g600); }
 .lib-empty{ color:var(--g600); font-size:13px; padding:var(--space-6) 0; text-align:center; }
 
-.compare-toggles{ display:flex; flex-wrap:wrap; gap:var(--space-4); margin-bottom:var(--space-5); padding-bottom:var(--space-4); border-bottom:1px solid var(--g200); }
-.compare-toggle{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-black); cursor:pointer; }
-.compare-toggle input{ width:14px; height:14px; cursor:pointer; accent-color:var(--color-black); }
-.compare-toggle-stand{ color:var(--g600); font-size:12px; }
 .compare-table-wrap{ overflow-x:auto; }
 table.compare-table{ border-collapse:collapse; width:100%; font-size:13px; }
 table.compare-table th, table.compare-table td{ padding:8px 12px; border-bottom:1px solid var(--g200); white-space:nowrap; text-align:right; }
-table.compare-table th:first-child, table.compare-table td:first-child{ text-align:left; position:sticky; left:0; background:var(--color-white); }
+table.compare-table th:first-child, table.compare-table td:first-child{ text-align:left; position:sticky; left:0; background:var(--color-white); white-space:normal; }
 table.compare-table thead th{ font-size:11px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--g600); }
 table.compare-table tr.grand td{ font-weight:700; border-top:2px solid var(--color-black); border-bottom:none; }
-table.compare-table td.del-cell{ text-align:center; }
 table.compare-table tr.group-header td{ font-weight:600; background:var(--g100); border-top:1px solid var(--g200); }
 table.compare-table tr.position-row-cmp td{ color:var(--g600); font-size:12px; }
 table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space-6); }
 
-/* ── Vergleichsseite (eigener Vollbild-Bereich statt Pop-up) ─ */
-.compare-page{
+.compare-toggles{ display:flex; flex-wrap:wrap; gap:var(--space-4); margin-bottom:var(--space-5); padding-bottom:var(--space-4); border-bottom:1px solid var(--g200); }
+.compare-toggle{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-black); cursor:pointer; }
+.compare-toggle input{ width:14px; height:14px; cursor:pointer; accent-color:var(--color-black); }
+.compare-toggle-stand{ color:var(--g600); font-size:12px; }
+
+.din-picker-search{ margin-bottom:var(--space-4); }
+.din-picker-list{ display:flex; flex-direction:column; max-height:50vh; overflow-y:auto; border:1px solid var(--g200); border-radius:4px; }
+.din-picker-item{
+  appearance:none; border:none; border-bottom:1px solid var(--g100); background:var(--color-white);
+  text-align:left; padding:8px 12px; cursor:pointer; font-size:13px; color:var(--color-black);
+  display:flex; gap:10px; align-items:baseline; font-family:var(--font-family);
+}
+.din-picker-item:last-child{ border-bottom:none; }
+.din-picker-item:hover{ background:var(--g100); }
+.din-picker-item .code{ flex:0 0 40px; font-weight:600; color:var(--g600); }
+.din-picker-item.level-1{ font-weight:700; background:var(--g100); }
+.din-picker-item.level-1 .code{ color:var(--color-black); }
+.din-picker-item.level-2{ font-weight:600; }
+.din-picker-item.level-3{ padding-left:24px; color:var(--color-black); }
+.din-picker-empty{ padding:var(--space-6); text-align:center; color:var(--g600); font-size:13px; }
+.din-picker-clear{ margin-top:var(--space-3); }
+
+.din-suggest-list{ display:flex; flex-direction:column; gap:var(--space-2); }
+.din-suggest-row{ display:flex; align-items:center; gap:var(--space-3); border:1px solid var(--g200); border-radius:4px; padding:var(--space-3) var(--space-4); }
+.din-suggest-row .info{ flex:1 1 auto; min-width:0; }
+.din-suggest-row .info .n{ font-size:13px; font-weight:500; color:var(--color-black); }
+.din-suggest-row .info .ctx{ font-size:11px; color:var(--g600); text-transform:uppercase; letter-spacing:0.03em; }
+.din-suggest-row .info .d{ font-size:12px; color:var(--g600); margin-top:2px; }
+.din-suggest-row .info .d.none{ font-style:italic; }
+
+/* ── Vollbild-Seiten (Vergleich / Nach Kostengruppen) ─ */
+.full-page{
   position:fixed; inset:0; background:var(--color-white); z-index:70;
   display:flex; flex-direction:column; overflow:hidden;
 }
-.compare-page-header{
+.full-page-header{
   flex:0 0 auto; display:flex; align-items:center; gap:var(--space-5);
   padding:var(--space-4) var(--space-6); border-bottom:1px solid var(--g200);
 }
-.compare-page-header h2{ margin:0; font-size:18px; font-weight:600; flex:1 1 auto; }
-.compare-page-body{ flex:1 1 auto; overflow-y:auto; padding:var(--space-6); }
-.compare-page-body .compare-toggles{ max-width:900px; }
-.compare-page-body .compare-table-wrap{ max-width:100%; }
+.full-page-header h2{ margin:0; font-size:18px; font-weight:600; flex:1 1 auto; }
+.full-page-body{ flex:1 1 auto; overflow-y:auto; padding:var(--space-6); }
+.full-page-body .compare-toggles{ max-width:900px; }
+.full-page-body .compare-table-wrap{ max-width:100%; }
+
+.kg-group-row td{ font-weight:600; }
+.kg-group-row.first-level td{ background:var(--g100); font-weight:700; }
 
 @media print{
-  .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-massnahme-btn, .col-lib, .col-del{ display:none !important; }
+  .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-bereich-btn, .col-lib, .col-del{ display:none !important; }
   .board{ display:block; }
   .summary-col{ position:static; margin-top:var(--space-6); width:100%; flex:none; }
-  .massnahme-card{ break-inside:avoid; }
+  .bereich-card{ break-inside:avoid; }
 }
 
 @media (max-width:900px){
@@ -346,7 +379,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   <div class="toolbar">
     <div class="toolbar-group">
-      <button class="btn primary" data-action="add-massnahme">+ Maßnahme</button>
+      <button class="btn primary" data-action="add-bereich">+ Bereich</button>
     </div>
     <div class="toolbar-group zoom-group" id="kostenstandGroup">
       <button class="zoom-btn" data-kostenstand="schaetzung">Kostenschätzung</button>
@@ -360,13 +393,17 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     </div>
     <div class="toolbar-spacer"></div>
     <div class="toolbar-group">
-      <button class="btn" data-action="open-library" title="Wiederverwendbare Positionen &amp; Maßnahmen-Pakete verwalten">Bibliothek</button>
-      <button class="btn" data-action="save-snapshot" title="Aktuellen Stand als Schnappschuss sichern, um ihn später zu vergleichen">Stand sichern</button>
-      <button class="btn" data-action="open-compare" title="Gesicherte Stände vergleichen">Vergleich</button>
+      <button class="btn" data-action="open-projektdaten" title="Deckblatt-Angaben: Bauherr, Architekt, Grundlagen, Hinweise …">Projektdaten</button>
+      <button class="btn" data-action="open-library" title="Wiederverwendbare Positionen &amp; Titel-Pakete verwalten">Bibliothek</button>
     </div>
     <div class="toolbar-group">
-      <button class="btn" data-action="suggest-din" title="Für Maßnahmen ohne DIN-Zuordnung eine passende Kostengruppe vorschlagen">Nach DIN einordnen</button>
-      <button class="btn" data-action="seed-din-skeleton" title="Die 8 Kostengruppen der 1. Ebene nach DIN 276 als leere Maßnahmen anlegen">DIN-Gerüst anlegen</button>
+      <button class="btn" data-action="suggest-din" title="Für Positionen ohne Kostengruppe eine passende KG vorschlagen">Nach DIN einordnen</button>
+      <button class="btn" data-action="open-kg-page" title="Alle Positionen nach Kostengruppe statt nach Bereich zusammengefasst anzeigen">Nach Kostengruppen</button>
+      <button class="btn" data-action="seed-din-skeleton" title="Die 8 Kostengruppen der 1. Ebene als leere Bereiche anlegen">DIN-Gerüst anlegen</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="btn" data-action="save-snapshot" title="Aktuellen Stand als Schnappschuss sichern, um ihn später zu vergleichen">Stand sichern</button>
+      <button class="btn" data-action="open-compare" title="Gesicherte Stände vergleichen">Vergleich</button>
     </div>
     <div class="toolbar-group">
       <button class="btn" data-action="open-file" title="Eine gespeicherte Kostenberechnung (.json) öffnen">Öffnen</button>
@@ -380,7 +417,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   </div>
 
   <div class="board">
-    <div class="massnahmen-col" id="massnahmenCol"></div>
+    <div class="bereiche-col" id="bereicheCol"></div>
     <div class="summary-col">
       <div class="summary-card" id="summaryCard"></div>
     </div>
@@ -410,24 +447,52 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
 <div class="modal-overlay" id="modalOverlay"></div>
 
-<div class="compare-page" id="comparePage" style="display:none">
-  <header class="compare-page-header">
+<div class="full-page" id="comparePage" style="display:none">
+  <header class="full-page-header">
     <button class="btn" data-action="close-compare-page">← Zurück</button>
-    <h2 id="comparePageTitle">Vergleich der Kostenstände</h2>
+    <h2>Vergleich der Kostenstände</h2>
     <button class="btn primary" id="comparePdfBtn">Als PDF exportieren</button>
   </header>
-  <div class="compare-page-body" id="comparePageBody"></div>
+  <div class="full-page-body" id="comparePageBody"></div>
 </div>
+
+<div class="full-page" id="kgPage" style="display:none">
+  <header class="full-page-header">
+    <button class="btn" data-action="close-kg-page">← Zurück</button>
+    <h2>Positionen nach Kostengruppe</h2>
+  </header>
+  <div class="full-page-body" id="kgPageBody"></div>
+</div>
+
+<datalist id="kgCodeList"></datalist>
 
 <script>
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'kostenberechnung_state_v1';
-  var LIBRARY_KEY = 'kostenberechnung_library_v1';
+  var STORAGE_KEY = 'kostenberechnung_state_v2';
+  var LIBRARY_KEY = 'kostenberechnung_library_v2';
   var UNITS = ['m²', 'm³', 'lfm', 'Stk', 'psch', 'kg', 'h', 'Std.', 'pauschal', 't', 'Satz'];
   var RESERVE_DEFAULTS = { schaetzung: 15, berechnung: 10, anschlag: 5 };
   var KOSTENSTAND_LABELS = { schaetzung: 'Kostenschätzung', berechnung: 'Kostenberechnung', anschlag: 'Kostenanschlag' };
+  var DEFAULT_HINWEISE = 'Die vorliegende Kostenaufstellung beruht auf einer stichprobenartigen Besichtigung der Liegenschaft bzw. den vorliegenden Planungsunterlagen. Es wird keine Haftung dafür übernommen, dass die vorliegende Kostenschätzung die tatsächlichen Kosten wiedergibt.\n\nAnforderungen, die sich aus möglichen Auflagen der genehmigenden Behörden ergeben, sind nicht berücksichtigt. Noch ausstehende Gutachten und Untersuchungen von Spezialisten können zu einer Erhöhung des vorliegenden Kostenrahmens führen. Eine Konkretisierung der Kosten kann erst aufgrund einer in die Tiefe gehenden Planung erfolgen.\n\nEs wurden die Preise für eine Einzelvergabe der Bauleistungen angenommen. Bei einer Vergabe an einen Generalunternehmer ist mit höheren Preisen zu rechnen.';
+
+  function uid() { return 'id' + (uidCounter++) + '_' + Math.random().toString(36).slice(2, 7); }
+  var uidCounter = 1;
+
+  function fmtEUR(n) {
+    if (!isFinite(n)) n = 0;
+    return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  }
+  function fmtPct(n) {
+    if (!isFinite(n)) n = 0;
+    return n.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' %';
+  }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function fmtDE(d) { return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear(); }
+  function fmtDEDateTime(iso) { var d = new Date(iso); return fmtDE(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function deepClone(x) { return JSON.parse(JSON.stringify(x)); }
 
   /* ── DIN 276:2018-12 – Kostengliederung "Tabelle 1" ──────────────────
      Reine Klassifikation (Code + Kurztitel je Kostengruppe), keine Vervielfältigung
@@ -762,13 +827,19 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   ];
   var DIN276_BY_CODE = {};
   DIN276_KOSTENGRUPPEN.forEach(function (kg) { DIN276_BY_CODE[kg.code] = kg; });
+  var DIN276_LEVEL1_CODES = DIN276_KOSTENGRUPPEN.filter(function (kg) { return kg.level === 1; });
+  function firstLevelOf(code) {
+    var n = parseInt(code, 10);
+    if (!n || n < 100) return null;
+    return String(Math.floor(n / 100) * 100);
+  }
 
   /* Heuristische Stichwort-Zuordnung für "Nach DIN einordnen" — ein Vorschlag,
      kein verbindliches Ergebnis. Trifft die Heuristik keine Aussage, wird nichts
      vorgeschlagen statt geraten. */
   var DIN_KEYWORDS = [
     ['394', ['rückbau', 'abbruch', 'demontage', 'entkernung']],
-    ['391', ['baustelleneinrichtung', 'bauzaun', 'baucontainer']],
+    ['391', ['baustelleneinrichtung', 'bauzaun', 'baucontainer', 'bautoilette']],
     ['392', ['gerüst']],
     ['322', ['bodenplatte', 'fundament']],
     ['331', ['tragende außenwand']],
@@ -777,24 +848,24 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     ['335', ['fassade', 'wdvs', 'außenputz', 'fassadenanstrich']],
     ['341', ['tragende innenwand', 'tragwand']],
     ['342', ['trennwand', 'leichtbauwand', 'trockenbauwand', 'gipskartonwand']],
-    ['344', ['innentür', 'zimmertür']],
-    ['345', ['innenputz', 'tapete', 'wandanstrich', 'wandbekleidung', 'wandfliesen']],
+    ['344', ['innentür', 'zimmertür', 'wohnungstür']],
+    ['345', ['innenputz', 'tapete', 'wandanstrich', 'wandbekleidung', 'wandfliesen', 'streichen']],
     ['351', ['deckenkonstruktion', 'betondecke']],
     ['353', ['bodenbelag', 'fußboden', 'estrich', 'parkett', 'laminat', 'vinylboden', 'teppichboden', 'bodenfliesen', 'epoxidharzboden', 'epoxidboden']],
     ['354', ['deckenverkleidung', 'abgehängte decke', 'deckenbekleidung', 'akustikdecke']],
     ['361', ['dachkonstruktion', 'dachstuhl']],
     ['362', ['dachfenster', 'oberlicht']],
-    ['363', ['dacheindeckung', 'dachziegel', 'flachdachabdichtung']],
+    ['363', ['dacheindeckung', 'dachziegel', 'flachdachabdichtung', 'flachdach']],
     ['411', ['abwasserleitung', 'abwasseranlage']],
-    ['412', ['trinkwasserleitung', 'wasseranlage', 'sanitärinstallation']],
+    ['412', ['trinkwasserleitung', 'wasseranlage', 'sanitärinstallation', 'sanitärobjekte']],
     ['413', ['gasleitung', 'gasanlage']],
     ['421', ['heizkessel', 'wärmepumpe', 'wärmeerzeuger']],
-    ['422', ['heizungsrohr', 'wärmeverteilung']],
+    ['422', ['heizungsrohr', 'wärmeverteilung', 'steigleitung']],
     ['423', ['heizkörper', 'fußbodenheizung']],
     ['431', ['lüftungsanlage', 'lüftung']],
     ['433', ['klimaanlage', 'klimatisierung']],
     ['441', ['mittelspannung', 'trafostation']],
-    ['444', ['elektroinstallation', 'steckdose', 'schalter', 'unterverteilung']],
+    ['444', ['elektroinstallation', 'steckdose', 'schalter', 'unterverteilung', 'verkabelung']],
     ['445', ['beleuchtung', 'leuchte', 'lampe']],
     ['446', ['blitzschutz']],
     ['451', ['telefonanlage', 'telekommunikation']],
@@ -820,8 +891,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     ['747', ['brandschutzkonzept', 'brandschutzplanung']]
   ];
 
-  function suggestDinCode(m) {
-    var text = ((m.name || '') + ' ' + m.positions.map(function (p) { return p.bez || ''; }).join(' ')).toLowerCase();
+  function suggestDinCodeForText(text) {
+    text = (text || '').toLowerCase();
     var best = null, bestScore = 0;
     DIN_KEYWORDS.forEach(function (entry) {
       var code = entry[0], words = entry[1];
@@ -832,37 +903,29 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     return best;
   }
 
-  function uid() { return 'id' + (uidCounter++) + '_' + Math.random().toString(36).slice(2, 7); }
-  var uidCounter = 1;
-
-  function fmtEUR(n) {
-    if (!isFinite(n)) n = 0;
-    return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-  }
-  function fmtPct(n) {
-    if (!isFinite(n)) n = 0;
-    return n.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' %';
-  }
-  function pad2(n) { return String(n).padStart(2, '0'); }
-  function fmtDE(d) { return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear(); }
-  function fmtDEDateTime(iso) { var d = new Date(iso); return fmtDE(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
-  function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function deepClone(x) { return JSON.parse(JSON.stringify(x)); }
+  /* ── Datenmodell ──────────────────────────────────────
+     state.bereiche[]: { id, nr, name, items: [ Titel | Position ] }
+     Titel:    { kind:'titel', id, nr, name, positions: Position[] }
+     Position: { kind:'position', id, bez, menge, einheit, ep, active, kg } */
+  function newPosition() { return { kind: 'position', id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true, kg: '' }; }
+  function newTitel(nr) { return { kind: 'titel', id: uid(), nr: nr || '', name: '', positions: [newPosition()] }; }
 
   function seedData() {
     return {
       title: '', subtitle: '',
+      bauherr: '', architekt: '', fachplaner: '',
+      vorgaben: '', grundlagen: '',
+      kostenstandDatum: '',
+      regionalfaktor: '',
+      ustAnzeige: 'netto',
+      hinweiseText: DEFAULT_HINWEISE,
+      aufgestelltVon: '',
       kostenstand: 'schaetzung',
       reservePct: RESERVE_DEFAULTS.schaetzung,
       nkPct: 15,
       mwstPct: 19,
-      massnahmen: [
-        {
-          id: uid(), name: 'Rückbau / Demontage', dinCode: null,
-          positions: [
-            { id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true }
-          ]
-        }
+      bereiche: [
+        { id: uid(), nr: '0', name: 'Baustelleneinrichtung', items: [newPosition()] }
       ],
       snapshots: []
     };
@@ -873,19 +936,68 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       var raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.massnahmen)) return normalizeState(parsed);
+        if (parsed && Array.isArray(parsed.bereiche)) return normalizeState(parsed);
       }
     } catch (e) { /* ignore corrupted storage */ }
+    // Migration von der Vorgängerversion (flache Maßnahmen -> Bereiche ohne Titel-Ebene)
+    try {
+      var oldRaw = localStorage.getItem('kostenberechnung_state_v1');
+      if (oldRaw) {
+        var oldParsed = JSON.parse(oldRaw);
+        if (oldParsed && Array.isArray(oldParsed.massnahmen)) return migrateFromV1(oldParsed);
+      }
+    } catch (e2) { /* ignore */ }
     return seedData();
+  }
+
+  function migrateFromV1(old) {
+    var s = seedData();
+    s.title = old.title || ''; s.subtitle = old.subtitle || '';
+    s.kostenstand = old.kostenstand || 'schaetzung';
+    s.reservePct = old.reservePct != null ? old.reservePct : RESERVE_DEFAULTS.schaetzung;
+    s.nkPct = old.nkPct != null ? old.nkPct : 15;
+    s.mwstPct = old.mwstPct != null ? old.mwstPct : 19;
+    s.bereiche = old.massnahmen.map(function (m, i) {
+      return {
+        id: uid(), nr: String(i), name: m.name || '',
+        items: (m.positions || []).map(function (p) {
+          return { kind: 'position', id: uid(), bez: p.bez || '', menge: p.menge, einheit: p.einheit || 'psch', ep: p.ep, active: p.active !== false, kg: m.dinCode || '' };
+        })
+      };
+    });
+    return s;
   }
 
   function normalizeState(parsed) {
     if (!Array.isArray(parsed.snapshots)) parsed.snapshots = [];
-    parsed.massnahmen.forEach(function (m) {
-      if (m.dinCode === undefined) m.dinCode = null;
-      m.positions.forEach(function (p) { if (p.active === undefined) p.active = true; });
+    if (parsed.bauherr === undefined) parsed.bauherr = '';
+    if (parsed.architekt === undefined) parsed.architekt = '';
+    if (parsed.fachplaner === undefined) parsed.fachplaner = '';
+    if (parsed.vorgaben === undefined) parsed.vorgaben = '';
+    if (parsed.grundlagen === undefined) parsed.grundlagen = '';
+    if (parsed.kostenstandDatum === undefined) parsed.kostenstandDatum = '';
+    if (parsed.regionalfaktor === undefined) parsed.regionalfaktor = '';
+    if (parsed.ustAnzeige === undefined) parsed.ustAnzeige = 'netto';
+    if (parsed.hinweiseText === undefined) parsed.hinweiseText = DEFAULT_HINWEISE;
+    if (parsed.aufgestelltVon === undefined) parsed.aufgestelltVon = '';
+    parsed.bereiche.forEach(function (b) {
+      if (b.nr === undefined) b.nr = '';
+      b.items.forEach(normalizeItem);
     });
     return parsed;
+  }
+  function normalizeItem(item) {
+    if (item.kind === 'titel') {
+      if (item.nr === undefined) item.nr = '';
+      item.positions.forEach(normalizePosition);
+    } else {
+      normalizePosition(item);
+    }
+  }
+  function normalizePosition(p) {
+    if (p.active === undefined) p.active = true;
+    if (p.kg === undefined) p.kg = '';
+    p.kind = 'position';
   }
 
   function loadLibrary() {
@@ -893,10 +1005,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       var raw = localStorage.getItem(LIBRARY_KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.positions) && Array.isArray(parsed.massnahmen)) return parsed;
+        if (parsed && Array.isArray(parsed.positions) && Array.isArray(parsed.titel)) return parsed;
       }
     } catch (e) { /* ignore corrupted storage */ }
-    return { positions: [], massnahmen: [] };
+    return { positions: [], titel: [] };
   }
   function saveLibrary() {
     try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(library)); } catch (e) { /* storage unavailable */ }
@@ -952,16 +1064,47 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     overlay.onclick = null;
   }
 
-  /* ── Calculations ───────────────────────────────────── */
-  function rawPositionAmount(p) { return (Number(p.menge) || 0) * (Number(p.ep) || 0); }
-  function positionTotal(p) { return p.active === false ? 0 : rawPositionAmount(p); }
-  function massnahmeTotal(m) { return m.positions.reduce(function (sum, p) { return sum + positionTotal(p); }, 0); }
-  function grandNetTotal(massnahmen) {
-    return (massnahmen || state.massnahmen).reduce(function (sum, m) { return sum + massnahmeTotal(m); }, 0);
+  /* ── Baum-Hilfsfunktionen ─────────────────────────────── */
+  function findBereich(id) { return state.bereiche.find(function (b) { return b.id === id; }); }
+  function findTitelIn(bereich, titelId) { return bereich.items.find(function (it) { return it.kind === 'titel' && it.id === titelId; }); }
+  function resolvePosition(bereichId, titelId, positionId) {
+    var bereich = findBereich(bereichId);
+    if (!bereich) return null;
+    if (titelId) {
+      var titel = findTitelIn(bereich, titelId);
+      if (!titel) return null;
+      var pos = titel.positions.find(function (p) { return p.id === positionId; });
+      return pos ? { bereich: bereich, titel: titel, position: pos, list: titel.positions } : null;
+    }
+    var idx = bereich.items.findIndex(function (it) { return it.kind === 'position' && it.id === positionId; });
+    if (idx === -1) return null;
+    return { bereich: bereich, titel: null, position: bereich.items[idx], list: bereich.items, index: idx };
+  }
+  function allPositionsFlat() {
+    var out = [];
+    state.bereiche.forEach(function (b) {
+      b.items.forEach(function (item) {
+        if (item.kind === 'titel') item.positions.forEach(function (p) { out.push({ position: p, bereich: b, titel: item }); });
+        else out.push({ position: item, bereich: b, titel: null });
+      });
+    });
+    return out;
   }
 
+  /* ── Berechnungen ─────────────────────────────────────── */
+  function rawPositionAmount(p) { return (Number(p.menge) || 0) * (Number(p.ep) || 0); }
+  function positionTotal(p) { return p.active === false ? 0 : rawPositionAmount(p); }
+  function titelTotal(titel) { return titel.positions.reduce(function (s, p) { return s + positionTotal(p); }, 0); }
+  function bereichTotal(bereich) {
+    return bereich.items.reduce(function (s, item) {
+      return s + (item.kind === 'titel' ? titelTotal(item) : positionTotal(item));
+    }, 0);
+  }
+  function grandNetTotal(bereiche) {
+    return (bereiche || state.bereiche).reduce(function (s, b) { return s + bereichTotal(b); }, 0);
+  }
   function computeTotals(cfg) {
-    var netto = grandNetTotal(cfg.massnahmen);
+    var netto = grandNetTotal(cfg.bereiche);
     var reserve = netto * (Number(cfg.reservePct) || 0) / 100;
     var nebenkosten = netto * (Number(cfg.nkPct) || 0) / 100;
     var zwischensumme = netto + reserve + nebenkosten;
@@ -971,11 +1114,26 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
   function computeSummary() { return computeTotals(state); }
 
+  function kgRollup(bereiche) {
+    var buckets = {};
+    (bereiche || state.bereiche).forEach(function (b) {
+      b.items.forEach(function (item) {
+        var positions = item.kind === 'titel' ? item.positions : [item];
+        positions.forEach(function (p) {
+          var lvl1 = firstLevelOf(p.kg);
+          var key = lvl1 || 'unclassified';
+          buckets[key] = (buckets[key] || 0) + positionTotal(p);
+        });
+      });
+    });
+    return buckets;
+  }
+
   /* ── Rendering ──────────────────────────────────────── */
   function renderAll() {
     renderHeader();
     renderToolbar();
-    renderMassnahmen();
+    renderBereiche();
     renderSummary();
   }
 
@@ -994,12 +1152,16 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     $('#mwstPct').value = state.mwstPct;
   }
 
-  function positionRowHTML(m, p, mIdx, pIdx) {
-    var nr = (mIdx + 1) + '.' + (pIdx + 1);
+  function kgInputHTML(value, extraClass) {
+    return '<input type="text" class="col-kg-input ' + (extraClass || '') + '" list="kgCodeList" placeholder="KG" value="' + escHtml(value || '') + '" maxlength="3">';
+  }
+
+  function positionRowHTML(p, nr) {
     return '' +
       '<div class="position-row' + (p.active === false ? ' inactive' : '') + '" data-position-id="' + p.id + '">' +
         '<div class="col-active"><input type="checkbox" class="col-active-input" ' + (p.active === false ? '' : 'checked') + ' title="Position in Summe berücksichtigen"></div>' +
         '<div class="col-nr">' + nr + '</div>' +
+        '<div class="col-kg">' + kgInputHTML(p.kg) + '</div>' +
         '<div class="col-bez"><input type="text" class="col-bez-input" placeholder="Bezeichnung / Leistung" value="' + escHtml(p.bez) + '"></div>' +
         '<div class="col-menge"><input type="number" class="col-menge-input" step="any" placeholder="0" value="' + (p.menge == null ? '' : p.menge) + '"></div>' +
         '<div class="col-einheit"><input type="text" class="col-einheit-input" list="unitList" placeholder="Einheit" value="' + escHtml(p.einheit || '') + '"></div>' +
@@ -1010,55 +1172,86 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       '</div>';
   }
 
-  function massnahmeCardHTML(m, idx, total) {
-    var rows = m.positions.map(function (p, pIdx) { return positionRowHTML(m, p, idx, pIdx); }).join('');
+  function positionsHeaderRowHTML() {
+    return '<div class="positions-header-row">' +
+      '<div class="col-active"></div>' +
+      '<div class="col-nr">#</div>' +
+      '<div class="col-kg">KG</div>' +
+      '<div class="col-bez">Bezeichnung</div>' +
+      '<div class="col-menge">Menge</div>' +
+      '<div class="col-einheit">Einheit</div>' +
+      '<div class="col-ep">EP €</div>' +
+      '<div class="col-gesamt">Gesamt €</div>' +
+      '<div class="col-lib"></div>' +
+      '<div class="col-del"></div>' +
+      '</div>';
+  }
+
+  function positionsTableHTML(positions) {
+    var rows = positions.map(function (p, i) { return positionRowHTML(p, i + 1); }).join('');
+    return '<div class="positions-table">' + positionsHeaderRowHTML() + rows +
+      '<div class="add-inline-row"><button class="add-inline-btn" data-action="add-position">+ Position</button>' +
+      '<button class="add-inline-btn" data-action="add-position-from-library">+ Aus Bibliothek</button></div>' +
+      '</div>';
+  }
+
+  function titelCardHTML(titel, idx, total, itemCount) {
     return '' +
-      '<div class="massnahme-card" data-massnahme-id="' + m.id + '">' +
-        '<div class="massnahme-header">' +
-          (m.dinCode ?
-            '<button class="din-badge" data-action="pick-din-code" title="DIN-Kostengruppe ändern">KG ' + escHtml(m.dinCode) + '</button>' :
-            '<button class="din-badge din-badge-empty" data-action="pick-din-code" title="DIN-Kostengruppe zuordnen">+ KG</button>') +
-          '<input class="massnahme-name" value="' + escHtml(m.name) + '" placeholder="Maßnahme / Gewerk">' +
-          '<div class="massnahme-total">' + fmtEUR(total) + '</div>' +
-          '<button class="icon-btn" data-action="save-massnahme-template" title="Als Paket in Bibliothek speichern">☆</button>' +
-          '<button class="icon-btn" data-action="move-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
-          '<button class="icon-btn" data-action="move-down" title="Nach unten" ' + (idx === state.massnahmen.length - 1 ? 'disabled' : '') + '>↓</button>' +
-          '<button class="icon-btn danger" data-action="delete-massnahme" title="Maßnahme löschen">✕</button>' +
+      '<div class="titel-card" data-titel-id="' + titel.id + '">' +
+        '<div class="titel-header">' +
+          '<input class="titel-nr" value="' + escHtml(titel.nr) + '" placeholder="Nr.">' +
+          '<input class="titel-name" value="' + escHtml(titel.name) + '" placeholder="Titel / Teilbereich">' +
+          '<div class="titel-total">' + fmtEUR(total) + '</div>' +
+          '<button class="icon-btn" data-action="save-titel-template" title="Als Paket in Bibliothek speichern">☆</button>' +
+          '<button class="icon-btn" data-action="move-item-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
+          '<button class="icon-btn" data-action="move-item-down" title="Nach unten" ' + (idx === itemCount - 1 ? 'disabled' : '') + '>↓</button>' +
+          '<button class="icon-btn danger" data-action="delete-titel" title="Titel löschen">✕</button>' +
         '</div>' +
-        '<div class="positions-table">' +
-          '<div class="positions-header-row">' +
-            '<div class="col-active"></div>' +
-            '<div class="col-nr">Nr.</div>' +
-            '<div class="col-bez">Bezeichnung</div>' +
-            '<div class="col-menge">Menge</div>' +
-            '<div class="col-einheit">Einheit</div>' +
-            '<div class="col-ep">EP €</div>' +
-            '<div class="col-gesamt">Gesamt €</div>' +
-            '<div class="col-lib"></div>' +
-            '<div class="col-del"></div>' +
-          '</div>' +
-          rows +
+        positionsTableHTML(titel.positions) +
+      '</div>';
+  }
+
+  function bereichCardHTML(bereich, bIdx, total) {
+    var loosePositions = bereich.items.filter(function (it) { return it.kind === 'position'; });
+    var titelItems = bereich.items.filter(function (it) { return it.kind === 'titel'; });
+    var itemsHTML = bereich.items.map(function (item, idx) {
+      if (item.kind === 'titel') return titelCardHTML(item, idx, titelTotal(item), bereich.items.length);
+      return ''; // lose Positionen werden gesammelt gerendert, s.u.
+    }).filter(Boolean).join('');
+
+    var looseHTML = loosePositions.length ? positionsTableHTML(loosePositions) : '';
+
+    return '' +
+      '<div class="bereich-card" data-bereich-id="' + bereich.id + '">' +
+        '<div class="bereich-header">' +
+          '<input class="bereich-nr" value="' + escHtml(bereich.nr) + '" placeholder="Nr.">' +
+          '<input class="bereich-name" value="' + escHtml(bereich.name) + '" placeholder="Bereich / Haus / Gewerk">' +
+          '<div class="bereich-total">' + fmtEUR(total) + '</div>' +
+          '<button class="icon-btn on-dark" data-action="move-bereich-up" title="Nach oben" ' + (bIdx === 0 ? 'disabled' : '') + '>↑</button>' +
+          '<button class="icon-btn on-dark" data-action="move-bereich-down" title="Nach unten" ' + (bIdx === state.bereiche.length - 1 ? 'disabled' : '') + '>↓</button>' +
+          '<button class="icon-btn on-dark danger" data-action="delete-bereich" title="Bereich löschen">✕</button>' +
+        '</div>' +
+        '<div class="bereich-body">' +
+          looseHTML + itemsHTML +
           '<div class="add-inline-row">' +
-            '<button class="add-inline-btn" data-action="add-position">+ Position</button>' +
-            '<button class="add-inline-btn" data-action="add-position-from-library">+ Aus Bibliothek</button>' +
+            '<button class="add-inline-btn" data-action="add-loose-position">+ Position direkt im Bereich</button>' +
+            '<button class="add-inline-btn" data-action="add-titel">+ Titel / Teilbereich</button>' +
+            '<button class="add-inline-btn" data-action="add-titel-from-library">+ Paket aus Bibliothek</button>' +
           '</div>' +
         '</div>' +
       '</div>';
   }
 
-  function renderMassnahmen() {
-    var col = $('#massnahmenCol');
-    if (!state.massnahmen.length) {
-      col.innerHTML = '<div class="empty-hint">Noch keine Maßnahmen. Leg mit „+ Maßnahme" los.</div>';
+  function renderBereiche() {
+    var col = $('#bereicheCol');
+    if (!state.bereiche.length) {
+      col.innerHTML = '<div class="empty-hint">Noch keine Bereiche. Leg mit „+ Bereich" los.</div>';
     } else {
-      col.innerHTML = state.massnahmen.map(function (m, idx) {
-        return massnahmeCardHTML(m, idx, massnahmeTotal(m));
-      }).join('');
+      col.innerHTML = state.bereiche.map(function (b, idx) { return bereichCardHTML(b, idx, bereichTotal(b)); }).join('');
     }
-    col.innerHTML += '<div class="add-massnahme-row">' +
-      '<button class="add-massnahme-btn" data-action="add-massnahme">+ Maßnahme hinzufügen</button>' +
-      '<button class="add-massnahme-btn" data-action="add-massnahme-from-library">+ Paket aus Bibliothek</button>' +
-      '<button class="add-massnahme-btn" data-action="add-massnahme-from-din">+ Kostengruppe aus DIN 276</button>' +
+    col.innerHTML += '<div class="add-bereich-row">' +
+      '<button class="add-bereich-btn" data-action="add-bereich">+ Bereich hinzufügen</button>' +
+      '<button class="add-bereich-btn" data-action="add-bereich-from-din">+ Kostengruppe aus DIN 276</button>' +
       '</div>';
 
     if (!$('#unitList')) {
@@ -1067,16 +1260,20 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       dl.innerHTML = UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('');
       document.body.appendChild(dl);
     }
+    var kgList = $('#kgCodeList');
+    if (kgList && !kgList.childElementCount) {
+      kgList.innerHTML = DIN276_KOSTENGRUPPEN.map(function (kg) { return '<option value="' + kg.code + '">' + escHtml(kg.title) + '</option>'; }).join('');
+    }
   }
 
   function renderSummary() {
     var s = computeSummary();
     var netto = s.netto || 1;
-    var breakdown = state.massnahmen.map(function (m) {
-      var t = massnahmeTotal(m);
+    var breakdown = state.bereiche.map(function (b) {
+      var t = bereichTotal(b);
       return '<div class="breakdown-row">' +
         '<div class="swatch"></div>' +
-        '<div class="name">' + escHtml(m.name || 'Ohne Namen') + '</div>' +
+        '<div class="name">' + escHtml((b.nr ? b.nr + ' ' : '') + (b.name || 'Ohne Namen')) + '</div>' +
         '<div class="pct">' + fmtPct(netto ? (t / netto * 100) : 0) + '</div>' +
         '<div class="amt">' + fmtEUR(t) + '</div>' +
       '</div>';
@@ -1090,7 +1287,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       '<div class="summary-line total"><span class="label">Zwischensumme netto</span><span class="value">' + fmtEUR(s.zwischensumme) + '</span></div>' +
       '<div class="summary-line"><span class="label">MwSt. (' + fmtPct(state.mwstPct) + ')</span><span class="value">' + fmtEUR(s.mwst) + '</span></div>' +
       '<div class="summary-line grand"><span class="label">Gesamt brutto</span><span class="value">' + fmtEUR(s.brutto) + '</span></div>' +
-      (state.massnahmen.length ? '<div class="summary-breakdown">' + breakdown + '</div>' : '');
+      (state.bereiche.length ? '<div class="summary-breakdown">' + breakdown + '</div>' : '');
 
     var existingSnapCard = document.querySelector('.snapshot-actions');
     if (existingSnapCard) existingSnapCard.remove();
@@ -1103,122 +1300,154 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
 
   function updateTotalsOnly() {
-    document.querySelectorAll('.massnahme-card').forEach(function (card) {
-      var m = state.massnahmen.find(function (x) { return x.id === card.getAttribute('data-massnahme-id'); });
-      if (!m) return;
-      card.querySelectorAll('.position-row').forEach(function (row) {
-        var p = m.positions.find(function (x) { return x.id === row.getAttribute('data-position-id'); });
-        if (!p) return;
-        row.querySelector('.col-gesamt').textContent = fmtEUR(rawPositionAmount(p));
-        row.classList.toggle('inactive', p.active === false);
-      });
-      card.querySelector('.massnahme-total').textContent = fmtEUR(massnahmeTotal(m));
+    document.querySelectorAll('.position-row').forEach(function (row) {
+      var posId = row.getAttribute('data-position-id');
+      var found = allPositionsFlat().find(function (x) { return x.position.id === posId; });
+      if (!found) return;
+      row.querySelector('.col-gesamt').textContent = fmtEUR(rawPositionAmount(found.position));
+      row.classList.toggle('inactive', found.position.active === false);
+    });
+    document.querySelectorAll('.titel-card').forEach(function (card) {
+      var titelId = card.getAttribute('data-titel-id');
+      var bereichCard = card.closest('.bereich-card');
+      var bereich = findBereich(bereichCard.getAttribute('data-bereich-id'));
+      var titel = bereich && findTitelIn(bereich, titelId);
+      if (titel) card.querySelector('.titel-total').textContent = fmtEUR(titelTotal(titel));
+    });
+    document.querySelectorAll('.bereich-card').forEach(function (card) {
+      var bereich = findBereich(card.getAttribute('data-bereich-id'));
+      if (bereich) card.querySelector('.bereich-total').textContent = fmtEUR(bereichTotal(bereich));
     });
     renderSummary();
   }
 
-  /* ── Mutations ──────────────────────────────────────── */
-  function findMassnahme(id) { return state.massnahmen.find(function (m) { return m.id === id; }); }
-  function findPosition(m, id) { return m.positions.find(function (p) { return p.id === id; }); }
-  function newPosition() { return { id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true }; }
-
-  function addMassnahme() {
-    state.massnahmen.push({ id: uid(), name: '', positions: [newPosition()] });
-    save(); renderMassnahmen(); renderSummary();
-    var cards = document.querySelectorAll('.massnahme-card');
+  /* ── Mutationen ───────────────────────────────────────── */
+  function addBereich() {
+    state.bereiche.push({ id: uid(), nr: String(state.bereiche.length), name: '', items: [newPosition()] });
+    save(); renderBereiche(); renderSummary();
+    var cards = document.querySelectorAll('.bereich-card');
     var last = cards[cards.length - 1];
-    if (last) { var nameInput = last.querySelector('.massnahme-name'); if (nameInput) nameInput.focus(); }
+    if (last) { var el = last.querySelector('.bereich-name'); if (el) el.focus(); }
   }
-
-  function deleteMassnahme(id) {
-    var m = findMassnahme(id);
-    showConfirm('„' + (m.name || 'Diese Maßnahme') + '" inkl. aller Positionen wirklich löschen?', function () {
-      state.massnahmen = state.massnahmen.filter(function (x) { return x.id !== id; });
-      save(); renderMassnahmen(); renderSummary();
+  function deleteBereich(id) {
+    var b = findBereich(id);
+    showConfirm('„' + (b.name || 'Dieser Bereich') + '" inkl. aller Titel und Positionen wirklich löschen?', function () {
+      state.bereiche = state.bereiche.filter(function (x) { return x.id !== id; });
+      save(); renderBereiche(); renderSummary();
     });
   }
-
-  function moveMassnahme(id, dir) {
-    var idx = state.massnahmen.findIndex(function (m) { return m.id === id; });
+  function moveBereich(id, dir) {
+    var idx = state.bereiche.findIndex(function (b) { return b.id === id; });
     var newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= state.massnahmen.length) return;
-    var tmp = state.massnahmen[idx];
-    state.massnahmen[idx] = state.massnahmen[newIdx];
-    state.massnahmen[newIdx] = tmp;
-    save(); renderMassnahmen(); renderSummary();
+    if (newIdx < 0 || newIdx >= state.bereiche.length) return;
+    var tmp = state.bereiche[idx]; state.bereiche[idx] = state.bereiche[newIdx]; state.bereiche[newIdx] = tmp;
+    save(); renderBereiche(); renderSummary();
   }
 
-  function addPosition(massnahmeId) {
-    var m = findMassnahme(massnahmeId);
-    if (!m) return;
-    m.positions.push(newPosition());
-    save(); renderMassnahmen(); renderSummary();
-    var card = document.querySelector('.massnahme-card[data-massnahme-id="' + massnahmeId + '"]');
-    if (card) {
-      var rows = card.querySelectorAll('.position-row');
-      var lastRow = rows[rows.length - 1];
-      if (lastRow) { var input = lastRow.querySelector('.col-bez-input'); if (input) input.focus(); }
-    }
+  function addTitel(bereichId) {
+    var b = findBereich(bereichId);
+    if (!b) return;
+    var titelCount = b.items.filter(function (it) { return it.kind === 'titel'; }).length;
+    b.items.push(newTitel((b.nr || '') + '.' + (titelCount + 1)));
+    save(); renderBereiche(); renderSummary();
+    focusLast('.bereich-card[data-bereich-id="' + bereichId + '"] .titel-name');
   }
-
-  function deletePosition(massnahmeId, positionId) {
-    var m = findMassnahme(massnahmeId);
-    if (!m) return;
-    m.positions = m.positions.filter(function (p) { return p.id !== positionId; });
-    save(); renderMassnahmen(); renderSummary();
+  function deleteTitel(bereichId, titelId) {
+    var b = findBereich(bereichId);
+    if (!b) return;
+    var titel = findTitelIn(b, titelId);
+    showConfirm('Titel „' + (titel && titel.name || 'ohne Namen') + '" inkl. aller Positionen wirklich löschen?', function () {
+      b.items = b.items.filter(function (it) { return !(it.kind === 'titel' && it.id === titelId); });
+      save(); renderBereiche(); renderSummary();
+    });
+  }
+  function addLoosePosition(bereichId) {
+    var b = findBereich(bereichId);
+    if (!b) return;
+    b.items.push(newPosition());
+    save(); renderBereiche(); renderSummary();
+    focusLast('.bereich-card[data-bereich-id="' + bereichId + '"] .col-bez-input');
+  }
+  function addPositionToTitel(bereichId, titelId) {
+    var b = findBereich(bereichId);
+    var titel = b && findTitelIn(b, titelId);
+    if (!titel) return;
+    titel.positions.push(newPosition());
+    save(); renderBereiche(); renderSummary();
+    focusLast('.titel-card[data-titel-id="' + titelId + '"] .col-bez-input');
+  }
+  function deletePosition(bereichId, titelId, positionId) {
+    var r = resolvePosition(bereichId, titelId, positionId);
+    if (!r) return;
+    if (r.titel) r.titel.positions = r.titel.positions.filter(function (p) { return p.id !== positionId; });
+    else r.bereich.items = r.bereich.items.filter(function (it) { return !(it.kind === 'position' && it.id === positionId); });
+    save(); renderBereiche(); renderSummary();
+  }
+  function moveItemWithinBereich(bereichId, titelId, dir) {
+    var b = findBereich(bereichId);
+    if (!b) return;
+    var idx = b.items.findIndex(function (it) { return it.kind === 'titel' && it.id === titelId; });
+    if (idx === -1) return;
+    var newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= b.items.length) return;
+    var tmp = b.items[idx]; b.items[idx] = b.items[newIdx]; b.items[newIdx] = tmp;
+    save(); renderBereiche(); renderSummary();
+  }
+  function focusLast(sel) {
+    var nodes = document.querySelectorAll(sel);
+    var el = nodes[nodes.length - 1];
+    if (el) el.focus();
   }
 
   /* ── Bibliothek ─────────────────────────────────────── */
-  function saveLibraryPosition(massnahmeId, positionId) {
-    var m = findMassnahme(massnahmeId);
-    var p = m && findPosition(m, positionId);
-    if (!p) return;
-    library.positions.push({ id: uid(), bez: p.bez, einheit: p.einheit, ep: p.ep });
+  function saveLibraryPosition(bereichId, titelId, positionId) {
+    var r = resolvePosition(bereichId, titelId, positionId);
+    if (!r) return;
+    library.positions.push({ id: uid(), bez: r.position.bez, einheit: r.position.einheit, ep: r.position.ep, kg: r.position.kg });
     saveLibrary();
   }
-
-  function saveLibraryMassnahme(massnahmeId) {
-    var m = findMassnahme(massnahmeId);
-    if (!m) return;
-    library.massnahmen.push({
-      id: uid(), name: m.name,
-      positions: m.positions.map(function (p) { return { bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep }; })
+  function saveLibraryTitel(bereichId, titelId) {
+    var b = findBereich(bereichId);
+    var titel = b && findTitelIn(b, titelId);
+    if (!titel) return;
+    library.titel.push({
+      id: uid(), name: titel.name,
+      positions: titel.positions.map(function (p) { return { bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, kg: p.kg }; })
     });
     saveLibrary();
   }
 
-  function libraryPositionPickerHTML(onEmpty) {
+  function libraryPositionPickerHTML(onEmpty, showInsert) {
     if (!library.positions.length) return '<div class="lib-empty">' + onEmpty + '</div>';
     return '<div class="lib-list">' + library.positions.map(function (lp) {
       return '<div class="lib-item" data-lib-position-id="' + lp.id + '">' +
-        '<div class="info"><div class="n">' + escHtml(lp.bez || 'Ohne Bezeichnung') + '</div>' +
+        '<div class="info"><div class="n">' + (lp.kg ? '<b>KG ' + escHtml(lp.kg) + '</b> · ' : '') + escHtml(lp.bez || 'Ohne Bezeichnung') + '</div>' +
         '<div class="d">' + escHtml(lp.einheit || '') + ' · ' + fmtEUR(lp.ep || 0) + '</div></div>' +
-        '<button class="btn" data-action="insert-library-position" data-lib-position-id="' + lp.id + '">Einfügen</button>' +
+        (showInsert ? '<button class="btn" data-action="insert-library-position" data-lib-position-id="' + lp.id + '">Einfügen</button>' : '') +
         '<button class="icon-btn danger" data-action="delete-library-position" data-lib-position-id="' + lp.id + '" title="Aus Bibliothek löschen">✕</button>' +
       '</div>';
     }).join('') + '</div>';
   }
-
-  function libraryMassnahmenPickerHTML(onEmpty) {
-    if (!library.massnahmen.length) return '<div class="lib-empty">' + onEmpty + '</div>';
-    return '<div class="lib-list">' + library.massnahmen.map(function (lm) {
-      var t = lm.positions.reduce(function (s, p) { return s + (Number(p.menge) || 0) * (Number(p.ep) || 0); }, 0);
-      return '<div class="lib-item" data-lib-massnahme-id="' + lm.id + '">' +
-        '<div class="info"><div class="n">' + escHtml(lm.name || 'Ohne Namen') + '</div>' +
-        '<div class="d">' + lm.positions.length + ' Position(en) · ' + fmtEUR(t) + '</div></div>' +
-        '<button class="btn" data-action="insert-library-massnahme" data-lib-massnahme-id="' + lm.id + '">Einfügen</button>' +
-        '<button class="icon-btn danger" data-action="delete-library-massnahme" data-lib-massnahme-id="' + lm.id + '" title="Aus Bibliothek löschen">✕</button>' +
+  function libraryTitelPickerHTML(onEmpty, showInsert) {
+    if (!library.titel.length) return '<div class="lib-empty">' + onEmpty + '</div>';
+    return '<div class="lib-list">' + library.titel.map(function (lt) {
+      var t = lt.positions.reduce(function (s, p) { return s + (Number(p.menge) || 0) * (Number(p.ep) || 0); }, 0);
+      return '<div class="lib-item" data-lib-titel-id="' + lt.id + '">' +
+        '<div class="info"><div class="n">' + escHtml(lt.name || 'Ohne Namen') + '</div>' +
+        '<div class="d">' + lt.positions.length + ' Position(en) · ' + fmtEUR(t) + '</div></div>' +
+        (showInsert ? '<button class="btn" data-action="insert-library-titel" data-lib-titel-id="' + lt.id + '">Einfügen</button>' : '') +
+        '<button class="icon-btn danger" data-action="delete-library-titel" data-lib-titel-id="' + lt.id + '" title="Aus Bibliothek löschen">✕</button>' +
       '</div>';
     }).join('') + '</div>';
   }
-
   function openLibraryModal() {
     var body = '<div class="lib-tabs">' +
       '<button class="lib-tab active" data-lib-tab="positions">Einzelpositionen</button>' +
-      '<button class="lib-tab" data-lib-tab="massnahmen">Maßnahmen-Pakete</button>' +
+      '<button class="lib-tab" data-lib-tab="titel">Titel-Pakete</button>' +
       '</div>' +
-      '<div id="libTabPositions">' + libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek. Speichere eine Position über das ☆-Symbol.') + '</div>' +
-      '<div id="libTabMassnahmen" style="display:none">' + libraryMassnahmenPickerHTML('Noch keine Maßnahmen-Pakete in der Bibliothek. Speichere eine Maßnahme über das ☆-Symbol im Kopf einer Maßnahme.') + '</div>';
+      '<p style="font-size:12px;color:var(--g600);margin:0 0 var(--space-4) 0;">Zum Einfügen die Bibliothek über „+ Aus Bibliothek" bzw. „+ Paket aus Bibliothek" direkt an einem Bereich/Titel öffnen. Hier nur Verwalten/Löschen.</p>' +
+      '<div id="libTabPositions">' + libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek. Speichere eine Position über das ☆-Symbol.', false) + '</div>' +
+      '<div id="libTabTitel" style="display:none">' + libraryTitelPickerHTML('Noch keine Titel-Pakete in der Bibliothek. Speichere einen Titel über das ☆-Symbol im Titel-Kopf.', false) + '</div>';
     showModal('Bibliothek', body, {
       wide: true,
       onOpen: function (overlay) {
@@ -1228,23 +1457,49 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
             tab.classList.add('active');
             var which = tab.getAttribute('data-lib-tab');
             $('#libTabPositions').style.display = which === 'positions' ? '' : 'none';
-            $('#libTabMassnahmen').style.display = which === 'massnahmen' ? '' : 'none';
+            $('#libTabTitel').style.display = which === 'titel' ? '' : 'none';
           });
         });
       }
     });
   }
-
-  function openLibraryPositionPickerForMassnahme(massnahmeId) {
-    var body = libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek.');
+  function openLibraryPositionPickerForBereich(bereichId, titelId) {
+    var body = libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek.', true);
     showModal('Position aus Bibliothek einfügen', body, {
       onOpen: function (overlay) {
-        overlay.setAttribute('data-target-massnahme', massnahmeId);
+        overlay.setAttribute('data-target-bereich', bereichId);
+        overlay.setAttribute('data-target-titel', titelId || '');
       }
     });
   }
+  function openLibraryTitelPickerForBereich(bereichId) {
+    var body = libraryTitelPickerHTML('Noch keine Titel-Pakete in der Bibliothek.', true);
+    showModal('Titel-Paket aus Bibliothek einfügen', body, {
+      onOpen: function (overlay) { overlay.setAttribute('data-target-bereich', bereichId); }
+    });
+  }
+  function insertLibraryPosition(libPosId, bereichId, titelId) {
+    var lp = library.positions.find(function (x) { return x.id === libPosId; });
+    var b = findBereich(bereichId);
+    if (!lp || !b) return;
+    var pos = { kind: 'position', id: uid(), bez: lp.bez, menge: null, einheit: lp.einheit, ep: lp.ep, active: true, kg: lp.kg || '' };
+    if (titelId) { var titel = findTitelIn(b, titelId); if (titel) titel.positions.push(pos); }
+    else b.items.push(pos);
+    save(); renderBereiche(); renderSummary();
+    closeModal();
+  }
+  function insertLibraryTitel(libTitelId, bereichId) {
+    var lt = library.titel.find(function (x) { return x.id === libTitelId; });
+    var b = findBereich(bereichId);
+    if (!lt || !b) return;
+    b.items.push({
+      kind: 'titel', id: uid(), nr: '', name: lt.name,
+      positions: lt.positions.map(function (p) { return { kind: 'position', id: uid(), bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, active: true, kg: p.kg || '' }; })
+    });
+    save(); renderBereiche(); renderSummary();
+  }
 
-  /* ── DIN 276 – Zuordnung, Vorschlag, Gerüst ──────────────────────── */
+  /* ── DIN 276 – Picker, Vorschlag, Gerüst ──────────────── */
   function dinPickerListHTML(filterText) {
     var q = (filterText || '').trim().toLowerCase();
     var items = DIN276_KOSTENGRUPPEN.filter(function (kg) {
@@ -1259,76 +1514,72 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     }).join('');
   }
 
-  function openDinPickerForMassnahme(massnahmeId) {
-    var m = findMassnahme(massnahmeId);
-    var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Fliesen"></div>' +
+  function openDinPickerForPosition(bereichId, titelId, positionId) {
+    var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Außenwände"></div>' +
       '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>' +
-      (m && m.dinCode ? '<button class="btn din-picker-clear" data-action="apply-din-code" data-din-code="">Zuordnung entfernen</button>' : '');
+      '<button class="btn din-picker-clear" data-action="apply-din-code" data-din-code="">Zuordnung entfernen</button>';
     showModal('DIN-Kostengruppe zuordnen', body, {
       onOpen: function (overlay) {
-        overlay.setAttribute('data-target-massnahme', massnahmeId);
+        overlay.setAttribute('data-target-bereich', bereichId);
+        overlay.setAttribute('data-target-titel', titelId || '');
+        overlay.setAttribute('data-target-position', positionId);
         var input = $('#dinPickerSearch');
-        input.addEventListener('input', function () {
-          $('#dinPickerList').innerHTML = dinPickerListHTML(input.value);
-        });
+        input.addEventListener('input', function () { $('#dinPickerList').innerHTML = dinPickerListHTML(input.value); });
         input.focus();
       }
     });
   }
-
-  function openDinPickerForNewMassnahme() {
-    var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Fliesen"></div>' +
+  function openDinPickerForNewBereich() {
+    var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Außenwände"></div>' +
       '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>';
-    showModal('Maßnahme aus DIN 276 anlegen', body, {
+    showModal('Bereich aus DIN 276 anlegen', body, {
       onOpen: function (overlay) {
-        overlay.setAttribute('data-target-massnahme', 'NEW');
+        overlay.setAttribute('data-target-bereich', 'NEW_BEREICH');
         var input = $('#dinPickerSearch');
-        input.addEventListener('input', function () {
-          $('#dinPickerList').innerHTML = dinPickerListHTML(input.value);
-        });
+        input.addEventListener('input', function () { $('#dinPickerList').innerHTML = dinPickerListHTML(input.value); });
         input.focus();
       }
     });
   }
-
-  function applyDinCode(massnahmeId, code) {
-    if (massnahmeId === 'NEW') {
+  function applyDinCode(bereichId, titelId, positionId, code) {
+    if (bereichId === 'NEW_BEREICH') {
       var kg = DIN276_BY_CODE[code];
       if (!kg) return;
-      state.massnahmen.push({ id: uid(), name: kg.title, dinCode: kg.code, positions: [newPosition()] });
-      save(); renderMassnahmen(); renderSummary();
+      state.bereiche.push({ id: uid(), nr: kg.code, name: kg.title, items: [newPosition()] });
+      save(); renderBereiche(); renderSummary();
       closeModal();
       return;
     }
-    var m = findMassnahme(massnahmeId);
-    if (!m) return;
-    m.dinCode = code || null;
-    save(); renderMassnahmen(); renderSummary();
+    var r = resolvePosition(bereichId, titelId, positionId);
+    if (!r) return;
+    r.position.kg = code || '';
+    save(); renderBereiche(); renderSummary();
     closeModal();
   }
 
   function openDinSuggestModal() {
-    var candidates = state.massnahmen.filter(function (m) { return !m.dinCode; });
+    var candidates = allPositionsFlat().filter(function (x) { return !x.position.kg && (x.position.bez || '').trim(); });
     if (!candidates.length) {
-      showModal('Nach DIN einordnen', '<div class="lib-empty">Alle Maßnahmen haben bereits eine DIN-Kostengruppe zugeordnet.</div>');
+      showModal('Nach DIN einordnen', '<div class="lib-empty">Alle beschrifteten Positionen haben bereits eine Kostengruppe, oder es gibt noch keine Positionen mit Bezeichnung.</div>');
       return;
     }
     var suggestions = {};
-    candidates.forEach(function (m) { suggestions[m.id] = suggestDinCode(m); });
+    candidates.forEach(function (x) { suggestions[x.position.id] = suggestDinCodeForText(x.position.bez); });
 
-    var rows = candidates.map(function (m) {
-      var code = suggestions[m.id];
+    var rows = candidates.map(function (x) {
+      var code = suggestions[x.position.id];
       var kg = code ? DIN276_BY_CODE[code] : null;
-      return '<div class="din-suggest-row" data-massnahme-id="' + m.id + '">' +
-        '<div class="info"><div class="n">' + escHtml(m.name || 'Ohne Namen') + '</div>' +
+      var ctx = (x.bereich.nr ? x.bereich.nr + ' ' : '') + x.bereich.name + (x.titel ? ' / ' + (x.titel.nr ? x.titel.nr + ' ' : '') + x.titel.name : '');
+      return '<div class="din-suggest-row" data-bereich-id="' + x.bereich.id + '" data-titel-id="' + (x.titel ? x.titel.id : '') + '" data-position-id="' + x.position.id + '">' +
+        '<div class="info"><div class="ctx">' + escHtml(ctx) + '</div><div class="n">' + escHtml(x.position.bez) + '</div>' +
         (kg ? '<div class="d">Vorschlag: KG ' + kg.code + ' – ' + escHtml(kg.title) + '</div>' : '<div class="d none">Kein automatischer Vorschlag – bitte manuell wählen</div>') +
         '</div>' +
-        (kg ? '<button class="btn primary" data-action="accept-din-suggestion" data-massnahme-id="' + m.id + '" data-din-code="' + kg.code + '">Übernehmen</button>' : '') +
-        '<button class="btn" data-action="pick-din-code" data-massnahme-id="' + m.id + '">Manuell wählen</button>' +
+        (kg ? '<button class="btn primary" data-action="accept-din-suggestion" data-din-code="' + kg.code + '">Übernehmen</button>' : '') +
+        '<button class="btn" data-action="pick-din-code">Manuell wählen</button>' +
       '</div>';
     }).join('');
 
-    var acceptableCount = candidates.filter(function (m) { return suggestions[m.id]; }).length;
+    var acceptableCount = candidates.filter(function (x) { return suggestions[x.position.id]; }).length;
     var body = '<div class="din-suggest-list">' + rows + '</div>' +
       (acceptableCount > 1 ? '<div class="modal-actions"><button class="btn primary" id="dinAcceptAllBtn">Alle Vorschläge übernehmen (' + acceptableCount + ')</button></div>' : '');
 
@@ -1337,8 +1588,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       onOpen: function () {
         var allBtn = document.getElementById('dinAcceptAllBtn');
         if (allBtn) allBtn.addEventListener('click', function () {
-          candidates.forEach(function (m) { if (suggestions[m.id]) m.dinCode = suggestions[m.id]; });
-          save(); renderMassnahmen(); renderSummary();
+          candidates.forEach(function (x) { if (suggestions[x.position.id]) x.position.kg = suggestions[x.position.id]; });
+          save(); renderBereiche(); renderSummary();
           closeModal();
         });
       }
@@ -1346,19 +1597,16 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
 
   function seedDinSkeleton() {
-    var toAdd = DIN276_KOSTENGRUPPEN.filter(function (kg) {
-      if (kg.level !== 1) return false;
-      return !state.massnahmen.some(function (m) { return m.dinCode === kg.code; });
+    var toAdd = DIN276_LEVEL1_CODES.filter(function (kg) {
+      return !state.bereiche.some(function (b) { return b.nr === kg.code; });
     });
     if (!toAdd.length) {
-      showModal('DIN-Gerüst anlegen', '<div class="lib-empty">Alle 8 Kostengruppen der 1. Ebene sind bereits als Maßnahmen angelegt.</div>');
+      showModal('DIN-Gerüst anlegen', '<div class="lib-empty">Alle 8 Kostengruppen der 1. Ebene sind bereits als Bereiche angelegt.</div>');
       return;
     }
-    showConfirm('Die ' + toAdd.length + ' fehlenden Kostengruppen der 1. Ebene (' + toAdd.map(function (kg) { return kg.code; }).join(', ') + ') als leere Maßnahmen anlegen?', function () {
-      toAdd.forEach(function (kg) {
-        state.massnahmen.push({ id: uid(), name: kg.title, dinCode: kg.code, positions: [] });
-      });
-      save(); renderMassnahmen(); renderSummary();
+    showConfirm('Die ' + toAdd.length + ' fehlenden Kostengruppen der 1. Ebene (' + toAdd.map(function (kg) { return kg.code; }).join(', ') + ') als leere Bereiche anlegen?', function () {
+      toAdd.forEach(function (kg) { state.bereiche.push({ id: uid(), nr: kg.code, name: kg.title, items: [newPosition()] }); });
+      save(); renderBereiche(); renderSummary();
     });
   }
 
@@ -1367,34 +1615,43 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
     var action = actionEl.getAttribute('data-action');
-    var card = actionEl.closest('.massnahme-card');
-    var massnahmeId = actionEl.getAttribute('data-massnahme-id') || (card ? card.getAttribute('data-massnahme-id') : null);
-    var row = actionEl.closest('.position-row');
-    var positionId = row ? row.getAttribute('data-position-id') : null;
+    var bereichCard = actionEl.closest('.bereich-card');
+    var bereichId = actionEl.getAttribute('data-bereich-id') || (bereichCard ? bereichCard.getAttribute('data-bereich-id') : null);
+    var titelCard = actionEl.closest('.titel-card');
+    var titelId = actionEl.getAttribute('data-titel-id') || (titelCard ? titelCard.getAttribute('data-titel-id') : null);
+    var posRow = actionEl.closest('.position-row');
+    var positionId = actionEl.getAttribute('data-position-id') || (posRow ? posRow.getAttribute('data-position-id') : null);
 
-    if (action === 'add-massnahme') addMassnahme();
-    else if (action === 'delete-massnahme') deleteMassnahme(massnahmeId);
-    else if (action === 'move-up') moveMassnahme(massnahmeId, -1);
-    else if (action === 'move-down') moveMassnahme(massnahmeId, 1);
-    else if (action === 'add-position') addPosition(massnahmeId);
-    else if (action === 'delete-position') deletePosition(massnahmeId, positionId);
+    if (action === 'add-bereich') addBereich();
+    else if (action === 'delete-bereich') deleteBereich(bereichId);
+    else if (action === 'move-bereich-up') moveBereich(bereichId, -1);
+    else if (action === 'move-bereich-down') moveBereich(bereichId, 1);
+    else if (action === 'add-titel') addTitel(bereichId);
+    else if (action === 'delete-titel') deleteTitel(bereichId, titelId);
+    else if (action === 'move-item-up') moveItemWithinBereich(bereichId, titelId, -1);
+    else if (action === 'move-item-down') moveItemWithinBereich(bereichId, titelId, 1);
+    else if (action === 'add-loose-position') addLoosePosition(bereichId);
+    else if (action === 'add-position') { if (titelId) addPositionToTitel(bereichId, titelId); else addLoosePosition(bereichId); }
+    else if (action === 'delete-position') deletePosition(bereichId, titelId, positionId);
+    else if (action === 'save-position-template') saveLibraryPosition(bereichId, titelId, positionId);
+    else if (action === 'save-titel-template') saveLibraryTitel(bereichId, titelId);
+    else if (action === 'add-position-from-library') openLibraryPositionPickerForBereich(bereichId, titelId);
+    else if (action === 'add-titel-from-library') openLibraryTitelPickerForBereich(bereichId);
+    else if (action === 'open-library') openLibraryModal();
     else if (action === 'open-file') $('#fileInput').click();
     else if (action === 'save-file') saveToFile();
     else if (action === 'print') window.print();
-    else if (action === 'save-position-template') { saveLibraryPosition(massnahmeId, positionId); }
-    else if (action === 'save-massnahme-template') { saveLibraryMassnahme(massnahmeId); }
-    else if (action === 'add-position-from-library') openLibraryPositionPickerForMassnahme(massnahmeId);
-    else if (action === 'add-massnahme-from-library') openLibraryModal();
-    else if (action === 'open-library') openLibraryModal();
     else if (action === 'save-snapshot') openSnapshotModal();
     else if (action === 'open-compare') openComparePage();
     else if (action === 'close-compare-page') closeComparePage();
+    else if (action === 'open-kg-page') openKgPage();
+    else if (action === 'close-kg-page') closeKgPage();
     else if (action === 'open-pdf-options') openPdfOptionsModal();
+    else if (action === 'open-projektdaten') openProjektdatenModal();
     else if (action === 'insert-library-position') {
       var libPosId = actionEl.getAttribute('data-lib-position-id');
-      var overlay = $('#modalOverlay');
-      var targetMassnahmeId = overlay.getAttribute('data-target-massnahme');
-      insertLibraryPosition(libPosId, targetMassnahmeId);
+      var overlay1 = $('#modalOverlay');
+      insertLibraryPosition(libPosId, overlay1.getAttribute('data-target-bereich'), overlay1.getAttribute('data-target-titel') || null);
     }
     else if (action === 'delete-library-position') {
       var delPosId = actionEl.getAttribute('data-lib-position-id');
@@ -1402,14 +1659,15 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       saveLibrary();
       actionEl.closest('.lib-item').remove();
     }
-    else if (action === 'insert-library-massnahme') {
-      var libMassId = actionEl.getAttribute('data-lib-massnahme-id');
-      insertLibraryMassnahme(libMassId);
+    else if (action === 'insert-library-titel') {
+      var libTitelId = actionEl.getAttribute('data-lib-titel-id');
+      var overlay2 = $('#modalOverlay');
+      insertLibraryTitel(libTitelId, overlay2.getAttribute('data-target-bereich'));
       closeModal();
     }
-    else if (action === 'delete-library-massnahme') {
-      var delMassId = actionEl.getAttribute('data-lib-massnahme-id');
-      library.massnahmen = library.massnahmen.filter(function (x) { return x.id !== delMassId; });
+    else if (action === 'delete-library-titel') {
+      var delTitelId = actionEl.getAttribute('data-lib-titel-id');
+      library.titel = library.titel.filter(function (x) { return x.id !== delTitelId; });
       saveLibrary();
       actionEl.closest('.lib-item').remove();
     }
@@ -1424,39 +1682,28 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       downloadKostenPDF(mode);
       closeModal();
     }
-    else if (action === 'pick-din-code') openDinPickerForMassnahme(massnahmeId);
-    else if (action === 'add-massnahme-from-din') openDinPickerForNewMassnahme();
+    else if (action === 'pick-din-code') openDinPickerForPosition(bereichId, titelId, positionId);
+    else if (action === 'add-bereich-from-din') openDinPickerForNewBereich();
     else if (action === 'apply-din-code') {
       var overlayDin = $('#modalOverlay');
-      var targetForDin = overlayDin.getAttribute('data-target-massnahme');
-      applyDinCode(targetForDin, actionEl.getAttribute('data-din-code'));
+      applyDinCode(overlayDin.getAttribute('data-target-bereich'), overlayDin.getAttribute('data-target-titel') || null, overlayDin.getAttribute('data-target-position'), actionEl.getAttribute('data-din-code'));
     }
     else if (action === 'suggest-din') openDinSuggestModal();
     else if (action === 'accept-din-suggestion') {
-      applyDinCode(massnahmeId, actionEl.getAttribute('data-din-code'));
+      var row = actionEl.closest('.din-suggest-row');
+      applyDinCode(row.getAttribute('data-bereich-id'), row.getAttribute('data-titel-id') || null, row.getAttribute('data-position-id'), actionEl.getAttribute('data-din-code'));
       openDinSuggestModal();
     }
     else if (action === 'seed-din-skeleton') seedDinSkeleton();
   });
 
-  function insertLibraryPosition(libPosId, massnahmeId) {
-    var lp = library.positions.find(function (x) { return x.id === libPosId; });
-    var m = findMassnahme(massnahmeId);
-    if (!lp || !m) return;
-    m.positions.push({ id: uid(), bez: lp.bez, menge: null, einheit: lp.einheit, ep: lp.ep, active: true });
-    save(); renderMassnahmen(); renderSummary();
-    closeModal();
-  }
-
-  function insertLibraryMassnahme(libMassId) {
-    var lm = library.massnahmen.find(function (x) { return x.id === libMassId; });
-    if (!lm) return;
-    state.massnahmen.push({
-      id: uid(), name: lm.name,
-      positions: lm.positions.map(function (p) { return { id: uid(), bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, active: true }; })
-    });
-    save(); renderMassnahmen(); renderSummary();
-  }
+  document.addEventListener('click', function (e) {
+    var row = e.target.closest('.din-suggest-row');
+    var btn = e.target.closest('[data-action="pick-din-code"]');
+    if (row && btn) {
+      openDinPickerForPosition(row.getAttribute('data-bereich-id'), row.getAttribute('data-titel-id') || null, row.getAttribute('data-position-id'));
+    }
+  });
 
   document.addEventListener('input', function (e) {
     var t = e.target;
@@ -1467,22 +1714,35 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (t.id === 'nkPct') { state.nkPct = Number(t.value) || 0; save(); renderSummary(); return; }
     if (t.id === 'mwstPct') { state.mwstPct = Number(t.value) || 0; save(); renderSummary(); return; }
 
-    var card = t.closest('.massnahme-card');
-    if (!card) return;
-    var m = findMassnahme(card.getAttribute('data-massnahme-id'));
-    if (!m) return;
+    var bereichCard = t.closest('.bereich-card');
+    if (!bereichCard) return;
+    var bereich = findBereich(bereichCard.getAttribute('data-bereich-id'));
+    if (!bereich) return;
 
-    if (t.classList.contains('massnahme-name')) { m.name = t.value; save(); renderSummary(); return; }
+    if (t.classList.contains('bereich-nr')) { bereich.nr = t.value; save(); renderSummary(); return; }
+    if (t.classList.contains('bereich-name')) { bereich.name = t.value; save(); renderSummary(); return; }
+
+    var titelCard = t.closest('.titel-card');
+    if (titelCard) {
+      var titel = findTitelIn(bereich, titelCard.getAttribute('data-titel-id'));
+      if (titel) {
+        if (t.classList.contains('titel-nr')) { titel.nr = t.value; save(); return; }
+        if (t.classList.contains('titel-name')) { titel.name = t.value; save(); renderSummary(); return; }
+      }
+    }
 
     var row = t.closest('.position-row');
     if (!row) return;
-    var p = findPosition(m, row.getAttribute('data-position-id'));
-    if (!p) return;
+    var titelIdForPos = titelCard ? titelCard.getAttribute('data-titel-id') : null;
+    var r = resolvePosition(bereich.id, titelIdForPos, row.getAttribute('data-position-id'));
+    if (!r) return;
+    var p = r.position;
 
     if (t.classList.contains('col-bez-input')) p.bez = t.value;
     else if (t.classList.contains('col-menge-input')) p.menge = t.value === '' ? null : Number(t.value);
     else if (t.classList.contains('col-einheit-input')) p.einheit = t.value;
     else if (t.classList.contains('col-ep-input')) p.ep = t.value === '' ? null : Number(t.value);
+    else if (t.classList.contains('col-kg-input')) { p.kg = t.value.trim(); save(); return; }
     else if (t.classList.contains('col-active-input')) { p.active = t.checked; save(); updateTotalsOnly(); return; }
     else return;
 
@@ -1498,6 +1758,52 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     save(); renderToolbar(); renderSummary();
   });
 
+  /* ── Projektdaten (Deckblatt-Angaben) ────────────────── */
+  function openProjektdatenModal() {
+    var body = '' +
+      '<p class="form-section-title">Allgemeine Angaben</p>' +
+      '<div class="form-grid-2">' +
+        '<div class="form-field"><label>Bauherr</label><input type="text" id="pdBauherr" value="' + escHtml(state.bauherr) + '"></div>' +
+        '<div class="form-field"><label>Architekt</label><input type="text" id="pdArchitekt" value="' + escHtml(state.architekt) + '"></div>' +
+      '</div>' +
+      '<div class="form-field"><label>Fachplaner</label><input type="text" id="pdFachplaner" value="' + escHtml(state.fachplaner) + '"></div>' +
+      '<p class="form-section-title">Grundlagen der Kostenermittlung</p>' +
+      '<div class="form-field"><label>Vorgaben</label><textarea id="pdVorgaben">' + escHtml(state.vorgaben) + '</textarea></div>' +
+      '<div class="form-field"><label>Grundlagen</label><textarea id="pdGrundlagen">' + escHtml(state.grundlagen) + '</textarea></div>' +
+      '<p class="form-section-title">Kostenstand &amp; Hinweise</p>' +
+      '<div class="form-grid-2">' +
+        '<div class="form-field"><label>Kostenstand (z. B. 08/2026)</label><input type="text" id="pdKostenstandDatum" value="' + escHtml(state.kostenstandDatum) + '"></div>' +
+        '<div class="form-field"><label>BKI-Regionalfaktor</label><input type="text" id="pdRegionalfaktor" value="' + escHtml(state.regionalfaktor) + '" placeholder="z. B. Es wurde ein Regionalfaktor von Berlin angesetzt"></div>' +
+      '</div>' +
+      '<div class="form-field"><label>Umsatzsteuer-Anzeige in Detailtabelle</label><div class="radio-row">' +
+        '<label><input type="radio" name="pdUst" value="netto" ' + (state.ustAnzeige === 'netto' ? 'checked' : '') + '> netto (ohne USt.)</label>' +
+        '<label><input type="radio" name="pdUst" value="brutto" ' + (state.ustAnzeige === 'brutto' ? 'checked' : '') + '> brutto (inkl. USt.)</label>' +
+      '</div></div>' +
+      '<div class="form-field"><label>Hinweise / Haftungsausschluss</label><textarea id="pdHinweise" style="min-height:140px">' + escHtml(state.hinweiseText) + '</textarea></div>' +
+      '<div class="form-field"><label>Aufgestellt von</label><input type="text" id="pdAufgestelltVon" value="' + escHtml(state.aufgestelltVon) + '" placeholder="Name"></div>' +
+      '<div class="modal-actions"><button class="btn primary" id="pdSaveBtn">Speichern</button></div>';
+
+    showModal('Projektdaten (Deckblatt)', body, {
+      wide: true,
+      onOpen: function () {
+        $('#pdSaveBtn').addEventListener('click', function () {
+          state.bauherr = $('#pdBauherr').value;
+          state.architekt = $('#pdArchitekt').value;
+          state.fachplaner = $('#pdFachplaner').value;
+          state.vorgaben = $('#pdVorgaben').value;
+          state.grundlagen = $('#pdGrundlagen').value;
+          state.kostenstandDatum = $('#pdKostenstandDatum').value;
+          state.regionalfaktor = $('#pdRegionalfaktor').value;
+          state.ustAnzeige = document.querySelector('input[name="pdUst"]:checked').value;
+          state.hinweiseText = $('#pdHinweise').value;
+          state.aufgestelltVon = $('#pdAufgestelltVon').value;
+          save();
+          closeModal();
+        });
+      }
+    });
+  }
+
   /* ── Schnappschüsse & Vergleich ─────────────────────── */
   function openSnapshotModal() {
     var defaultLabel = KOSTENSTAND_LABELS[state.kostenstand] + ' – ' + fmtDE(new Date());
@@ -1511,7 +1817,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
           state.snapshots.push({
             id: uid(), label: label, createdAt: new Date().toISOString(), kostenstand: state.kostenstand,
             reservePct: state.reservePct, nkPct: state.nkPct, mwstPct: state.mwstPct,
-            massnahmen: deepClone(state.massnahmen), totals: computeSummary()
+            bereiche: deepClone(state.bereiche), totals: computeSummary()
           });
           save(); renderSummary(); closeModal();
         });
@@ -1523,71 +1829,50 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   function allCompareColumns() {
     var columns = state.snapshots.map(function (snap) {
-      return { key: snap.id, label: snap.label, kostenstand: KOSTENSTAND_LABELS[snap.kostenstand], massnahmen: snap.massnahmen, totals: snap.totals, snapshotId: snap.id };
+      return { key: snap.id, label: snap.label, kostenstand: KOSTENSTAND_LABELS[snap.kostenstand], bereiche: snap.bereiche, totals: snap.totals, snapshotId: snap.id };
     });
-    columns.push({ key: 'current', label: 'Aktuell', kostenstand: KOSTENSTAND_LABELS[state.kostenstand], massnahmen: state.massnahmen, totals: computeSummary(), snapshotId: null });
+    columns.push({ key: 'current', label: 'Aktuell', kostenstand: KOSTENSTAND_LABELS[state.kostenstand], bereiche: state.bereiche, totals: computeSummary(), snapshotId: null });
     return columns;
   }
-
-  function compareAmountFor(col, name) {
+  function bereichLabel(b) { return (b.nr ? b.nr + ' ' : '') + (b.name || 'Ohne Namen'); }
+  function collectLeafPositions(bereich) {
+    var out = [];
+    bereich.items.forEach(function (item) {
+      if (item.kind === 'titel') item.positions.forEach(function (p) { out.push({ label: (item.nr ? item.nr + ' ' : '') + (item.name || '') + ' – ' + (p.bez || '(ohne Bezeichnung)'), p: p }); });
+      else out.push({ label: item.bez || '(ohne Bezeichnung)', p: item });
+    });
+    return out;
+  }
+  function compareAmountForBereich(col, label) {
     var sum = 0;
-    col.massnahmen.forEach(function (m) {
-      if ((m.name || 'Ohne Namen') === name) {
-        sum += m.positions.reduce(function (s, p) { return s + (p.active === false ? 0 : (Number(p.menge) || 0) * (Number(p.ep) || 0)); }, 0);
-      }
+    col.bereiche.forEach(function (b) { if (bereichLabel(b) === label) sum += bereichTotal(b); });
+    return sum;
+  }
+  function comparePositionLabelsForBereich(col, label) {
+    var labels = [];
+    col.bereiche.forEach(function (b) {
+      if (bereichLabel(b) === label) collectLeafPositions(b).forEach(function (x) { if (labels.indexOf(x.label) === -1) labels.push(x.label); });
+    });
+    return labels;
+  }
+  function comparePositionAmount(col, bLabel, pLabel) {
+    var sum = 0;
+    col.bereiche.forEach(function (b) {
+      if (bereichLabel(b) !== bLabel) return;
+      collectLeafPositions(b).forEach(function (x) { if (x.label === pLabel) sum += (x.p.active === false ? 0 : rawPositionAmount(x.p)); });
     });
     return sum;
   }
-
-  /* Bestimmt eine stabile Reihenfolge: Struktur der zuletzt ausgewählten Spalte zuerst,
-     alles, was nur in älteren Spalten vorkommt, wird hinten angehängt. */
-  function orderedNames(visible, getListFn) {
-    var ordered = [];
-    var seen = {};
+  function orderedBereichLabels(visible) {
+    var ordered = [], seen = {};
     for (var i = visible.length - 1; i >= 0; i--) {
-      getListFn(visible[i]).forEach(function (n) { if (!seen[n]) { seen[n] = true; ordered.push(n); } });
+      visible[i].bereiche.forEach(function (b) { var l = bereichLabel(b); if (!seen[l]) { seen[l] = true; ordered.push(l); } });
     }
     return ordered;
   }
 
-  function compareMassnahmeNames(visible) {
-    return orderedNames(visible, function (col) {
-      return col.massnahmen.map(function (m) { return m.name || 'Ohne Namen'; });
-    });
-  }
-
-  function comparePositionLabels(visible, massnahmeName) {
-    return orderedNames(visible, function (col) {
-      var labels = [];
-      col.massnahmen.forEach(function (m) {
-        if ((m.name || 'Ohne Namen') === massnahmeName) {
-          m.positions.forEach(function (p) { labels.push((p.bez || '').trim() || '(ohne Bezeichnung)'); });
-        }
-      });
-      return labels;
-    });
-  }
-
-  function comparePositionAmountFor(col, massnahmeName, label) {
-    var sum = 0;
-    col.massnahmen.forEach(function (m) {
-      if ((m.name || 'Ohne Namen') === massnahmeName) {
-        m.positions.forEach(function (p) {
-          var l = (p.bez || '').trim() || '(ohne Bezeichnung)';
-          if (l === label) sum += (p.active === false ? 0 : (Number(p.menge) || 0) * (Number(p.ep) || 0));
-        });
-      }
-    });
-    return sum;
-  }
-
   var compareSelected = null;
-
-  function closeComparePage() {
-    $('#comparePage').style.display = 'none';
-    $('.app').style.display = '';
-  }
-
+  function closeComparePage() { $('#comparePage').style.display = 'none'; $('.app').style.display = ''; }
   function openComparePage() {
     if (!state.snapshots.length) {
       showConfirm('Noch keine Schnappschüsse gesichert. Nutze „Stand sichern" in der Werkzeugleiste, z. B. einmal bei Kostenschätzung, einmal bei Kostenberechnung und einmal bei Kostenanschlag.', function () {});
@@ -1595,18 +1880,12 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     }
     $('.app').style.display = 'none';
     $('#comparePage').style.display = 'flex';
-
     var columns = allCompareColumns();
-    if (!compareSelected) {
-      compareSelected = {};
-      columns.forEach(function (c) { compareSelected[c.key] = true; });
-    }
+    if (!compareSelected) { compareSelected = {}; columns.forEach(function (c) { compareSelected[c.key] = true; }); }
     renderComparePage(columns);
   }
-
   function renderComparePage(columns) {
     var visible = columns.filter(function (c) { return compareSelected[c.key]; });
-
     var toggles = '<div class="compare-toggles">' + columns.map(function (c) {
       return '<label class="compare-toggle"><input type="checkbox" class="compare-toggle-input" data-col-key="' + c.key + '" ' + (compareSelected[c.key] ? 'checked' : '') + '> ' + escHtml(c.label) + ' <span class="compare-toggle-stand">(' + escHtml(c.kostenstand) + ')</span></label>';
     }).join('') + '</div>';
@@ -1615,46 +1894,95 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (!visible.length) {
       tableHtml = '<div class="lib-empty">Mindestens einen Stand auswählen, um ihn zu vergleichen.</div>';
     } else {
-      var names = compareMassnahmeNames(visible);
-
-      var head = '<tr><th>Maßnahme / Position</th>' + visible.map(function (col) {
+      var labels = orderedBereichLabels(visible);
+      var head = '<tr><th>Bereich / Position</th>' + visible.map(function (col) {
         return '<th>' + escHtml(col.label) + '<br><span style="font-weight:400;text-transform:none;">' + escHtml(col.kostenstand) + '</span>' +
-          (col.snapshotId ? '<br><button class="icon-btn danger" data-action="delete-snapshot" data-snapshot-id="' + col.snapshotId + '" title="Schnappschuss löschen" style="margin-top:4px;">✕</button>' : '') +
-          '</th>';
+          (col.snapshotId ? '<br><button class="icon-btn danger" data-action="delete-snapshot" data-snapshot-id="' + col.snapshotId + '" title="Schnappschuss löschen" style="margin-top:4px;">✕</button>' : '') + '</th>';
       }).join('') + '</tr>';
-
-      var rows = names.map(function (name) {
-        var groupRow = '<tr class="group-header"><td>' + escHtml(name) + '</td>' + visible.map(function (col) {
-          return '<td>' + fmtEUR(compareAmountFor(col, name)) + '</td>';
-        }).join('') + '</tr>';
-        var positionRows = comparePositionLabels(visible, name).map(function (label) {
-          return '<tr class="position-row-cmp"><td>' + escHtml(label) + '</td>' + visible.map(function (col) {
-            return '<td>' + fmtEUR(comparePositionAmountFor(col, name, label)) + '</td>';
-          }).join('') + '</tr>';
+      var rows = labels.map(function (label) {
+        var groupRow = '<tr class="group-header"><td>' + escHtml(label) + '</td>' + visible.map(function (col) { return '<td>' + fmtEUR(compareAmountForBereich(col, label)) + '</td>'; }).join('') + '</tr>';
+        var posRows = comparePositionLabelsForBereich(visible[visible.length - 1], label).length
+          ? comparePositionLabelsForBereich(visible[visible.length - 1], label)
+          : (visible[0] ? comparePositionLabelsForBereich(visible[0], label) : []);
+        var posHtml = posRows.map(function (pLabel) {
+          return '<tr class="position-row-cmp"><td>' + escHtml(pLabel) + '</td>' + visible.map(function (col) { return '<td>' + fmtEUR(comparePositionAmount(col, label, pLabel)) + '</td>'; }).join('') + '</tr>';
         }).join('');
-        return groupRow + positionRows;
+        return groupRow + posHtml;
       }).join('');
-
       var totalRows = ['netto', 'reserve', 'nebenkosten', 'zwischensumme', 'mwst', 'brutto'].map(function (key) {
-        var labels = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
-        return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + labels[key] + '</td>' + visible.map(function (col) {
-          return '<td>' + fmtEUR(col.totals[key]) + '</td>';
-        }).join('') + '</tr>';
+        var lbls = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
+        return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + lbls[key] + '</td>' + visible.map(function (col) { return '<td>' + fmtEUR(col.totals[key]) + '</td>'; }).join('') + '</tr>';
       }).join('');
-
       tableHtml = '<div class="compare-table-wrap"><table class="compare-table"><thead>' + head + '</thead><tbody>' + rows + totalRows + '</tbody></table></div>';
     }
 
     $('#comparePageBody').innerHTML = toggles + tableHtml;
     $('#comparePageBody').querySelectorAll('.compare-toggle-input').forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        compareSelected[cb.getAttribute('data-col-key')] = cb.checked;
-        renderComparePage(columns);
-      });
+      cb.addEventListener('change', function () { compareSelected[cb.getAttribute('data-col-key')] = cb.checked; renderComparePage(columns); });
     });
     var pdfBtn = $('#comparePdfBtn');
     pdfBtn.disabled = !visible.length;
     pdfBtn.onclick = function () { downloadComparePDF(visible); };
+  }
+
+  /* ── "Nach Kostengruppen"-Ansicht ─────────────────────── */
+  function closeKgPage() { $('#kgPage').style.display = 'none'; $('.app').style.display = ''; }
+  function openKgPage() {
+    $('.app').style.display = 'none';
+    $('#kgPage').style.display = 'flex';
+    renderKgPage();
+  }
+  function renderKgPage() {
+    var flat = allPositionsFlat();
+    var byCode = {};
+    flat.forEach(function (x) {
+      var code = (x.position.kg || '').trim();
+      var key = code || 'ohne';
+      if (!byCode[key]) byCode[key] = [];
+      byCode[key].push(x);
+    });
+    var lvl1Buckets = {};
+    Object.keys(byCode).forEach(function (code) {
+      var lvl1 = code === 'ohne' ? 'ohne' : (firstLevelOf(code) || code);
+      if (!lvl1Buckets[lvl1]) lvl1Buckets[lvl1] = [];
+      lvl1Buckets[lvl1].push(code);
+    });
+    var lvl1Order = Object.keys(lvl1Buckets).sort(function (a, b) {
+      if (a === 'ohne') return 1; if (b === 'ohne') return -1;
+      return Number(a) - Number(b);
+    });
+
+    var rowsHtml = lvl1Order.map(function (lvl1) {
+      var lvl1Title = lvl1 === 'ohne' ? 'Ohne Kostengruppe' : (DIN276_BY_CODE[lvl1] ? lvl1 + ' ' + DIN276_BY_CODE[lvl1].title : 'KG ' + lvl1);
+      var lvl1Total = lvl1Buckets[lvl1].reduce(function (s, code) { return s + byCode[code].reduce(function (s2, x) { return s2 + positionTotal(x.position); }, 0); }, 0);
+      var sub = lvl1Buckets[lvl1].sort().map(function (code) {
+        if (code === lvl1 || (code === 'ohne' && lvl1 === 'ohne')) return '';
+        var title = DIN276_BY_CODE[code] ? code + ' ' + DIN276_BY_CODE[code].title : code;
+        var subTotal = byCode[code].reduce(function (s, x) { return s + positionTotal(x.position); }, 0);
+        var posRows = byCode[code].map(function (x) {
+          var ctx = bereichLabel(x.bereich) + (x.titel ? ' / ' + (x.titel.nr ? x.titel.nr + ' ' : '') + x.titel.name : '');
+          return '<tr class="position-row-cmp"><td>' + escHtml(ctx + ' – ' + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
+        }).join('');
+        return '<tr class="kg-group-row"><td>' + escHtml(title) + '</td><td>' + fmtEUR(subTotal) + '</td></tr>' + posRows;
+      }).join('');
+      // Falls die einzige Untergruppe der Level-1-Code selbst ist, direkt Positionen zeigen
+      var directPosRows = '';
+      if (lvl1Buckets[lvl1].length === 1 && lvl1Buckets[lvl1][0] === lvl1) {
+        directPosRows = byCode[lvl1].map(function (x) {
+          var ctx = bereichLabel(x.bereich) + (x.titel ? ' / ' + (x.titel.nr ? x.titel.nr + ' ' : '') + x.titel.name : '');
+          return '<tr class="position-row-cmp"><td>' + escHtml(ctx + ' – ' + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
+        }).join('');
+      }
+      return '<tr class="kg-group-row first-level"><td>' + escHtml(lvl1Title) + '</td><td>' + fmtEUR(lvl1Total) + '</td></tr>' + sub + directPosRows;
+    }).join('');
+
+    var s = computeSummary();
+    var totalRows = ['netto', 'reserve', 'nebenkosten', 'zwischensumme', 'mwst', 'brutto'].map(function (key) {
+      var lbls = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
+      return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + lbls[key] + '</td><td>' + fmtEUR(s[key]) + '</td></tr>';
+    }).join('');
+
+    $('#kgPageBody').innerHTML = '<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>Kostengruppe / Position</th><th>Betrag</th></tr></thead><tbody>' + rowsHtml + totalRows + '</tbody></table></div>';
   }
 
   /* ── PDF-Export (reine PDF-Syntax, keine externe Bibliothek) ─── */
@@ -1671,99 +1999,29 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
   function pdfTruncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
   function pdfPad10(n) { n = String(Math.floor(n)); while (n.length < 10) n = '0' + n; return n; }
+  function pdfWrap(text, maxChars) {
+    var words = String(text || '').split(/\s+/).filter(Boolean);
+    var lines = [], cur = '';
+    words.forEach(function (w) {
+      var trial = cur ? cur + ' ' + w : w;
+      if (trial.length > maxChars) { if (cur) lines.push(cur); cur = w; } else cur = trial;
+    });
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [''];
+  }
 
   function openPdfOptionsModal() {
     var body = '<div class="pdf-mode-options">' +
       '<button class="pdf-mode-option" data-action="pdf-download" data-pdf-mode="summary">' +
-        '<div class="t">Kurz-Zusammenfassung</div><div class="d">Summen je Maßnahme + Gesamtkosten, 1–2 Seiten</div>' +
+        '<div class="t">Kurzfassung</div><div class="d">Deckblatt, Hinweise und Zusammenfassung — ohne Positionsliste</div>' +
       '</button>' +
       '<button class="pdf-mode-option" data-action="pdf-download" data-pdf-mode="full">' +
-        '<div class="t">Vollständige Positionsliste</div><div class="d">Jede Position mit Menge, Einheit, EP und Gesamt</div>' +
+        '<div class="t">Vollständig</div><div class="d">Deckblatt, Hinweise, vollständige Anlage 1 mit allen Positionen, Zusammenfassung</div>' +
       '</button>' +
       '</div>';
     showModal('PDF exportieren', body);
   }
 
-  function buildKostenPDF(mode) {
-    var PAGE_W = 595, PAGE_H = 842, MARGIN = 40, ROW_H_PDF = 15;
-    var pages = [];
-    var cur = [];
-    var y;
-
-    function newPage(withTitle) {
-      if (cur.length) pages.push(cur);
-      cur = [];
-      y = PAGE_H - 50;
-      if (withTitle) {
-        cur.push('BT /F2 16 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(state.title || 'Kostenberechnung') + ') Tj ET');
-        y -= 20;
-        if (state.subtitle) {
-          cur.push('BT /F1 10 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(state.subtitle) + ') Tj ET');
-          y -= 16;
-        }
-        var today = new Date();
-        cur.push('BT /F1 8 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(KOSTENSTAND_LABELS[state.kostenstand] + ' — erstellt am ' + fmtDE(today)) + ') Tj ET');
-        y -= 22;
-        if (mode === 'full') {
-          cur.push('BT /F2 8 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Nr.) Tj ET');
-          cur.push('BT /F2 8 Tf 1 0 0 1 80 ' + y + ' Tm (Bezeichnung) Tj ET');
-          cur.push('BT /F2 8 Tf 1 0 0 1 300 ' + y + ' Tm (Menge) Tj ET');
-          cur.push('BT /F2 8 Tf 1 0 0 1 350 ' + y + ' Tm (Einheit) Tj ET');
-          cur.push('BT /F2 8 Tf 1 0 0 1 410 ' + y + ' Tm (EP EUR) Tj ET');
-          cur.push('BT /F2 8 Tf 1 0 0 1 480 ' + y + ' Tm (Gesamt EUR) Tj ET');
-          y -= ROW_H_PDF;
-        }
-      }
-    }
-    function ensureSpace(min) { if (y < (min || 55)) newPage(false); }
-
-    newPage(true);
-    state.massnahmen.forEach(function (m, mi) {
-      ensureSpace(70);
-      y -= 4;
-      ensureSpace(70);
-      cur.push('BT /F2 11 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(m.name || 'Ohne Namen', 60)) + ') Tj ET');
-      cur.push('BT /F2 11 Tf 1 0 0 1 480 ' + y + ' Tm (' + pdfEsc(fmtEUR(massnahmeTotal(m))) + ') Tj ET');
-      y -= ROW_H_PDF;
-      if (mode === 'full') {
-        m.positions.filter(function (p) { return p.active !== false; }).forEach(function (p) {
-          ensureSpace();
-          var nr = (mi + 1) + '.' + (m.positions.indexOf(p) + 1);
-          cur.push('BT /F1 9 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(nr) + ') Tj ET');
-          cur.push('BT /F1 9 Tf 1 0 0 1 80 ' + y + ' Tm (' + pdfEsc(pdfTruncate(p.bez || '', 40)) + ') Tj ET');
-          cur.push('BT /F1 9 Tf 1 0 0 1 300 ' + y + ' Tm (' + pdfEsc(p.menge == null ? '' : String(p.menge)) + ') Tj ET');
-          cur.push('BT /F1 9 Tf 1 0 0 1 350 ' + y + ' Tm (' + pdfEsc(p.einheit || '') + ') Tj ET');
-          cur.push('BT /F1 9 Tf 1 0 0 1 410 ' + y + ' Tm (' + pdfEsc(fmtEUR(p.ep || 0)) + ') Tj ET');
-          cur.push('BT /F1 9 Tf 1 0 0 1 480 ' + y + ' Tm (' + pdfEsc(fmtEUR(rawPositionAmount(p))) + ') Tj ET');
-          y -= ROW_H_PDF;
-        });
-      }
-    });
-
-    var s = computeSummary();
-    ensureSpace(140);
-    y -= 10;
-    ensureSpace(140);
-    var totalLines = [
-      ['Baukosten netto', s.netto, 'F1', 10],
-      ['Reserve / Unvorhergesehenes (' + fmtPct(state.reservePct) + ')', s.reserve, 'F1', 10],
-      ['Baunebenkosten (' + fmtPct(state.nkPct) + ')', s.nebenkosten, 'F1', 10],
-      ['Zwischensumme netto', s.zwischensumme, 'F2', 10],
-      ['MwSt. (' + fmtPct(state.mwstPct) + ')', s.mwst, 'F1', 10],
-      ['Gesamt brutto', s.brutto, 'F2', 13]
-    ];
-    totalLines.forEach(function (line) {
-      ensureSpace();
-      cur.push('BT /' + line[2] + ' ' + line[3] + ' Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(line[0]) + ') Tj ET');
-      cur.push('BT /' + line[2] + ' ' + line[3] + ' Tf 1 0 0 1 480 ' + y + ' Tm (' + pdfEsc(fmtEUR(line[1])) + ') Tj ET');
-      y -= line[3] + 6;
-    });
-    pages.push(cur);
-    return assemblePdfPages(pages, PAGE_W, PAGE_H);
-  }
-
-  /* Baut aus fertigen Content-Stream-Seiten (Arrays von PDF-Textoperatoren) ein vollständiges,
-     eigenständiges PDF-Dokument (Objekte, Xref, Trailer) — gemeinsam genutzt von allen Exporten. */
   function assemblePdfPages(pages, PAGE_W, PAGE_H) {
     var n = pages.length;
     var pagesId = 2;
@@ -1788,17 +2046,13 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var maxId = fontF2Id;
     var out = '%PDF-1.4\n';
     var offsets = [0];
-    for (var id = 1; id <= maxId; id++) {
-      offsets[id] = out.length;
-      out += id + ' 0 obj\n' + objects[id] + '\nendobj\n';
-    }
+    for (var id = 1; id <= maxId; id++) { offsets[id] = out.length; out += id + ' 0 obj\n' + objects[id] + '\nendobj\n'; }
     var xrefStart = out.length;
     out += 'xref\n0 ' + (maxId + 1) + '\n0000000000 65535 f \n';
     for (var id = 1; id <= maxId; id++) out += pdfPad10(offsets[id]) + ' 00000 n \n';
     out += 'trailer\n<< /Size ' + (maxId + 1) + ' /Root ' + catalogId + ' 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';
     return out;
   }
-
   function downloadPdfText(pdfText, filename) {
     var bytes = new Uint8Array(pdfText.length);
     for (var i = 0; i < pdfText.length; i++) bytes[i] = pdfText.charCodeAt(i) & 0xff;
@@ -1810,87 +2064,217 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
   }
 
+  function buildKostenPDF(mode) {
+    var PAGE_W = 595, PAGE_H = 842, MARGIN = 40;
+    var pages = []; var cur = []; var y;
+    function newPage() { if (cur.length) pages.push(cur); cur = []; y = PAGE_H - 50; }
+    function ensureSpace(min) { if (y < (min || 55)) newPage(); }
+    function line(text, font, size, x) { cur.push('BT /' + font + ' ' + size + ' Tf 1 0 0 1 ' + x + ' ' + y + ' Tm (' + pdfEsc(text) + ') Tj ET'); }
+    function heading(text) { ensureSpace(70); cur.push('BT /F2 12 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(text) + ') Tj ET'); y -= 8; cur.push('0.6 G ' + MARGIN + ' ' + (y - 2) + ' m ' + (PAGE_W - MARGIN) + ' ' + (y - 2) + ' l S'); y -= 16; }
+    function fieldLine(label, value) {
+      if (!value) return;
+      var lines = pdfWrap(value, 78);
+      line(label + ':', 'F2', 9, MARGIN); line(lines[0] || '', 'F1', 9, MARGIN + 110); y -= 13;
+      for (var i = 1; i < lines.length; i++) { ensureSpace(); line(lines[i], 'F1', 9, MARGIN + 110); y -= 13; }
+    }
+
+    var s = computeSummary();
+    var kg = kgRollup();
+
+    /* ── Teil 1: Deckblatt ─────────────────────────────── */
+    newPage();
+    cur.push('BT /F2 18 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(state.title || 'Kostenberechnung') + ') Tj ET'); y -= 22;
+    if (state.subtitle) { line(state.subtitle, 'F1', 11, MARGIN); y -= 22; } else y -= 6;
+
+    heading('Allgemeine Angaben');
+    fieldLine('Bauherr', state.bauherr);
+    fieldLine('Architekt', state.architekt);
+    fieldLine('Fachplaner', state.fachplaner);
+    y -= 10;
+
+    heading('Grundlagen der Kostenermittlung');
+    fieldLine('Vorgaben', state.vorgaben);
+    fieldLine('Grundlagen', state.grundlagen);
+    y -= 10;
+
+    heading('Kostenstand');
+    fieldLine('Kostenstand', state.kostenstandDatum || fmtDE(new Date()));
+    y -= 4;
+    heading('BKI Regionalfaktor');
+    fieldLine('Regionalfaktor', state.regionalfaktor || '—');
+    y -= 4;
+    heading('Umsatzsteuer');
+    fieldLine('Umsatzsteuer', state.ustAnzeige === 'brutto' ? 'In der nachfolgenden Kostenübersicht ist die Umsatzsteuer enthalten (brutto)' : 'In der nachfolgenden Kostenübersicht ist die Umsatzsteuer nicht enthalten (netto)');
+    y -= 10;
+
+    heading('Kosten nach DIN 276-1');
+    ensureSpace(200);
+    line('Kostengruppe', 'F2', 9, MARGIN); line('Kosten [EUR]', 'F2', 9, PAGE_W - MARGIN - 80); y -= 14;
+    DIN276_LEVEL1_CODES.forEach(function (kgDef) {
+      ensureSpace();
+      var amt = kg[kgDef.code] || 0;
+      line(kgDef.code + '  ' + kgDef.title, 'F1', 9, MARGIN);
+      line(amt ? fmtEUR(amt) : '-', 'F1', 9, PAGE_W - MARGIN - 80);
+      y -= 14;
+    });
+    if (kg['unclassified']) { ensureSpace(); line('Ohne Kostengruppe', 'F1', 9, MARGIN); line(fmtEUR(kg['unclassified']), 'F1', 9, PAGE_W - MARGIN - 80); y -= 14; }
+    y -= 6;
+    ensureSpace(120);
+    [['Zwischensumme netto', s.netto, 'F2'], ['Unvorhergesehenes (' + fmtPct(state.reservePct) + ')', s.reserve, 'F1'], ['Baunebenkosten (' + fmtPct(state.nkPct) + ')', s.nebenkosten, 'F1'],
+      ['Gesamtkosten netto', s.zwischensumme, 'F2'], ['zzgl. Umsatzsteuer (' + fmtPct(state.mwstPct) + ')', s.mwst, 'F1'], ['Gesamtkosten brutto', s.brutto, 'F2']].forEach(function (row) {
+      ensureSpace();
+      line(row[0], row[2], 10, MARGIN); line(fmtEUR(row[1]), row[2], 10, PAGE_W - MARGIN - 90);
+      y -= 15;
+    });
+
+    /* ── Teil 2: Hinweise ──────────────────────────────── */
+    newPage();
+    cur.push('BT /F2 14 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Hinweise) Tj ET'); y -= 24;
+    (state.hinweiseText || '').split(/\n+/).forEach(function (para) {
+      if (!para.trim()) { y -= 8; return; }
+      pdfWrap(para, 96).forEach(function (l) { ensureSpace(); line(l, 'F1', 9, MARGIN); y -= 13; });
+      y -= 6;
+    });
+    y -= 14;
+    ensureSpace(60);
+    line('Berlin, ' + fmtDE(new Date()) + (state.aufgestelltVon ? ' , ' + state.aufgestelltVon : ''), 'F1', 9, MARGIN); y -= 24;
+    if (mode === 'full') line('Anlage: Kostenschätzung im Detail', 'F1', 9, MARGIN);
+
+    /* ── Teil 3: Anlage 1 – Detail (nur im "full"-Modus) ─── */
+    if (mode === 'full') {
+      newPage();
+      cur.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Anlage 1 - Kostenschaetzung im Detail) Tj ET'); y -= 22;
+      function detailHeaderRow() {
+        line('Nr.', 'F2', 8, MARGIN); line('KG', 'F2', 8, MARGIN + 34); line('Bezeichnung', 'F2', 8, MARGIN + 62);
+        line('Menge', 'F2', 8, 330); line('Einh.', 'F2', 8, 375); line('EP', 'F2', 8, 410); line('GP', 'F2', 8, 470);
+        y -= 14;
+      }
+      ensureSpace(80); detailHeaderRow();
+
+      state.bereiche.forEach(function (b) {
+        ensureSpace(60);
+        y -= 4; ensureSpace(60);
+        cur.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc((b.nr ? b.nr + '  ' : '') + pdfTruncate(b.name || 'Ohne Namen', 60)) + ') Tj ET');
+        line(fmtEUR(bereichTotal(b)), 'F2', 10, PAGE_W - MARGIN - 70);
+        y -= 16;
+
+        function isBlankPosition(p) { return !((p.bez || '').trim()) && p.menge == null && p.ep == null; }
+        function printPositionRow(p, idx) {
+          ensureSpace();
+          line(String(idx), 'F1', 8, MARGIN);
+          line(p.kg || '', 'F1', 8, MARGIN + 34);
+          line(pdfTruncate(p.bez || '', 46), 'F1', 8, MARGIN + 62);
+          line(p.menge == null ? '' : String(p.menge), 'F1', 8, 330);
+          line(p.einheit || '', 'F1', 8, 375);
+          line(fmtEUR(p.ep || 0), 'F1', 8, 410);
+          line(fmtEUR(rawPositionAmount(p)), 'F1', 8, 470);
+          y -= 13;
+        }
+        var idx = 1;
+        b.items.forEach(function (item) {
+          if (item.kind === 'position') { if (!isBlankPosition(item)) printPositionRow(item, idx++); return; }
+          ensureSpace(40);
+          cur.push('BT /F2 9 Tf 1 0 0 1 ' + (MARGIN + 10) + ' ' + y + ' Tm (' + pdfEsc((item.nr ? item.nr + '  ' : '') + pdfTruncate(item.name || 'Ohne Namen', 50)) + ') Tj ET');
+          line(fmtEUR(titelTotal(item)), 'F2', 9, PAGE_W - MARGIN - 70);
+          y -= 13;
+          var tIdx = 1;
+          item.positions.forEach(function (p) { if (!isBlankPosition(p)) printPositionRow(p, tIdx++); });
+        });
+      });
+    }
+
+    /* ── Teil 4: Zusammenfassung ──────────────────────────── */
+    newPage();
+    cur.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Zusammenfassung) Tj ET'); y -= 20;
+
+    ensureSpace(80);
+    cur.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Kosten nach Kostengruppen sortiert) Tj ET'); y -= 15;
+    DIN276_LEVEL1_CODES.forEach(function (kgDef) {
+      var amt = kg[kgDef.code];
+      if (!amt) return;
+      ensureSpace();
+      line('Kosten der Kostengruppe KG ' + kgDef.code, 'F1', 9, MARGIN + 10);
+      line(fmtEUR(amt), 'F1', 9, PAGE_W - MARGIN - 80);
+      y -= 13;
+    });
+    y -= 8;
+
+    ensureSpace(80);
+    cur.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Kosten nach Bereichen sortiert) Tj ET'); y -= 15;
+    state.bereiche.forEach(function (b) {
+      ensureSpace();
+      line((b.nr ? b.nr + ' ' : '') + (b.name || 'Ohne Namen'), 'F1', 9, MARGIN + 10);
+      line(fmtEUR(bereichTotal(b)), 'F1', 9, PAGE_W - MARGIN - 80);
+      y -= 13;
+    });
+    y -= 10;
+
+    ensureSpace(130);
+    [['Baukosten netto', s.netto, 'F1', 10], ['Reserve / Unvorhergesehenes (' + fmtPct(state.reservePct) + ')', s.reserve, 'F1', 10],
+      ['Baunebenkosten (' + fmtPct(state.nkPct) + ')', s.nebenkosten, 'F1', 10], ['Zwischensumme netto', s.zwischensumme, 'F2', 10],
+      ['MwSt. (' + fmtPct(state.mwstPct) + ')', s.mwst, 'F1', 10], ['Gesamt brutto', s.brutto, 'F2', 13]].forEach(function (rowDef) {
+      ensureSpace();
+      cur.push('BT /' + rowDef[2] + ' ' + rowDef[3] + ' Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(rowDef[0]) + ') Tj ET');
+      cur.push('BT /' + rowDef[2] + ' ' + rowDef[3] + ' Tf 1 0 0 1 ' + (PAGE_W - MARGIN - 90) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(rowDef[1])) + ') Tj ET');
+      y -= rowDef[3] + 6;
+    });
+
+    pages.push(cur);
+    return assemblePdfPages(pages, PAGE_W, PAGE_H);
+  }
   function downloadKostenPDF(mode) {
     var pdfText = buildKostenPDF(mode);
     var name = (state.title || 'Kostenberechnung').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'Kostenberechnung';
-    downloadPdfText(pdfText, name + (mode === 'summary' ? '_Zusammenfassung' : '_Vollstaendig') + '.pdf');
+    downloadPdfText(pdfText, name + (mode === 'summary' ? '_Kurzfassung' : '_Vollstaendig') + '.pdf');
   }
 
-  /* ── Vergleichs-PDF (dynamische Spaltenzahl, Querformat) ─── */
   function buildComparePDF(columns) {
     var PAGE_W = 842, PAGE_H = 595, MARGIN = 40, ROW_H_PDF = 16;
-    var FIRST_COL_W = 170;
+    var FIRST_COL_W = 190;
     var colW = (PAGE_W - 2 * MARGIN - FIRST_COL_W) / Math.max(1, columns.length);
     function colX(i) { return MARGIN + FIRST_COL_W + i * colW; }
-
-    var pages = [];
-    var cur = [];
-    var y;
-
+    var pages = []; var cur = []; var y;
     function newPage(withTitle) {
       if (cur.length) pages.push(cur);
-      cur = [];
-      y = PAGE_H - 50;
+      cur = []; y = PAGE_H - 50;
       if (withTitle) {
-        cur.push('BT /F2 16 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc((state.title || 'Kostenberechnung') + ' — Vergleich') + ') Tj ET');
-        y -= 20;
-        cur.push('BT /F1 8 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc('erstellt am ' + fmtDE(new Date())) + ') Tj ET');
-        y -= 22;
-        columns.forEach(function (col, i) {
-          cur.push('BT /F2 9 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(col.label, 22)) + ') Tj ET');
-        });
+        cur.push('BT /F2 16 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc((state.title || 'Kostenberechnung') + ' — Vergleich') + ') Tj ET'); y -= 20;
+        cur.push('BT /F1 8 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc('erstellt am ' + fmtDE(new Date())) + ') Tj ET'); y -= 22;
+        columns.forEach(function (col, i) { cur.push('BT /F2 9 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(col.label, 24)) + ') Tj ET'); });
         y -= 12;
-        columns.forEach(function (col, i) {
-          cur.push('BT /F1 8 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(col.kostenstand) + ') Tj ET');
-        });
+        columns.forEach(function (col, i) { cur.push('BT /F1 8 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(col.kostenstand) + ') Tj ET'); });
         y -= ROW_H_PDF;
       }
     }
     function ensureSpace(min) { if (y < (min || 55)) newPage(false); }
-
     newPage(true);
 
-    var names = compareMassnahmeNames(columns);
-
-    names.forEach(function (name) {
+    var labels = orderedBereichLabels(columns);
+    labels.forEach(function (label) {
       ensureSpace(70);
-      cur.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(name, 28)) + ') Tj ET');
-      columns.forEach(function (col, i) {
-        cur.push('BT /F2 9 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(compareAmountFor(col, name))) + ') Tj ET');
-      });
+      cur.push('BT /F2 9 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(label, 32)) + ') Tj ET');
+      columns.forEach(function (col, i) { cur.push('BT /F2 9 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(compareAmountForBereich(col, label))) + ') Tj ET'); });
       y -= ROW_H_PDF;
-      comparePositionLabels(columns, name).forEach(function (label) {
+      var posLabels = comparePositionLabelsForBereich(columns[columns.length - 1], label);
+      posLabels.forEach(function (pLabel) {
         ensureSpace();
-        cur.push('BT /F1 8 Tf 1 0 0 1 ' + (MARGIN + 12) + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(label, 30)) + ') Tj ET');
-        columns.forEach(function (col, i) {
-          cur.push('BT /F1 8 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(comparePositionAmountFor(col, name, label))) + ') Tj ET');
-        });
+        cur.push('BT /F1 8 Tf 1 0 0 1 ' + (MARGIN + 12) + ' ' + y + ' Tm (' + pdfEsc(pdfTruncate(pLabel, 36)) + ') Tj ET');
+        columns.forEach(function (col, i) { cur.push('BT /F1 8 Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(comparePositionAmount(col, label, pLabel))) + ') Tj ET'); });
         y -= ROW_H_PDF - 2;
       });
     });
 
-    y -= 6;
-    ensureSpace(140);
-    var totalDefs = [
-      ['netto', 'Baukosten netto', 'F1', 10],
-      ['reserve', 'Reserve', 'F1', 10],
-      ['nebenkosten', 'Baunebenkosten', 'F1', 10],
-      ['zwischensumme', 'Zwischensumme netto', 'F2', 10],
-      ['mwst', 'MwSt.', 'F1', 10],
-      ['brutto', 'Gesamt brutto', 'F2', 13]
-    ];
-    totalDefs.forEach(function (td) {
+    y -= 6; ensureSpace(140);
+    [['netto', 'Baukosten netto', 'F1', 10], ['reserve', 'Reserve', 'F1', 10], ['nebenkosten', 'Baunebenkosten', 'F1', 10],
+      ['zwischensumme', 'Zwischensumme netto', 'F2', 10], ['mwst', 'MwSt.', 'F1', 10], ['brutto', 'Gesamt brutto', 'F2', 13]].forEach(function (td) {
       ensureSpace();
       cur.push('BT /' + td[2] + ' ' + td[3] + ' Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc(td[1]) + ') Tj ET');
-      columns.forEach(function (col, i) {
-        cur.push('BT /' + td[2] + ' ' + td[3] + ' Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(col.totals[td[0]])) + ') Tj ET');
-      });
+      columns.forEach(function (col, i) { cur.push('BT /' + td[2] + ' ' + td[3] + ' Tf 1 0 0 1 ' + colX(i) + ' ' + y + ' Tm (' + pdfEsc(fmtEUR(col.totals[td[0]])) + ') Tj ET'); });
       y -= td[3] + 6;
     });
     pages.push(cur);
     return assemblePdfPages(pages, PAGE_W, PAGE_H);
   }
-
   function downloadComparePDF(columns) {
     var pdfText = buildComparePDF(columns);
     var name = (state.title || 'Kostenberechnung').replace(/[^\w\-äöüÄÖÜß ]/g, '').trim() || 'Kostenberechnung';
@@ -1907,7 +2291,6 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
-
   $('#fileInput').addEventListener('change', function (e) {
     var file = e.target.files[0];
     if (!file) return;
@@ -1915,15 +2298,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     reader.onload = function () {
       try {
         var parsed = JSON.parse(reader.result);
-        if (parsed && Array.isArray(parsed.massnahmen)) {
-          state = normalizeState(parsed);
-          save(); renderAll();
-        } else {
-          showConfirm('Diese Datei enthält keine gültige Kostenberechnung.', function () {});
-        }
-      } catch (err) {
-        showConfirm('Datei konnte nicht gelesen werden.', function () {});
-      }
+        if (parsed && Array.isArray(parsed.bereiche)) { state = normalizeState(parsed); save(); renderAll(); }
+        else if (parsed && Array.isArray(parsed.massnahmen)) { state = migrateFromV1(parsed); save(); renderAll(); }
+        else showConfirm('Diese Datei enthält keine gültige Kostenberechnung.', function () {});
+      } catch (err) { showConfirm('Datei konnte nicht gelesen werden.', function () {}); }
     };
     reader.readAsText(file);
     e.target.value = '';
