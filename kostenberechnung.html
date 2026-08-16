@@ -121,24 +121,31 @@ button, input, textarea, select{ font-family:var(--font-family); }
 .bereiche-col{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:var(--space-4); }
 .empty-hint{ color:var(--g600); font-size:13px; padding:var(--space-8) 0; text-align:center; }
 
-/* ── Bereich (Ebene 1) ────────────────── */
-.bereich-card{ border:1px solid var(--color-black); border-radius:6px; overflow:hidden; }
-.bereich-header{
-  display:flex; align-items:center; gap:var(--space-2);
-  padding:var(--space-3) var(--space-4); background:var(--color-black); color:var(--color-white);
+/* ── Gruppe (rekursiv, beliebige Verschachtelungstiefe) ─ */
+.gruppe-card{ border-radius:6px; overflow:hidden; }
+.gruppe-card.level-top{ border:1px solid var(--color-black); }
+.gruppe-card.level-sub{ border:1px solid var(--g200); border-radius:5px; }
+.gruppe-header{ display:flex; align-items:center; gap:var(--space-2); }
+.gruppe-header.level-top{ padding:var(--space-3) var(--space-4); background:var(--color-black); color:var(--color-white); }
+.gruppe-header.level-sub{ padding:8px var(--space-3); background:var(--g100); border-bottom:1px solid var(--g200); }
+.gruppe-nr{
+  outline:none; padding:4px 6px; border-radius:3px; text-align:center; font-weight:600;
 }
-.bereich-nr{
-  flex:0 0 44px; border:1px solid rgba(255,255,255,.3); outline:none; background:transparent;
-  color:var(--color-white); font-size:13px; font-weight:600; padding:4px 6px; border-radius:3px; text-align:center;
-}
-.bereich-name{
+.level-top .gruppe-nr{ flex:0 0 44px; border:1px solid rgba(255,255,255,.3); background:transparent; color:var(--color-white); font-size:13px; }
+.level-sub .gruppe-nr{ flex:0 0 52px; border:1px solid var(--g200); background:var(--color-white); color:var(--color-black); font-size:12px; }
+.gruppe-name{
   flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
-  font-size:15px; font-weight:600; color:var(--color-white); padding:2px 4px; border-radius:2px;
+  font-weight:600; padding:2px 4px; border-radius:2px;
 }
-.bereich-name::placeholder{ color:rgba(255,255,255,.5); }
-.bereich-name:focus{ background:rgba(255,255,255,.12); }
-.bereich-total{ font-size:14px; font-weight:600; color:var(--color-white); white-space:nowrap; }
-.bereich-body{ padding:var(--space-3) var(--space-4); display:flex; flex-direction:column; gap:var(--space-3); }
+.level-top .gruppe-name{ font-size:15px; color:var(--color-white); }
+.level-top .gruppe-name::placeholder{ color:rgba(255,255,255,.5); }
+.level-top .gruppe-name:focus{ background:rgba(255,255,255,.12); }
+.level-sub .gruppe-name{ font-size:13px; color:var(--color-black); }
+.level-sub .gruppe-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
+.gruppe-total{ font-weight:600; white-space:nowrap; }
+.level-top .gruppe-total{ font-size:14px; color:var(--color-white); }
+.level-sub .gruppe-total{ font-size:13px; color:var(--color-black); }
+.gruppe-body{ padding:var(--space-3) var(--space-4); display:flex; flex-direction:column; gap:var(--space-3); }
 
 .icon-btn{
   appearance:none; border:1px solid transparent; background:transparent; color:var(--g600);
@@ -149,23 +156,6 @@ button, input, textarea, select{ font-family:var(--font-family); }
 .icon-btn.danger:hover{ color:var(--error); border-color:var(--error); }
 .icon-btn.on-dark{ color:rgba(255,255,255,.7); }
 .icon-btn.on-dark:hover{ background:rgba(255,255,255,.15); border-color:transparent; color:var(--color-white); }
-
-/* ── Titel (Ebene 2) ──────────────────── */
-.titel-card{ border:1px solid var(--g200); border-radius:5px; overflow:hidden; }
-.titel-header{
-  display:flex; align-items:center; gap:var(--space-2);
-  padding:8px var(--space-3); background:var(--g100); border-bottom:1px solid var(--g200);
-}
-.titel-nr{
-  flex:0 0 52px; border:1px solid var(--g200); outline:none; background:var(--color-white);
-  color:var(--color-black); font-size:12px; font-weight:600; padding:4px 6px; border-radius:3px; text-align:center;
-}
-.titel-name{
-  flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
-  font-size:13px; font-weight:600; color:var(--color-black); padding:2px 4px; border-radius:2px;
-}
-.titel-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
-.titel-total{ font-size:13px; font-weight:600; color:var(--color-black); white-space:nowrap; }
 
 /* ── Positionen ───────────────────────── */
 .positions-table{ display:flex; flex-direction:column; }
@@ -359,7 +349,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-bereich-btn, .col-lib, .col-del{ display:none !important; }
   .board{ display:block; }
   .summary-col{ position:static; margin-top:var(--space-6); width:100%; flex:none; }
-  .bereich-card{ break-inside:avoid; }
+  .gruppe-card.level-top{ break-inside:avoid; }
 }
 
 @media (max-width:900px){
@@ -470,8 +460,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'kostenberechnung_state_v2';
-  var LIBRARY_KEY = 'kostenberechnung_library_v2';
+  var STORAGE_KEY = 'kostenberechnung_state_v3';
+  var LIBRARY_KEY = 'kostenberechnung_library_v3';
   var UNITS = ['m²', 'm³', 'lfm', 'Stk', 'psch', 'kg', 'h', 'Std.', 'pauschal', 't', 'Satz'];
   var RESERVE_DEFAULTS = { schaetzung: 15, berechnung: 10, anschlag: 5 };
   var KOSTENSTAND_LABELS = { schaetzung: 'Kostenschätzung', berechnung: 'Kostenberechnung', anschlag: 'Kostenanschlag' };
@@ -904,11 +894,12 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
 
   /* ── Datenmodell ──────────────────────────────────────
-     state.bereiche[]: { id, nr, name, items: [ Titel | Position ] }
-     Titel:    { kind:'titel', id, nr, name, positions: Position[] }
+     Rekursiver Gruppen-Baum – jede Gruppe kann beliebig tief eigene
+     Untergruppen und/oder Positionen enthalten (state.bereiche = Wurzelebene).
+     Gruppe:   { kind:'gruppe', id, nr, name, children: [ Gruppe | Position ] }
      Position: { kind:'position', id, bez, menge, einheit, ep, active, kg } */
   function newPosition() { return { kind: 'position', id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true, kg: '' }; }
-  function newTitel(nr) { return { kind: 'titel', id: uid(), nr: nr || '', name: '', positions: [newPosition()] }; }
+  function newGruppe(nr) { return { kind: 'gruppe', id: uid(), nr: nr || '', name: '', children: [newPosition()] }; }
 
   function seedData() {
     return {
@@ -925,10 +916,23 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       nkPct: 15,
       mwstPct: 19,
       bereiche: [
-        { id: uid(), nr: '0', name: 'Baustelleneinrichtung', items: [newPosition()] }
+        { kind: 'gruppe', id: uid(), nr: '0', name: 'Baustelleneinrichtung', children: [newPosition()] }
       ],
       snapshots: []
     };
+  }
+
+  function convertLegacyItemToNode(item) {
+    if (item.kind === 'titel') {
+      return { kind: 'gruppe', id: item.id || uid(), nr: item.nr || '', name: item.name || '', children: (item.positions || []).map(normalizePosition) };
+    }
+    return normalizePosition(item);
+  }
+  function convertLegacyBereich(b) {
+    return { kind: 'gruppe', id: b.id || uid(), nr: b.nr || '', name: b.name || '', children: (b.items || []).map(convertLegacyItemToNode) };
+  }
+  function isLegacyBereicheFormat(bereiche) {
+    return bereiche.some(function (b) { return Array.isArray(b.items) && !Array.isArray(b.children); });
   }
 
   function load() {
@@ -939,14 +943,25 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
         if (parsed && Array.isArray(parsed.bereiche)) return normalizeState(parsed);
       }
     } catch (e) { /* ignore corrupted storage */ }
-    // Migration von der Vorgängerversion (flache Maßnahmen -> Bereiche ohne Titel-Ebene)
+    // Migration von der Vorgängerversion (feste Bereich/Titel/Position-Struktur)
     try {
-      var oldRaw = localStorage.getItem('kostenberechnung_state_v1');
+      var oldRaw = localStorage.getItem('kostenberechnung_state_v2');
       if (oldRaw) {
         var oldParsed = JSON.parse(oldRaw);
-        if (oldParsed && Array.isArray(oldParsed.massnahmen)) return migrateFromV1(oldParsed);
+        if (oldParsed && Array.isArray(oldParsed.bereiche)) {
+          oldParsed.bereiche = oldParsed.bereiche.map(convertLegacyBereich);
+          return normalizeState(oldParsed);
+        }
       }
     } catch (e2) { /* ignore */ }
+    // Migration von der Version davor (flache Maßnahmen -> Bereiche ohne Titel-Ebene)
+    try {
+      var v1Raw = localStorage.getItem('kostenberechnung_state_v1');
+      if (v1Raw) {
+        var v1Parsed = JSON.parse(v1Raw);
+        if (v1Parsed && Array.isArray(v1Parsed.massnahmen)) return migrateFromV1(v1Parsed);
+      }
+    } catch (e3) { /* ignore */ }
     return seedData();
   }
 
@@ -959,8 +974,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     s.mwstPct = old.mwstPct != null ? old.mwstPct : 19;
     s.bereiche = old.massnahmen.map(function (m, i) {
       return {
-        id: uid(), nr: String(i), name: m.name || '',
-        items: (m.positions || []).map(function (p) {
+        kind: 'gruppe', id: uid(), nr: String(i), name: m.name || '',
+        children: (m.positions || []).map(function (p) {
           return { kind: 'position', id: uid(), bez: p.bez || '', menge: p.menge, einheit: p.einheit || 'psch', ep: p.ep, active: p.active !== false, kg: m.dinCode || '' };
         })
       };
@@ -980,24 +995,28 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (parsed.ustAnzeige === undefined) parsed.ustAnzeige = 'netto';
     if (parsed.hinweiseText === undefined) parsed.hinweiseText = DEFAULT_HINWEISE;
     if (parsed.aufgestelltVon === undefined) parsed.aufgestelltVon = '';
-    parsed.bereiche.forEach(function (b) {
-      if (b.nr === undefined) b.nr = '';
-      b.items.forEach(normalizeItem);
+    if (isLegacyBereicheFormat(parsed.bereiche)) parsed.bereiche = parsed.bereiche.map(convertLegacyBereich);
+    parsed.bereiche.forEach(normalizeGruppe);
+    parsed.snapshots.forEach(function (snap) {
+      if (Array.isArray(snap.bereiche)) {
+        if (isLegacyBereicheFormat(snap.bereiche)) snap.bereiche = snap.bereiche.map(convertLegacyBereich);
+        snap.bereiche.forEach(normalizeGruppe);
+      }
     });
     return parsed;
   }
-  function normalizeItem(item) {
-    if (item.kind === 'titel') {
-      if (item.nr === undefined) item.nr = '';
-      item.positions.forEach(normalizePosition);
-    } else {
-      normalizePosition(item);
-    }
+  function normalizeGruppe(g) {
+    if (g.nr === undefined) g.nr = '';
+    if (g.name === undefined) g.name = '';
+    if (!Array.isArray(g.children)) g.children = [];
+    g.kind = 'gruppe';
+    g.children.forEach(function (c) { if (c.kind === 'gruppe') normalizeGruppe(c); else normalizePosition(c); });
   }
   function normalizePosition(p) {
     if (p.active === undefined) p.active = true;
     if (p.kg === undefined) p.kg = '';
     p.kind = 'position';
+    return p;
   }
 
   function loadLibrary() {
@@ -1008,6 +1027,21 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
         if (parsed && Array.isArray(parsed.positions) && Array.isArray(parsed.titel)) return parsed;
       }
     } catch (e) { /* ignore corrupted storage */ }
+    // Migration von der Vorgängerversion (Titel-Pakete mit flacher "positions"-Liste)
+    try {
+      var oldRaw = localStorage.getItem('kostenberechnung_library_v2');
+      if (oldRaw) {
+        var oldParsed = JSON.parse(oldRaw);
+        if (oldParsed && Array.isArray(oldParsed.positions) && Array.isArray(oldParsed.titel)) {
+          return {
+            positions: oldParsed.positions,
+            titel: oldParsed.titel.map(function (lt) {
+              return { id: lt.id, name: lt.name, children: (lt.positions || []).map(function (p) { return { bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, kg: p.kg }; }) };
+            })
+          };
+        }
+      }
+    } catch (e2) { /* ignore */ }
     return { positions: [], titel: [] };
   }
   function saveLibrary() {
@@ -1065,43 +1099,44 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
 
   /* ── Baum-Hilfsfunktionen ─────────────────────────────── */
-  function findBereich(id) { return state.bereiche.find(function (b) { return b.id === id; }); }
-  function findTitelIn(bereich, titelId) { return bereich.items.find(function (it) { return it.kind === 'titel' && it.id === titelId; }); }
-  function resolvePosition(bereichId, titelId, positionId) {
-    var bereich = findBereich(bereichId);
-    if (!bereich) return null;
-    if (titelId) {
-      var titel = findTitelIn(bereich, titelId);
-      if (!titel) return null;
-      var pos = titel.positions.find(function (p) { return p.id === positionId; });
-      return pos ? { bereich: bereich, titel: titel, position: pos, list: titel.positions } : null;
+  function locate(id, nodes) {
+    nodes = nodes || state.bereiche;
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.id === id) return { node: n, list: nodes, index: i };
+      if (n.kind === 'gruppe') {
+        var r = locate(id, n.children);
+        if (r) return r;
+      }
     }
-    var idx = bereich.items.findIndex(function (it) { return it.kind === 'position' && it.id === positionId; });
-    if (idx === -1) return null;
-    return { bereich: bereich, titel: null, position: bereich.items[idx], list: bereich.items, index: idx };
+    return null;
   }
+  function findGruppeById(id) { var r = locate(id); return (r && r.node.kind === 'gruppe') ? r.node : null; }
+  function findPositionById(id) { var r = locate(id); return (r && r.node.kind === 'position') ? r.node : null; }
   function allPositionsFlat() {
     var out = [];
-    state.bereiche.forEach(function (b) {
-      b.items.forEach(function (item) {
-        if (item.kind === 'titel') item.positions.forEach(function (p) { out.push({ position: p, bereich: b, titel: item }); });
-        else out.push({ position: item, bereich: b, titel: null });
+    function walk(nodes, path) {
+      nodes.forEach(function (n) {
+        if (n.kind === 'position') out.push({ position: n, path: path });
+        else walk(n.children, path.concat([n]));
       });
-    });
+    }
+    walk(state.bereiche, []);
     return out;
+  }
+  function pathLabel(path) {
+    return path.map(function (g) { return (g.nr ? g.nr + ' ' : '') + (g.name || 'Ohne Namen'); }).join(' / ');
   }
 
   /* ── Berechnungen ─────────────────────────────────────── */
   function rawPositionAmount(p) { return (Number(p.menge) || 0) * (Number(p.ep) || 0); }
   function positionTotal(p) { return p.active === false ? 0 : rawPositionAmount(p); }
-  function titelTotal(titel) { return titel.positions.reduce(function (s, p) { return s + positionTotal(p); }, 0); }
-  function bereichTotal(bereich) {
-    return bereich.items.reduce(function (s, item) {
-      return s + (item.kind === 'titel' ? titelTotal(item) : positionTotal(item));
-    }, 0);
+  function nodeTotal(n) {
+    if (n.kind === 'position') return positionTotal(n);
+    return n.children.reduce(function (s, c) { return s + nodeTotal(c); }, 0);
   }
   function grandNetTotal(bereiche) {
-    return (bereiche || state.bereiche).reduce(function (s, b) { return s + bereichTotal(b); }, 0);
+    return (bereiche || state.bereiche).reduce(function (s, b) { return s + nodeTotal(b); }, 0);
   }
   function computeTotals(cfg) {
     var netto = grandNetTotal(cfg.bereiche);
@@ -1116,16 +1151,16 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   function kgRollup(bereiche) {
     var buckets = {};
-    (bereiche || state.bereiche).forEach(function (b) {
-      b.items.forEach(function (item) {
-        var positions = item.kind === 'titel' ? item.positions : [item];
-        positions.forEach(function (p) {
-          var lvl1 = firstLevelOf(p.kg);
+    function walk(nodes) {
+      nodes.forEach(function (n) {
+        if (n.kind === 'position') {
+          var lvl1 = firstLevelOf(n.kg);
           var key = lvl1 || 'unclassified';
-          buckets[key] = (buckets[key] || 0) + positionTotal(p);
-        });
+          buckets[key] = (buckets[key] || 0) + positionTotal(n);
+        } else walk(n.children);
       });
-    });
+    }
+    walk(bereiche || state.bereiche);
     return buckets;
   }
 
@@ -1195,48 +1230,33 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       '</div>';
   }
 
-  function titelCardHTML(titel, idx, total, itemCount) {
-    return '' +
-      '<div class="titel-card" data-titel-id="' + titel.id + '">' +
-        '<div class="titel-header">' +
-          '<input class="titel-nr" value="' + escHtml(titel.nr) + '" placeholder="Nr.">' +
-          '<input class="titel-name" value="' + escHtml(titel.name) + '" placeholder="Titel / Teilbereich">' +
-          '<div class="titel-total">' + fmtEUR(total) + '</div>' +
-          '<button class="icon-btn" data-action="save-titel-template" title="Als Paket in Bibliothek speichern">☆</button>' +
-          '<button class="icon-btn" data-action="move-item-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
-          '<button class="icon-btn" data-action="move-item-down" title="Nach unten" ' + (idx === itemCount - 1 ? 'disabled' : '') + '>↓</button>' +
-          '<button class="icon-btn danger" data-action="delete-titel" title="Titel löschen">✕</button>' +
-        '</div>' +
-        positionsTableHTML(titel.positions) +
-      '</div>';
-  }
-
-  function bereichCardHTML(bereich, bIdx, total) {
-    var loosePositions = bereich.items.filter(function (it) { return it.kind === 'position'; });
-    var titelItems = bereich.items.filter(function (it) { return it.kind === 'titel'; });
-    var itemsHTML = bereich.items.map(function (item, idx) {
-      if (item.kind === 'titel') return titelCardHTML(item, idx, titelTotal(item), bereich.items.length);
-      return ''; // lose Positionen werden gesammelt gerendert, s.u.
-    }).filter(Boolean).join('');
-
+  function gruppeCardHTML(gruppe, depth, idx, siblingCount) {
+    var loosePositions = gruppe.children.filter(function (c) { return c.kind === 'position'; });
+    var subGruppen = gruppe.children.filter(function (c) { return c.kind === 'gruppe'; });
+    var total = nodeTotal(gruppe);
+    var isTop = depth === 0;
+    var onDark = isTop ? ' on-dark' : '';
+    var levelClass = isTop ? ' level-top' : ' level-sub';
+    var indentStyle = depth > 1 ? ' style="margin-left:' + Math.min((depth - 1) * 18, 72) + 'px"' : '';
+    var subHTML = subGruppen.map(function (sg, i) { return gruppeCardHTML(sg, depth + 1, i, subGruppen.length); }).join('');
     var looseHTML = loosePositions.length ? positionsTableHTML(loosePositions) : '';
-
     return '' +
-      '<div class="bereich-card" data-bereich-id="' + bereich.id + '">' +
-        '<div class="bereich-header">' +
-          '<input class="bereich-nr" value="' + escHtml(bereich.nr) + '" placeholder="Nr.">' +
-          '<input class="bereich-name" value="' + escHtml(bereich.name) + '" placeholder="Bereich / Haus / Gewerk">' +
-          '<div class="bereich-total">' + fmtEUR(total) + '</div>' +
-          '<button class="icon-btn on-dark" data-action="move-bereich-up" title="Nach oben" ' + (bIdx === 0 ? 'disabled' : '') + '>↑</button>' +
-          '<button class="icon-btn on-dark" data-action="move-bereich-down" title="Nach unten" ' + (bIdx === state.bereiche.length - 1 ? 'disabled' : '') + '>↓</button>' +
-          '<button class="icon-btn on-dark danger" data-action="delete-bereich" title="Bereich löschen">✕</button>' +
+      '<div class="gruppe-card' + levelClass + '" data-node-id="' + gruppe.id + '" data-depth="' + depth + '"' + indentStyle + '>' +
+        '<div class="gruppe-header' + levelClass + '">' +
+          '<input class="gruppe-nr" value="' + escHtml(gruppe.nr) + '" placeholder="Nr.">' +
+          '<input class="gruppe-name" value="' + escHtml(gruppe.name) + '" placeholder="' + (isTop ? 'Bereich / Haus / Gewerk' : 'Titel / Teilbereich') + '">' +
+          '<div class="gruppe-total">' + fmtEUR(total) + '</div>' +
+          '<button class="icon-btn' + onDark + '" data-action="save-gruppe-template" title="Als Paket in Bibliothek speichern">☆</button>' +
+          '<button class="icon-btn' + onDark + '" data-action="move-node-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
+          '<button class="icon-btn' + onDark + '" data-action="move-node-down" title="Nach unten" ' + (idx === siblingCount - 1 ? 'disabled' : '') + '>↓</button>' +
+          '<button class="icon-btn' + onDark + ' danger" data-action="delete-gruppe" title="' + (isTop ? 'Bereich' : 'Ebene') + ' löschen">✕</button>' +
         '</div>' +
-        '<div class="bereich-body">' +
-          looseHTML + itemsHTML +
+        '<div class="gruppe-body">' +
+          looseHTML + subHTML +
           '<div class="add-inline-row">' +
-            '<button class="add-inline-btn" data-action="add-loose-position">+ Position direkt im Bereich</button>' +
-            '<button class="add-inline-btn" data-action="add-titel">+ Titel / Teilbereich</button>' +
-            '<button class="add-inline-btn" data-action="add-titel-from-library">+ Paket aus Bibliothek</button>' +
+            '<button class="add-inline-btn" data-action="add-loose-position">+ Position direkt ' + (isTop ? 'im Bereich' : 'in dieser Ebene') + '</button>' +
+            '<button class="add-inline-btn" data-action="add-subgruppe">+ Unterebene</button>' +
+            '<button class="add-inline-btn" data-action="add-gruppe-from-library">+ Paket aus Bibliothek</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1247,7 +1267,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (!state.bereiche.length) {
       col.innerHTML = '<div class="empty-hint">Noch keine Bereiche. Leg mit „+ Bereich" los.</div>';
     } else {
-      col.innerHTML = state.bereiche.map(function (b, idx) { return bereichCardHTML(b, idx, bereichTotal(b)); }).join('');
+      col.innerHTML = state.bereiche.map(function (b, idx) { return gruppeCardHTML(b, 0, idx, state.bereiche.length); }).join('');
     }
     col.innerHTML += '<div class="add-bereich-row">' +
       '<button class="add-bereich-btn" data-action="add-bereich">+ Bereich hinzufügen</button>' +
@@ -1270,7 +1290,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var s = computeSummary();
     var netto = s.netto || 1;
     var breakdown = state.bereiche.map(function (b) {
-      var t = bereichTotal(b);
+      var t = nodeTotal(b);
       return '<div class="breakdown-row">' +
         '<div class="swatch"></div>' +
         '<div class="name">' + escHtml((b.nr ? b.nr + ' ' : '') + (b.name || 'Ohne Namen')) + '</div>' +
@@ -1301,97 +1321,62 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   function updateTotalsOnly() {
     document.querySelectorAll('.position-row').forEach(function (row) {
-      var posId = row.getAttribute('data-position-id');
-      var found = allPositionsFlat().find(function (x) { return x.position.id === posId; });
-      if (!found) return;
-      row.querySelector('.col-gesamt').textContent = fmtEUR(rawPositionAmount(found.position));
-      row.classList.toggle('inactive', found.position.active === false);
+      var p = findPositionById(row.getAttribute('data-position-id'));
+      if (!p) return;
+      row.querySelector('.col-gesamt').textContent = fmtEUR(rawPositionAmount(p));
+      row.classList.toggle('inactive', p.active === false);
     });
-    document.querySelectorAll('.titel-card').forEach(function (card) {
-      var titelId = card.getAttribute('data-titel-id');
-      var bereichCard = card.closest('.bereich-card');
-      var bereich = findBereich(bereichCard.getAttribute('data-bereich-id'));
-      var titel = bereich && findTitelIn(bereich, titelId);
-      if (titel) card.querySelector('.titel-total').textContent = fmtEUR(titelTotal(titel));
-    });
-    document.querySelectorAll('.bereich-card').forEach(function (card) {
-      var bereich = findBereich(card.getAttribute('data-bereich-id'));
-      if (bereich) card.querySelector('.bereich-total').textContent = fmtEUR(bereichTotal(bereich));
+    document.querySelectorAll('.gruppe-card').forEach(function (card) {
+      var g = findGruppeById(card.getAttribute('data-node-id'));
+      if (!g) return;
+      var totalEl = card.querySelector(':scope > .gruppe-header .gruppe-total');
+      if (totalEl) totalEl.textContent = fmtEUR(nodeTotal(g));
     });
     renderSummary();
   }
 
   /* ── Mutationen ───────────────────────────────────────── */
   function addBereich() {
-    state.bereiche.push({ id: uid(), nr: String(state.bereiche.length), name: '', items: [newPosition()] });
+    state.bereiche.push({ kind: 'gruppe', id: uid(), nr: String(state.bereiche.length), name: '', children: [newPosition()] });
     save(); renderBereiche(); renderSummary();
-    var cards = document.querySelectorAll('.bereich-card');
-    var last = cards[cards.length - 1];
-    if (last) { var el = last.querySelector('.bereich-name'); if (el) el.focus(); }
+    focusLast('.gruppe-card.level-top > .gruppe-header > .gruppe-name');
   }
-  function deleteBereich(id) {
-    var b = findBereich(id);
-    showConfirm('„' + (b.name || 'Dieser Bereich') + '" inkl. aller Titel und Positionen wirklich löschen?', function () {
-      state.bereiche = state.bereiche.filter(function (x) { return x.id !== id; });
+  function deleteNode(id) {
+    var loc = locate(id);
+    if (!loc) return;
+    var n = loc.node;
+    if (n.kind === 'gruppe') {
+      showConfirm('„' + (n.name || 'Diese Ebene') + '" inkl. aller Unterebenen und Positionen wirklich löschen?', function () {
+        loc.list.splice(loc.index, 1);
+        save(); renderBereiche(); renderSummary();
+      });
+    } else {
+      loc.list.splice(loc.index, 1);
       save(); renderBereiche(); renderSummary();
-    });
+    }
   }
-  function moveBereich(id, dir) {
-    var idx = state.bereiche.findIndex(function (b) { return b.id === id; });
-    var newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= state.bereiche.length) return;
-    var tmp = state.bereiche[idx]; state.bereiche[idx] = state.bereiche[newIdx]; state.bereiche[newIdx] = tmp;
+  function moveNode(id, dir) {
+    var loc = locate(id);
+    if (!loc) return;
+    var newIdx = loc.index + dir;
+    if (newIdx < 0 || newIdx >= loc.list.length) return;
+    var tmp = loc.list[loc.index]; loc.list[loc.index] = loc.list[newIdx]; loc.list[newIdx] = tmp;
     save(); renderBereiche(); renderSummary();
   }
-
-  function addTitel(bereichId) {
-    var b = findBereich(bereichId);
-    if (!b) return;
-    var titelCount = b.items.filter(function (it) { return it.kind === 'titel'; }).length;
-    b.items.push(newTitel((b.nr || '') + '.' + (titelCount + 1)));
+  function addSubGruppe(parentId) {
+    var parent = findGruppeById(parentId);
+    if (!parent) return;
+    var subCount = parent.children.filter(function (c) { return c.kind === 'gruppe'; }).length;
+    parent.children.push({ kind: 'gruppe', id: uid(), nr: (parent.nr ? parent.nr + '.' : '') + (subCount + 1), name: '', children: [newPosition()] });
     save(); renderBereiche(); renderSummary();
-    focusLast('.bereich-card[data-bereich-id="' + bereichId + '"] .titel-name');
+    focusLast('.gruppe-card[data-node-id="' + parentId + '"] > .gruppe-body > .gruppe-card > .gruppe-header > .gruppe-name');
   }
-  function deleteTitel(bereichId, titelId) {
-    var b = findBereich(bereichId);
-    if (!b) return;
-    var titel = findTitelIn(b, titelId);
-    showConfirm('Titel „' + (titel && titel.name || 'ohne Namen') + '" inkl. aller Positionen wirklich löschen?', function () {
-      b.items = b.items.filter(function (it) { return !(it.kind === 'titel' && it.id === titelId); });
-      save(); renderBereiche(); renderSummary();
-    });
-  }
-  function addLoosePosition(bereichId) {
-    var b = findBereich(bereichId);
-    if (!b) return;
-    b.items.push(newPosition());
+  function addPositionToGruppe(gruppeId) {
+    var g = findGruppeById(gruppeId);
+    if (!g) return;
+    g.children.push(newPosition());
     save(); renderBereiche(); renderSummary();
-    focusLast('.bereich-card[data-bereich-id="' + bereichId + '"] .col-bez-input');
-  }
-  function addPositionToTitel(bereichId, titelId) {
-    var b = findBereich(bereichId);
-    var titel = b && findTitelIn(b, titelId);
-    if (!titel) return;
-    titel.positions.push(newPosition());
-    save(); renderBereiche(); renderSummary();
-    focusLast('.titel-card[data-titel-id="' + titelId + '"] .col-bez-input');
-  }
-  function deletePosition(bereichId, titelId, positionId) {
-    var r = resolvePosition(bereichId, titelId, positionId);
-    if (!r) return;
-    if (r.titel) r.titel.positions = r.titel.positions.filter(function (p) { return p.id !== positionId; });
-    else r.bereich.items = r.bereich.items.filter(function (it) { return !(it.kind === 'position' && it.id === positionId); });
-    save(); renderBereiche(); renderSummary();
-  }
-  function moveItemWithinBereich(bereichId, titelId, dir) {
-    var b = findBereich(bereichId);
-    if (!b) return;
-    var idx = b.items.findIndex(function (it) { return it.kind === 'titel' && it.id === titelId; });
-    if (idx === -1) return;
-    var newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= b.items.length) return;
-    var tmp = b.items[idx]; b.items[idx] = b.items[newIdx]; b.items[newIdx] = tmp;
-    save(); renderBereiche(); renderSummary();
+    focusLast('.gruppe-card[data-node-id="' + gruppeId + '"] > .gruppe-body > .positions-table .col-bez-input');
   }
   function focusLast(sel) {
     var nodes = document.querySelectorAll(sel);
@@ -1400,20 +1385,25 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
 
   /* ── Bibliothek ─────────────────────────────────────── */
-  function saveLibraryPosition(bereichId, titelId, positionId) {
-    var r = resolvePosition(bereichId, titelId, positionId);
-    if (!r) return;
-    library.positions.push({ id: uid(), bez: r.position.bez, einheit: r.position.einheit, ep: r.position.ep, kg: r.position.kg });
+  function saveLibraryPosition(positionId) {
+    var p = findPositionById(positionId);
+    if (!p) return;
+    library.positions.push({ id: uid(), bez: p.bez, einheit: p.einheit, ep: p.ep, kg: p.kg });
     saveLibrary();
   }
-  function saveLibraryTitel(bereichId, titelId) {
-    var b = findBereich(bereichId);
-    var titel = b && findTitelIn(b, titelId);
-    if (!titel) return;
-    library.titel.push({
-      id: uid(), name: titel.name,
-      positions: titel.positions.map(function (p) { return { bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, kg: p.kg }; })
-    });
+  function cloneGruppeForLibrary(g) {
+    return {
+      name: g.name,
+      children: g.children.map(function (c) {
+        return c.kind === 'gruppe' ? cloneGruppeForLibrary(c) : { bez: c.bez, menge: c.menge, einheit: c.einheit, ep: c.ep, kg: c.kg };
+      })
+    };
+  }
+  function saveLibraryGruppe(gruppeId) {
+    var g = findGruppeById(gruppeId);
+    if (!g) return;
+    var clone = cloneGruppeForLibrary(g);
+    library.titel.push({ id: uid(), name: clone.name, children: clone.children });
     saveLibrary();
   }
 
@@ -1428,13 +1418,20 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       '</div>';
     }).join('') + '</div>';
   }
+  function countLibraryGruppePositions(node) {
+    return (node.children || []).reduce(function (s, c) { return s + ('children' in c ? countLibraryGruppePositions(c) : 1); }, 0);
+  }
+  function sumLibraryGruppeTotal(node) {
+    return (node.children || []).reduce(function (s, c) { return s + ('children' in c ? sumLibraryGruppeTotal(c) : (Number(c.menge) || 0) * (Number(c.ep) || 0)); }, 0);
+  }
   function libraryTitelPickerHTML(onEmpty, showInsert) {
     if (!library.titel.length) return '<div class="lib-empty">' + onEmpty + '</div>';
     return '<div class="lib-list">' + library.titel.map(function (lt) {
-      var t = lt.positions.reduce(function (s, p) { return s + (Number(p.menge) || 0) * (Number(p.ep) || 0); }, 0);
+      var t = sumLibraryGruppeTotal(lt);
+      var n = countLibraryGruppePositions(lt);
       return '<div class="lib-item" data-lib-titel-id="' + lt.id + '">' +
         '<div class="info"><div class="n">' + escHtml(lt.name || 'Ohne Namen') + '</div>' +
-        '<div class="d">' + lt.positions.length + ' Position(en) · ' + fmtEUR(t) + '</div></div>' +
+        '<div class="d">' + n + ' Position(en) · ' + fmtEUR(t) + '</div></div>' +
         (showInsert ? '<button class="btn" data-action="insert-library-titel" data-lib-titel-id="' + lt.id + '">Einfügen</button>' : '') +
         '<button class="icon-btn danger" data-action="delete-library-titel" data-lib-titel-id="' + lt.id + '" title="Aus Bibliothek löschen">✕</button>' +
       '</div>';
@@ -1443,11 +1440,11 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   function openLibraryModal() {
     var body = '<div class="lib-tabs">' +
       '<button class="lib-tab active" data-lib-tab="positions">Einzelpositionen</button>' +
-      '<button class="lib-tab" data-lib-tab="titel">Titel-Pakete</button>' +
+      '<button class="lib-tab" data-lib-tab="titel">Pakete</button>' +
       '</div>' +
-      '<p style="font-size:12px;color:var(--g600);margin:0 0 var(--space-4) 0;">Zum Einfügen die Bibliothek über „+ Aus Bibliothek" bzw. „+ Paket aus Bibliothek" direkt an einem Bereich/Titel öffnen. Hier nur Verwalten/Löschen.</p>' +
+      '<p style="font-size:12px;color:var(--g600);margin:0 0 var(--space-4) 0;">Zum Einfügen die Bibliothek über „+ Aus Bibliothek" bzw. „+ Paket aus Bibliothek" direkt an einer Ebene öffnen. Hier nur Verwalten/Löschen.</p>' +
       '<div id="libTabPositions">' + libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek. Speichere eine Position über das ☆-Symbol.', false) + '</div>' +
-      '<div id="libTabTitel" style="display:none">' + libraryTitelPickerHTML('Noch keine Titel-Pakete in der Bibliothek. Speichere einen Titel über das ☆-Symbol im Titel-Kopf.', false) + '</div>';
+      '<div id="libTabTitel" style="display:none">' + libraryTitelPickerHTML('Noch keine Pakete in der Bibliothek. Speichere eine Ebene über das ☆-Symbol im Kopf.', false) + '</div>';
     showModal('Bibliothek', body, {
       wide: true,
       onOpen: function (overlay) {
@@ -1463,39 +1460,39 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       }
     });
   }
-  function openLibraryPositionPickerForBereich(bereichId, titelId) {
+  function openLibraryPositionPickerForGruppe(gruppeId) {
     var body = libraryPositionPickerHTML('Noch keine Positionen in der Bibliothek.', true);
     showModal('Position aus Bibliothek einfügen', body, {
-      onOpen: function (overlay) {
-        overlay.setAttribute('data-target-bereich', bereichId);
-        overlay.setAttribute('data-target-titel', titelId || '');
-      }
+      onOpen: function (overlay) { overlay.setAttribute('data-target-gruppe', gruppeId); }
     });
   }
-  function openLibraryTitelPickerForBereich(bereichId) {
-    var body = libraryTitelPickerHTML('Noch keine Titel-Pakete in der Bibliothek.', true);
-    showModal('Titel-Paket aus Bibliothek einfügen', body, {
-      onOpen: function (overlay) { overlay.setAttribute('data-target-bereich', bereichId); }
+  function openLibraryGruppePickerForGruppe(gruppeId) {
+    var body = libraryTitelPickerHTML('Noch keine Pakete in der Bibliothek.', true);
+    showModal('Paket aus Bibliothek einfügen', body, {
+      onOpen: function (overlay) { overlay.setAttribute('data-target-gruppe', gruppeId); }
     });
   }
-  function insertLibraryPosition(libPosId, bereichId, titelId) {
+  function insertLibraryPosition(libPosId, gruppeId) {
     var lp = library.positions.find(function (x) { return x.id === libPosId; });
-    var b = findBereich(bereichId);
-    if (!lp || !b) return;
-    var pos = { kind: 'position', id: uid(), bez: lp.bez, menge: null, einheit: lp.einheit, ep: lp.ep, active: true, kg: lp.kg || '' };
-    if (titelId) { var titel = findTitelIn(b, titelId); if (titel) titel.positions.push(pos); }
-    else b.items.push(pos);
+    var g = findGruppeById(gruppeId);
+    if (!lp || !g) return;
+    g.children.push({ kind: 'position', id: uid(), bez: lp.bez, menge: null, einheit: lp.einheit, ep: lp.ep, active: true, kg: lp.kg || '' });
     save(); renderBereiche(); renderSummary();
     closeModal();
   }
-  function insertLibraryTitel(libTitelId, bereichId) {
+  function instantiateLibraryNode(node) {
+    return {
+      kind: 'gruppe', id: uid(), nr: '', name: node.name || '',
+      children: (node.children || []).map(function (c) {
+        return ('children' in c) ? instantiateLibraryNode(c) : { kind: 'position', id: uid(), bez: c.bez, menge: c.menge, einheit: c.einheit, ep: c.ep, active: true, kg: c.kg || '' };
+      })
+    };
+  }
+  function insertLibraryTitel(libTitelId, gruppeId) {
     var lt = library.titel.find(function (x) { return x.id === libTitelId; });
-    var b = findBereich(bereichId);
-    if (!lt || !b) return;
-    b.items.push({
-      kind: 'titel', id: uid(), nr: '', name: lt.name,
-      positions: lt.positions.map(function (p) { return { kind: 'position', id: uid(), bez: p.bez, menge: p.menge, einheit: p.einheit, ep: p.ep, active: true, kg: p.kg || '' }; })
-    });
+    var g = findGruppeById(gruppeId);
+    if (!lt || !g) return;
+    g.children.push(instantiateLibraryNode(lt));
     save(); renderBereiche(); renderSummary();
   }
 
@@ -1514,14 +1511,12 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     }).join('');
   }
 
-  function openDinPickerForPosition(bereichId, titelId, positionId) {
+  function openDinPickerForPosition(positionId) {
     var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Außenwände"></div>' +
       '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>' +
       '<button class="btn din-picker-clear" data-action="apply-din-code" data-din-code="">Zuordnung entfernen</button>';
     showModal('DIN-Kostengruppe zuordnen', body, {
       onOpen: function (overlay) {
-        overlay.setAttribute('data-target-bereich', bereichId);
-        overlay.setAttribute('data-target-titel', titelId || '');
         overlay.setAttribute('data-target-position', positionId);
         var input = $('#dinPickerSearch');
         input.addEventListener('input', function () { $('#dinPickerList').innerHTML = dinPickerListHTML(input.value); });
@@ -1534,25 +1529,25 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>';
     showModal('Bereich aus DIN 276 anlegen', body, {
       onOpen: function (overlay) {
-        overlay.setAttribute('data-target-bereich', 'NEW_BEREICH');
+        overlay.setAttribute('data-target-position', 'NEW_BEREICH');
         var input = $('#dinPickerSearch');
         input.addEventListener('input', function () { $('#dinPickerList').innerHTML = dinPickerListHTML(input.value); });
         input.focus();
       }
     });
   }
-  function applyDinCode(bereichId, titelId, positionId, code) {
-    if (bereichId === 'NEW_BEREICH') {
-      var kg = DIN276_BY_CODE[code];
-      if (!kg) return;
-      state.bereiche.push({ id: uid(), nr: kg.code, name: kg.title, items: [newPosition()] });
+  function applyDinCode(targetId, code) {
+    if (targetId === 'NEW_BEREICH') {
+      var kgDef = DIN276_BY_CODE[code];
+      if (!kgDef) return;
+      state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kgDef.code, name: kgDef.title, children: [newPosition()] });
       save(); renderBereiche(); renderSummary();
       closeModal();
       return;
     }
-    var r = resolvePosition(bereichId, titelId, positionId);
-    if (!r) return;
-    r.position.kg = code || '';
+    var p = findPositionById(targetId);
+    if (!p) return;
+    p.kg = code || '';
     save(); renderBereiche(); renderSummary();
     closeModal();
   }
@@ -1569,8 +1564,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var rows = candidates.map(function (x) {
       var code = suggestions[x.position.id];
       var kg = code ? DIN276_BY_CODE[code] : null;
-      var ctx = (x.bereich.nr ? x.bereich.nr + ' ' : '') + x.bereich.name + (x.titel ? ' / ' + (x.titel.nr ? x.titel.nr + ' ' : '') + x.titel.name : '');
-      return '<div class="din-suggest-row" data-bereich-id="' + x.bereich.id + '" data-titel-id="' + (x.titel ? x.titel.id : '') + '" data-position-id="' + x.position.id + '">' +
+      var ctx = pathLabel(x.path);
+      return '<div class="din-suggest-row" data-position-id="' + x.position.id + '">' +
         '<div class="info"><div class="ctx">' + escHtml(ctx) + '</div><div class="n">' + escHtml(x.position.bez) + '</div>' +
         (kg ? '<div class="d">Vorschlag: KG ' + kg.code + ' – ' + escHtml(kg.title) + '</div>' : '<div class="d none">Kein automatischer Vorschlag – bitte manuell wählen</div>') +
         '</div>' +
@@ -1605,7 +1600,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       return;
     }
     showConfirm('Die ' + toAdd.length + ' fehlenden Kostengruppen der 1. Ebene (' + toAdd.map(function (kg) { return kg.code; }).join(', ') + ') als leere Bereiche anlegen?', function () {
-      toAdd.forEach(function (kg) { state.bereiche.push({ id: uid(), nr: kg.code, name: kg.title, items: [newPosition()] }); });
+      toAdd.forEach(function (kg) { state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kg.code, name: kg.title, children: [newPosition()] }); });
       save(); renderBereiche(); renderSummary();
     });
   }
@@ -1615,28 +1610,23 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
     var action = actionEl.getAttribute('data-action');
-    var bereichCard = actionEl.closest('.bereich-card');
-    var bereichId = actionEl.getAttribute('data-bereich-id') || (bereichCard ? bereichCard.getAttribute('data-bereich-id') : null);
-    var titelCard = actionEl.closest('.titel-card');
-    var titelId = actionEl.getAttribute('data-titel-id') || (titelCard ? titelCard.getAttribute('data-titel-id') : null);
+    var card = actionEl.closest('.gruppe-card');
+    var nodeId = actionEl.getAttribute('data-node-id') || (card ? card.getAttribute('data-node-id') : null);
     var posRow = actionEl.closest('.position-row');
     var positionId = actionEl.getAttribute('data-position-id') || (posRow ? posRow.getAttribute('data-position-id') : null);
 
     if (action === 'add-bereich') addBereich();
-    else if (action === 'delete-bereich') deleteBereich(bereichId);
-    else if (action === 'move-bereich-up') moveBereich(bereichId, -1);
-    else if (action === 'move-bereich-down') moveBereich(bereichId, 1);
-    else if (action === 'add-titel') addTitel(bereichId);
-    else if (action === 'delete-titel') deleteTitel(bereichId, titelId);
-    else if (action === 'move-item-up') moveItemWithinBereich(bereichId, titelId, -1);
-    else if (action === 'move-item-down') moveItemWithinBereich(bereichId, titelId, 1);
-    else if (action === 'add-loose-position') addLoosePosition(bereichId);
-    else if (action === 'add-position') { if (titelId) addPositionToTitel(bereichId, titelId); else addLoosePosition(bereichId); }
-    else if (action === 'delete-position') deletePosition(bereichId, titelId, positionId);
-    else if (action === 'save-position-template') saveLibraryPosition(bereichId, titelId, positionId);
-    else if (action === 'save-titel-template') saveLibraryTitel(bereichId, titelId);
-    else if (action === 'add-position-from-library') openLibraryPositionPickerForBereich(bereichId, titelId);
-    else if (action === 'add-titel-from-library') openLibraryTitelPickerForBereich(bereichId);
+    else if (action === 'delete-gruppe') deleteNode(nodeId);
+    else if (action === 'move-node-up') moveNode(nodeId, -1);
+    else if (action === 'move-node-down') moveNode(nodeId, 1);
+    else if (action === 'add-subgruppe') addSubGruppe(nodeId);
+    else if (action === 'add-loose-position') addPositionToGruppe(nodeId);
+    else if (action === 'add-position') addPositionToGruppe(nodeId);
+    else if (action === 'delete-position') deleteNode(positionId);
+    else if (action === 'save-position-template') saveLibraryPosition(positionId);
+    else if (action === 'save-gruppe-template') saveLibraryGruppe(nodeId);
+    else if (action === 'add-position-from-library') openLibraryPositionPickerForGruppe(nodeId);
+    else if (action === 'add-gruppe-from-library') openLibraryGruppePickerForGruppe(nodeId);
     else if (action === 'open-library') openLibraryModal();
     else if (action === 'open-file') $('#fileInput').click();
     else if (action === 'save-file') saveToFile();
@@ -1651,7 +1641,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     else if (action === 'insert-library-position') {
       var libPosId = actionEl.getAttribute('data-lib-position-id');
       var overlay1 = $('#modalOverlay');
-      insertLibraryPosition(libPosId, overlay1.getAttribute('data-target-bereich'), overlay1.getAttribute('data-target-titel') || null);
+      insertLibraryPosition(libPosId, overlay1.getAttribute('data-target-gruppe'));
     }
     else if (action === 'delete-library-position') {
       var delPosId = actionEl.getAttribute('data-lib-position-id');
@@ -1662,7 +1652,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     else if (action === 'insert-library-titel') {
       var libTitelId = actionEl.getAttribute('data-lib-titel-id');
       var overlay2 = $('#modalOverlay');
-      insertLibraryTitel(libTitelId, overlay2.getAttribute('data-target-bereich'));
+      insertLibraryTitel(libTitelId, overlay2.getAttribute('data-target-gruppe'));
       closeModal();
     }
     else if (action === 'delete-library-titel') {
@@ -1682,16 +1672,16 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       downloadKostenPDF(mode);
       closeModal();
     }
-    else if (action === 'pick-din-code') openDinPickerForPosition(bereichId, titelId, positionId);
+    else if (action === 'pick-din-code') openDinPickerForPosition(positionId);
     else if (action === 'add-bereich-from-din') openDinPickerForNewBereich();
     else if (action === 'apply-din-code') {
       var overlayDin = $('#modalOverlay');
-      applyDinCode(overlayDin.getAttribute('data-target-bereich'), overlayDin.getAttribute('data-target-titel') || null, overlayDin.getAttribute('data-target-position'), actionEl.getAttribute('data-din-code'));
+      applyDinCode(overlayDin.getAttribute('data-target-position'), actionEl.getAttribute('data-din-code'));
     }
     else if (action === 'suggest-din') openDinSuggestModal();
     else if (action === 'accept-din-suggestion') {
       var row = actionEl.closest('.din-suggest-row');
-      applyDinCode(row.getAttribute('data-bereich-id'), row.getAttribute('data-titel-id') || null, row.getAttribute('data-position-id'), actionEl.getAttribute('data-din-code'));
+      applyDinCode(row.getAttribute('data-position-id'), actionEl.getAttribute('data-din-code'));
       openDinSuggestModal();
     }
     else if (action === 'seed-din-skeleton') seedDinSkeleton();
@@ -1701,7 +1691,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var row = e.target.closest('.din-suggest-row');
     var btn = e.target.closest('[data-action="pick-din-code"]');
     if (row && btn) {
-      openDinPickerForPosition(row.getAttribute('data-bereich-id'), row.getAttribute('data-titel-id') || null, row.getAttribute('data-position-id'));
+      openDinPickerForPosition(row.getAttribute('data-position-id'));
     }
   });
 
@@ -1714,29 +1704,19 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (t.id === 'nkPct') { state.nkPct = Number(t.value) || 0; save(); renderSummary(); return; }
     if (t.id === 'mwstPct') { state.mwstPct = Number(t.value) || 0; save(); renderSummary(); return; }
 
-    var bereichCard = t.closest('.bereich-card');
-    if (!bereichCard) return;
-    var bereich = findBereich(bereichCard.getAttribute('data-bereich-id'));
-    if (!bereich) return;
-
-    if (t.classList.contains('bereich-nr')) { bereich.nr = t.value; save(); renderSummary(); return; }
-    if (t.classList.contains('bereich-name')) { bereich.name = t.value; save(); renderSummary(); return; }
-
-    var titelCard = t.closest('.titel-card');
-    if (titelCard) {
-      var titel = findTitelIn(bereich, titelCard.getAttribute('data-titel-id'));
-      if (titel) {
-        if (t.classList.contains('titel-nr')) { titel.nr = t.value; save(); return; }
-        if (t.classList.contains('titel-name')) { titel.name = t.value; save(); renderSummary(); return; }
+    var card = t.closest('.gruppe-card');
+    if (card) {
+      var g = findGruppeById(card.getAttribute('data-node-id'));
+      if (g) {
+        if (t.classList.contains('gruppe-nr')) { g.nr = t.value; save(); renderSummary(); return; }
+        if (t.classList.contains('gruppe-name')) { g.name = t.value; save(); renderSummary(); return; }
       }
     }
 
     var row = t.closest('.position-row');
     if (!row) return;
-    var titelIdForPos = titelCard ? titelCard.getAttribute('data-titel-id') : null;
-    var r = resolvePosition(bereich.id, titelIdForPos, row.getAttribute('data-position-id'));
-    if (!r) return;
-    var p = r.position;
+    var p = findPositionById(row.getAttribute('data-position-id'));
+    if (!p) return;
 
     if (t.classList.contains('col-bez-input')) p.bez = t.value;
     else if (t.classList.contains('col-menge-input')) p.menge = t.value === '' ? null : Number(t.value);
@@ -1837,15 +1817,18 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   function bereichLabel(b) { return (b.nr ? b.nr + ' ' : '') + (b.name || 'Ohne Namen'); }
   function collectLeafPositions(bereich) {
     var out = [];
-    bereich.items.forEach(function (item) {
-      if (item.kind === 'titel') item.positions.forEach(function (p) { out.push({ label: (item.nr ? item.nr + ' ' : '') + (item.name || '') + ' – ' + (p.bez || '(ohne Bezeichnung)'), p: p }); });
-      else out.push({ label: item.bez || '(ohne Bezeichnung)', p: item });
-    });
+    function walk(nodes, path) {
+      nodes.forEach(function (n) {
+        if (n.kind === 'position') out.push({ label: (path.length ? path.join(' / ') + ' – ' : '') + (n.bez || '(ohne Bezeichnung)'), p: n });
+        else walk(n.children, path.concat([(n.nr ? n.nr + ' ' : '') + (n.name || '')]));
+      });
+    }
+    walk(bereich.children, []);
     return out;
   }
   function compareAmountForBereich(col, label) {
     var sum = 0;
-    col.bereiche.forEach(function (b) { if (bereichLabel(b) === label) sum += bereichTotal(b); });
+    col.bereiche.forEach(function (b) { if (bereichLabel(b) === label) sum += nodeTotal(b); });
     return sum;
   }
   function comparePositionLabelsForBereich(col, label) {
@@ -1960,17 +1943,16 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
         var title = DIN276_BY_CODE[code] ? code + ' ' + DIN276_BY_CODE[code].title : code;
         var subTotal = byCode[code].reduce(function (s, x) { return s + positionTotal(x.position); }, 0);
         var posRows = byCode[code].map(function (x) {
-          var ctx = bereichLabel(x.bereich) + (x.titel ? ' / ' + (x.titel.nr ? x.titel.nr + ' ' : '') + x.titel.name : '');
-          return '<tr class="position-row-cmp"><td>' + escHtml(ctx + ' – ' + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
+          var ctx = pathLabel(x.path);
+          return '<tr class="position-row-cmp"><td>' + escHtml((ctx ? ctx + ' – ' : '') + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
         }).join('');
         return '<tr class="kg-group-row"><td>' + escHtml(title) + '</td><td>' + fmtEUR(subTotal) + '</td></tr>' + posRows;
       }).join('');
-      // Falls die einzige Untergruppe der Level-1-Code selbst ist, direkt Positionen zeigen
       var directPosRows = '';
       if (lvl1Buckets[lvl1].length === 1 && lvl1Buckets[lvl1][0] === lvl1) {
         directPosRows = byCode[lvl1].map(function (x) {
-          var ctx = bereichLabel(x.bereich) + (x.titel ? ' / ' + (x.titel.nr ? x.titel.nr + ' ' : '') + x.titel.name : '');
-          return '<tr class="position-row-cmp"><td>' + escHtml(ctx + ' – ' + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
+          var ctx = pathLabel(x.path);
+          return '<tr class="position-row-cmp"><td>' + escHtml((ctx ? ctx + ' – ' : '') + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
         }).join('');
       }
       return '<tr class="kg-group-row first-level"><td>' + escHtml(lvl1Title) + '</td><td>' + fmtEUR(lvl1Total) + '</td></tr>' + sub + directPosRows;
@@ -2140,7 +2122,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     line('Berlin, ' + fmtDE(new Date()) + (state.aufgestelltVon ? ' , ' + state.aufgestelltVon : ''), 'F1', 9, MARGIN); y -= 24;
     if (mode === 'full') line('Anlage: Kostenschätzung im Detail', 'F1', 9, MARGIN);
 
-    /* ── Teil 3: Anlage 1 – Detail (nur im "full"-Modus) ─── */
+    /* ── Teil 3: Anlage 1 – Detail (nur im "full"-Modus, rekursiv über beliebig tiefe Ebenen) ─── */
     if (mode === 'full') {
       newPage();
       cur.push('BT /F2 13 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (Anlage 1 - Kostenschaetzung im Detail) Tj ET'); y -= 22;
@@ -2151,36 +2133,34 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       }
       ensureSpace(80); detailHeaderRow();
 
-      state.bereiche.forEach(function (b) {
-        ensureSpace(60);
-        y -= 4; ensureSpace(60);
-        cur.push('BT /F2 10 Tf 1 0 0 1 ' + MARGIN + ' ' + y + ' Tm (' + pdfEsc((b.nr ? b.nr + '  ' : '') + pdfTruncate(b.name || 'Ohne Namen', 60)) + ') Tj ET');
-        line(fmtEUR(bereichTotal(b)), 'F2', 10, PAGE_W - MARGIN - 70);
-        y -= 16;
-
-        function isBlankPosition(p) { return !((p.bez || '').trim()) && p.menge == null && p.ep == null; }
-        function printPositionRow(p, idx) {
-          ensureSpace();
-          line(String(idx), 'F1', 8, MARGIN);
-          line(p.kg || '', 'F1', 8, MARGIN + 34);
-          line(pdfTruncate(p.bez || '', 46), 'F1', 8, MARGIN + 62);
-          line(p.menge == null ? '' : String(p.menge), 'F1', 8, 330);
-          line(p.einheit || '', 'F1', 8, 375);
-          line(fmtEUR(p.ep || 0), 'F1', 8, 410);
-          line(fmtEUR(rawPositionAmount(p)), 'F1', 8, 470);
-          y -= 13;
-        }
+      function isBlankPosition(p) { return !((p.bez || '').trim()) && p.menge == null && p.ep == null; }
+      function printPositionRow(p, idx) {
+        ensureSpace();
+        line(String(idx), 'F1', 8, MARGIN);
+        line(p.kg || '', 'F1', 8, MARGIN + 34);
+        line(pdfTruncate(p.bez || '', 46), 'F1', 8, MARGIN + 62);
+        line(p.menge == null ? '' : String(p.menge), 'F1', 8, 330);
+        line(p.einheit || '', 'F1', 8, 375);
+        line(fmtEUR(p.ep || 0), 'F1', 8, 410);
+        line(fmtEUR(rawPositionAmount(p)), 'F1', 8, 470);
+        y -= 13;
+      }
+      function printGruppeRecursive(g, depth) {
+        ensureSpace(depth === 0 ? 60 : 40);
+        if (depth === 0) { y -= 4; ensureSpace(60); }
+        var fontSize = depth === 0 ? 10 : 9;
+        var indent = MARGIN + Math.min(depth * 10, 50);
+        cur.push('BT /F2 ' + fontSize + ' Tf 1 0 0 1 ' + indent + ' ' + y + ' Tm (' + pdfEsc((g.nr ? g.nr + '  ' : '') + pdfTruncate(g.name || 'Ohne Namen', depth === 0 ? 60 : 50)) + ') Tj ET');
+        line(fmtEUR(nodeTotal(g)), 'F2', fontSize, PAGE_W - MARGIN - 70);
+        y -= depth === 0 ? 16 : 13;
         var idx = 1;
-        b.items.forEach(function (item) {
-          if (item.kind === 'position') { if (!isBlankPosition(item)) printPositionRow(item, idx++); return; }
-          ensureSpace(40);
-          cur.push('BT /F2 9 Tf 1 0 0 1 ' + (MARGIN + 10) + ' ' + y + ' Tm (' + pdfEsc((item.nr ? item.nr + '  ' : '') + pdfTruncate(item.name || 'Ohne Namen', 50)) + ') Tj ET');
-          line(fmtEUR(titelTotal(item)), 'F2', 9, PAGE_W - MARGIN - 70);
-          y -= 13;
-          var tIdx = 1;
-          item.positions.forEach(function (p) { if (!isBlankPosition(p)) printPositionRow(p, tIdx++); });
+        g.children.forEach(function (c) {
+          if (c.kind === 'position') { if (!isBlankPosition(c)) printPositionRow(c, idx++); return; }
+          printGruppeRecursive(c, depth + 1);
         });
-      });
+      }
+
+      state.bereiche.forEach(function (b) { printGruppeRecursive(b, 0); });
     }
 
     /* ── Teil 4: Zusammenfassung ──────────────────────────── */
@@ -2204,7 +2184,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     state.bereiche.forEach(function (b) {
       ensureSpace();
       line((b.nr ? b.nr + ' ' : '') + (b.name || 'Ohne Namen'), 'F1', 9, MARGIN + 10);
-      line(fmtEUR(bereichTotal(b)), 'F1', 9, PAGE_W - MARGIN - 80);
+      line(fmtEUR(nodeTotal(b)), 'F1', 9, PAGE_W - MARGIN - 80);
       y -= 13;
     });
     y -= 10;
