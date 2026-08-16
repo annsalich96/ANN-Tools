@@ -123,28 +123,27 @@ button, input, textarea, select{ font-family:var(--font-family); }
 
 /* ── Gruppe (rekursiv, beliebige Verschachtelungstiefe) ─ */
 .gruppe-card{ border-radius:6px; overflow:hidden; }
-.gruppe-card.level-top{ border:1px solid var(--color-black); }
+.gruppe-card.level-top{ border:1px solid var(--g400); }
 .gruppe-card.level-sub{ border:1px solid var(--g200); border-radius:5px; }
-.gruppe-header{ display:flex; align-items:center; gap:var(--space-2); }
-.gruppe-header.level-top{ padding:var(--space-3) var(--space-4); background:var(--color-black); color:var(--color-white); }
-.gruppe-header.level-sub{ padding:8px var(--space-3); background:var(--g100); border-bottom:1px solid var(--g200); }
+.gruppe-header{ display:flex; align-items:center; gap:var(--space-2); background:var(--g100); border-bottom:1px solid var(--g200); }
+.gruppe-header.level-top{ padding:var(--space-3) var(--space-4); }
+.gruppe-header.level-sub{ padding:8px var(--space-3); }
 .gruppe-nr{
   outline:none; padding:4px 6px; border-radius:3px; text-align:center; font-weight:600;
+  border:1px solid var(--g200); background:var(--color-white); color:var(--color-black);
 }
-.level-top .gruppe-nr{ flex:0 0 44px; border:1px solid rgba(255,255,255,.3); background:transparent; color:var(--color-white); font-size:13px; }
-.level-sub .gruppe-nr{ flex:0 0 52px; border:1px solid var(--g200); background:var(--color-white); color:var(--color-black); font-size:12px; }
+.level-top .gruppe-nr{ flex:0 0 44px; font-size:13px; }
+.level-sub .gruppe-nr{ flex:0 0 52px; font-size:12px; }
 .gruppe-name{
   flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
-  font-weight:600; padding:2px 4px; border-radius:2px;
+  font-weight:600; padding:2px 4px; border-radius:2px; color:var(--color-black);
 }
-.level-top .gruppe-name{ font-size:15px; color:var(--color-white); }
-.level-top .gruppe-name::placeholder{ color:rgba(255,255,255,.5); }
-.level-top .gruppe-name:focus{ background:rgba(255,255,255,.12); }
-.level-sub .gruppe-name{ font-size:13px; color:var(--color-black); }
-.level-sub .gruppe-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
-.gruppe-total{ font-weight:600; white-space:nowrap; }
-.level-top .gruppe-total{ font-size:14px; color:var(--color-white); }
-.level-sub .gruppe-total{ font-size:13px; color:var(--color-black); }
+.gruppe-name:focus{ background:var(--color-white); box-shadow:0 0 0 1px var(--g400); }
+.level-top .gruppe-name{ font-size:15px; }
+.level-sub .gruppe-name{ font-size:13px; }
+.gruppe-total{ font-weight:600; white-space:nowrap; color:var(--color-black); }
+.level-top .gruppe-total{ font-size:14px; }
+.level-sub .gruppe-total{ font-size:13px; }
 .gruppe-body{ padding:var(--space-3) var(--space-4); display:flex; flex-direction:column; gap:var(--space-3); }
 
 .icon-btn{
@@ -154,8 +153,6 @@ button, input, textarea, select{ font-family:var(--font-family); }
 }
 .icon-btn:hover{ background:var(--color-white); border-color:var(--g200); color:var(--color-black); }
 .icon-btn.danger:hover{ color:var(--error); border-color:var(--error); }
-.icon-btn.on-dark{ color:rgba(255,255,255,.7); }
-.icon-btn.on-dark:hover{ background:rgba(255,255,255,.15); border-color:transparent; color:var(--color-white); }
 
 /* ── Positionen ───────────────────────── */
 .positions-table{ display:flex; flex-direction:column; }
@@ -1235,7 +1232,6 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var subGruppen = gruppe.children.filter(function (c) { return c.kind === 'gruppe'; });
     var total = nodeTotal(gruppe);
     var isTop = depth === 0;
-    var onDark = isTop ? ' on-dark' : '';
     var levelClass = isTop ? ' level-top' : ' level-sub';
     var indentStyle = depth > 1 ? ' style="margin-left:' + Math.min((depth - 1) * 18, 72) + 'px"' : '';
     var subHTML = subGruppen.map(function (sg, i) { return gruppeCardHTML(sg, depth + 1, i, subGruppen.length); }).join('');
@@ -1246,10 +1242,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
           '<input class="gruppe-nr" value="' + escHtml(gruppe.nr) + '" placeholder="Nr.">' +
           '<input class="gruppe-name" value="' + escHtml(gruppe.name) + '" placeholder="' + (isTop ? 'Bereich / Haus / Gewerk' : 'Titel / Teilbereich') + '">' +
           '<div class="gruppe-total">' + fmtEUR(total) + '</div>' +
-          '<button class="icon-btn' + onDark + '" data-action="save-gruppe-template" title="Als Paket in Bibliothek speichern">☆</button>' +
-          '<button class="icon-btn' + onDark + '" data-action="move-node-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
-          '<button class="icon-btn' + onDark + '" data-action="move-node-down" title="Nach unten" ' + (idx === siblingCount - 1 ? 'disabled' : '') + '>↓</button>' +
-          '<button class="icon-btn' + onDark + ' danger" data-action="delete-gruppe" title="' + (isTop ? 'Bereich' : 'Ebene') + ' löschen">✕</button>' +
+          '<button class="icon-btn" data-action="save-gruppe-template" title="Als Paket in Bibliothek speichern">☆</button>' +
+          '<button class="icon-btn" data-action="move-node-up" title="Nach oben" ' + (idx === 0 ? 'disabled' : '') + '>↑</button>' +
+          '<button class="icon-btn" data-action="move-node-down" title="Nach unten" ' + (idx === siblingCount - 1 ? 'disabled' : '') + '>↓</button>' +
+          '<button class="icon-btn danger" data-action="delete-gruppe" title="' + (isTop ? 'Bereich' : 'Ebene') + ' löschen">✕</button>' +
         '</div>' +
         '<div class="gruppe-body">' +
           looseHTML + subHTML +
