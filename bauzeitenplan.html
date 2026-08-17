@@ -150,8 +150,14 @@ button, input{ font-family:var(--font-family); }
 /* ── Board ────────────────────────────── */
 /* .board ist jetzt der EINE gemeinsame native Scroll-Container für die Vertikale — Liste und
    Zeitstrahl scrollen dadurch zwangsläufig exakt synchron (kein JS-Abgleich, kein Frame-Versatz
-   mehr möglich). Horizontal bleibt ausschließlich der Zeitstrahl (.timeline-body) scrollbar. */
-.board{ flex:1 1 auto; min-height:0; display:flex; overflow-y:auto; overflow-x:hidden; }
+   mehr möglich). Horizontal bleibt ausschließlich der Zeitstrahl (.timeline-body) scrollbar.
+   align-items:flex-start überschreibt das Flexbox-Standardverhalten "stretch": ohne das wurden
+   .list-col/.timeline-col nur auf die SICHTBARE Höhe von .board gestreckt (statt auf ihre
+   tatsächliche Inhaltshöhe) — dadurch hatte die sticky Kopfzeile (.list-header/
+   .timeline-header-wrap) nur für die erste Hälfte des Scrollbereichs überhaupt einen
+   Container, in dem sie "kleben" konnte, und löste sich beim Weiterscrollen vorzeitig von der
+   Spitze (Ann: "die Zeile wo die KWs und so beim scrollen nach unten angeheftet bleibt"). */
+.board{ flex:1 1 auto; min-height:0; display:flex; align-items:flex-start; overflow-y:auto; overflow-x:hidden; }
 
 /* overflow-x:hidden + overflow-y:visible würde der Browser automatisch zu overflow-y:auto
    hochstufen (CSS-Spezialfall: "visible" auf einer Achse wird erzwungen zu "auto", wenn die
