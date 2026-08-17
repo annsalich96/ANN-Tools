@@ -264,6 +264,13 @@ button, input{ font-family:var(--font-family); }
 }
 .task-row:hover .row-del, .phase-row:hover .row-del{ opacity:1; }
 .row-del:hover{ color:var(--error); }
+.row-dup{
+  appearance:none; border:none; background:transparent; color:var(--g400); cursor:pointer;
+  font-size:13px; line-height:1; padding:2px 4px; opacity:0; flex:0 0 auto;
+  width:20px; text-align:center;
+}
+.task-row:hover .row-dup{ opacity:1; }
+.row-dup:hover{ color:var(--color-black); }
 .row-convert{
   appearance:none; border:none; background:transparent; color:var(--g400); cursor:pointer;
   font-size:13px; line-height:1; padding:2px 4px; opacity:0; flex:0 0 auto;
@@ -1555,6 +1562,13 @@ button, input{ font-family:var(--font-family); }
     });
     el.appendChild(convert);
 
+    var dup = document.createElement('button');
+    dup.className = 'row-dup';
+    dup.textContent = '⧉';
+    dup.title = 'Duplizieren (⌘/Strg+D)';
+    dup.addEventListener('click', function () { duplicateTasks(task); });
+    el.appendChild(dup);
+
     var del = document.createElement('button');
     del.className = 'row-del';
     del.textContent = '×';
@@ -2601,6 +2615,36 @@ button, input{ font-family:var(--font-family); }
     };
     insertTaskIntoArray(phaseId, newTask);
     selectRow(phaseId, newTask.id);
+    save();
+    renderAll();
+  }
+
+  // Dupliziert eine Aufgabe — ist sie Teil einer aktiven Mehrfachauswahl, wird die ganze Gruppe
+  // dupliziert (dieselbe Gruppen-Logik wie beim Verschieben in Liste/Zeitstrahl, siehe
+  // multiSelectGroupIds). Jede Kopie landet direkt hinter ihrem Original in derselben Phase,
+  // Abhängigkeiten werden mitkopiert (zeigen weiterhin auf die ORIGINAL-Vorgänger, nicht auf die
+  // neuen Kopien — einfacher und weniger überraschend als ein Remapping unter den Kopien selbst).
+  // Danach sind die neuen Zeilen ausgewählt, damit man sie direkt weiterbearbeiten kann.
+  function duplicateTasks(task) {
+    var groupIds = multiSelectGroupIds(task);
+    var idSet = {};
+    groupIds.forEach(function (id) { idSet[id] = true; });
+    var orderedOriginals = state.tasks.filter(function (t) { return idSet[t.id]; });
+    if (!orderedOriginals.length) return;
+    var newIds = [];
+    orderedOriginals.forEach(function (orig) {
+      var copy = JSON.parse(JSON.stringify(orig));
+      copy.id = uid();
+      copy.name = (orig.name || '') + ' (Kopie)';
+      copy.progress = 0;
+      var idx = state.tasks.findIndex(function (t) { return t.id === orig.id; });
+      state.tasks.splice(idx + 1, 0, copy);
+      newIds.push(copy.id);
+    });
+    selectedPhaseId = orderedOriginals[0].phaseId;
+    selectedTaskId = newIds[0];
+    multiSelectedTaskIds = {};
+    newIds.slice(1).forEach(function (id) { multiSelectedTaskIds[id] = true; });
     save();
     renderAll();
   }
@@ -3988,6 +4032,12 @@ button, input{ font-family:var(--font-family); }
     var key = e.key.toLowerCase();
     if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
+    else if (key === 'd' && selectedTaskId) {
+      // Nur abfangen, wenn wirklich eine Aufgabe ausgewählt ist — sonst bleibt der browser-eigene
+      // "Lesezeichen setzen"-Shortcut (Cmd/Ctrl+D) unangetastet.
+      e.preventDefault();
+      duplicateTasks(findTask(selectedTaskId));
+    }
   });
   // Enter hebt die Zeilen-Markierung wieder auf — Ann: "wenn ich auf Enter drücke, will ich dass sie
   // nicht mehr blau wird". Die Markierung entsteht schon beim bloßen Klick auf die Zeile (auch OHNE
