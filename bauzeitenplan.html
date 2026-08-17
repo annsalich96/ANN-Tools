@@ -4001,6 +4001,14 @@ button, input{ font-family:var(--font-family); }
     if (e.target && e.target.tagName === 'INPUT') e.target.blur();
     selectRow(null, null);
   });
+  // Escape hebt die Zeilen-Markierung ebenso auf wie Enter (siehe dortiger Kommentar) — Ann: "wenn
+  // ich auf Esc drücke, dann bleiben die Zeilen trotzdem angeklickt".
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (e.target && e.target.closest && e.target.closest('.confirm-overlay')) return;
+    if (e.target && e.target.tagName === 'INPUT') e.target.blur();
+    selectRow(null, null);
+  });
   renderAll();
   requestAnimationFrame(scrollToToday);
 })();
