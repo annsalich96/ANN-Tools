@@ -304,6 +304,9 @@ button, input{ font-family:var(--font-family); }
   border:1px solid rgba(0,0,0,.16);
 }
 .bar:active{ cursor:grabbing; }
+/* Spiegelt die Mehrfachauswahl aus der Liste (Strg/Cmd- bzw. Umschalt-Klick) im Zeitstrahl —
+   zeigt, welche Balken/Meilensteine beim Ziehen gemeinsam verschoben werden. */
+.bar.bar-selected, .milestone.bar-selected{ outline:2px solid var(--color-black); outline-offset:1px; }
 .bar .bar-label{
   position:relative; color:var(--color-black); font-size:11px; font-weight:600; padding:0 8px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
@@ -760,6 +763,7 @@ button, input{ font-family:var(--font-family); }
   function afterHistoryRestore() {
     selectedPhaseId = null;
     selectedTaskId = null;
+    multiSelectedTaskIds = {};
     applyStateToUI();
     persistToStorage();
     renderAll();
@@ -1097,22 +1101,72 @@ button, input{ font-family:var(--font-family); }
   // selectedTaskId ist null, wenn eine Kategorie-Zeile selbst (statt einer Aufgabe darin) gewählt wurde.
   var selectedPhaseId = null;
   var selectedTaskId = null;
+  // Zusätzlich mitmarkierte Aufgaben-Zeilen (id -> true) für die Mehrfachauswahl (Strg/Cmd-Klick,
+  // Umschalt-Klick) — enthält NICHT selectedTaskId selbst, das bleibt die "Anker"-Zeile (Ausgangs-
+  // punkt für Umschalt-Bereichsauswahl, weiterhin maßgeblich für "+Aufgabe" im Toolbar). Damit lassen
+  // sich mehrere Zeilen gemeinsam per Drag-Handle verschieben (siehe attachTaskDrag).
+  var multiSelectedTaskIds = {};
   function selectRow(phaseId, taskId) {
     selectedPhaseId = phaseId;
     selectedTaskId = taskId || null;
-    // Bewusst KEIN renderList()-Rebuild hier: selectRow wird u.a. per "focusin" ausgelöst (Klick in
-    // ein Eingabefeld der Zeile zählt jetzt auch als Auswahl), und ein kompletter Listen-Rebuild
-    // während des Fokussierens würde genau das gerade fokussierte Feld zerstören und den
-    // Tipp-Cursor/Fokus des Nutzers verlieren. Stattdessen wird nur die .row-selected-Klasse an den
-    // bereits vorhandenen Zeilen-Elementen umgeschaltet — currentRows/listRowEls sind synchron
-    // (gleicher Index), solange dazwischen kein renderAll()/renderList() gelaufen ist.
+    multiSelectedTaskIds = {};
+    updateRowSelectionClasses();
+  }
+  // Bewusst KEIN renderList()-Rebuild hier: Auswahl-Änderungen werden u.a. per "focusin" ausgelöst
+  // (Klick in ein Eingabefeld der Zeile zählt jetzt auch als Auswahl), und ein kompletter Listen-
+  // Rebuild während des Fokussierens würde genau das gerade fokussierte Feld zerstören und den
+  // Tipp-Cursor/Fokus des Nutzers verlieren. Stattdessen wird nur die .row-selected-Klasse an den
+  // bereits vorhandenen Zeilen-Elementen umgeschaltet — currentRows/listRowEls sind synchron
+  // (gleicher Index), solange dazwischen kein renderAll()/renderList() gelaufen ist.
+  function updateRowSelectionClasses() {
     listRowEls.forEach(function (el, i) {
       var r = currentRows[i];
       if (!r) return;
       var isSelected = r.type === 'phase' ? (r.phase.id === selectedPhaseId && !selectedTaskId)
-        : r.type === 'task' ? (r.task.id === selectedTaskId) : false;
+        : r.type === 'task' ? (r.task.id === selectedTaskId || !!multiSelectedTaskIds[r.task.id]) : false;
       el.classList.toggle('row-selected', isSelected);
     });
+  }
+  // Strg/Cmd-Klick auf eine Aufgaben-Zeile: einzelne Zeile zur bestehenden Auswahl hinzufügen/daraus
+  // entfernen, ohne die Ankerzeile (selectedTaskId) zu verändern — so lassen sich beliebige, auch
+  // nicht benachbarte Zeilen gemeinsam markieren.
+  function toggleMultiSelectTask(row) {
+    var task = row.task;
+    if (!selectedTaskId) { selectRow(task.phaseId, task.id); return; }
+    if (task.id === selectedTaskId) return; // Ankerzeile bleibt ausgewählt, per Ctrl-Klick nicht abwählbar
+    if (multiSelectedTaskIds[task.id]) delete multiSelectedTaskIds[task.id];
+    else multiSelectedTaskIds[task.id] = true;
+    updateRowSelectionClasses();
+  }
+  // Umschalt-Klick auf eine Aufgaben-Zeile: markiert alle Aufgaben-Zeilen zwischen der Ankerzeile
+  // (selectedTaskId) und der angeklickten Zeile, in ihrer aktuellen Anzeige-Reihenfolge.
+  function selectTaskRange(row) {
+    var task = row.task;
+    if (!selectedTaskId) { selectRow(task.phaseId, task.id); return; }
+    var ids = [];
+    currentRows.forEach(function (r) { if (r.type === 'task') ids.push(r.task.id); });
+    var fromPos = ids.indexOf(selectedTaskId);
+    var toPos = ids.indexOf(task.id);
+    if (fromPos === -1 || toPos === -1) { selectRow(task.phaseId, task.id); return; }
+    var lo = Math.min(fromPos, toPos), hi = Math.max(fromPos, toPos);
+    multiSelectedTaskIds = {};
+    for (var k = lo; k <= hi; k++) {
+      if (ids[k] !== selectedTaskId) multiSelectedTaskIds[ids[k]] = true;
+    }
+    updateRowSelectionClasses();
+  }
+
+  // Liefert alle Aufgaben-IDs, die gemeinsam mit `task` bewegt werden sollen — nur `task` selbst,
+  // außer sie ist Teil einer aktiven Mehrfachauswahl (Anker selectedTaskId + multiSelectedTaskIds),
+  // dann die ganze Gruppe. Wird sowohl beim Umsortieren in der Liste (attachTaskDrag) als auch beim
+  // Verschieben der Balken/Meilensteine im Zeitstrahl (attachDragBar/attachDragMilestone) genutzt,
+  // damit beide Wege dieselbe Mehrfachauswahl gemeinsam bewegen.
+  function multiSelectGroupIds(task) {
+    if (selectedTaskId && Object.keys(multiSelectedTaskIds).length &&
+      (task.id === selectedTaskId || multiSelectedTaskIds[task.id])) {
+      return [selectedTaskId].concat(Object.keys(multiSelectedTaskIds));
+    }
+    return [task.id];
   }
 
   function renderList(rows) {
@@ -1230,7 +1284,7 @@ button, input{ font-family:var(--font-family); }
   function renderTaskRow(row) {
     var task = row.task;
     var el = document.createElement('div');
-    el.className = 'task-row' + (task.id === selectedTaskId ? ' row-selected' : '');
+    el.className = 'task-row' + ((task.id === selectedTaskId || multiSelectedTaskIds[task.id]) ? ' row-selected' : '');
 
     var taskDragHandle = document.createElement('span');
     taskDragHandle.className = 'drag-handle';
@@ -1507,8 +1561,13 @@ button, input{ font-family:var(--font-family); }
     // fast die komplette Zeile ein, ein Klick landet also meistens IN einem Feld (vom obigen Guard
     // bewusst ausgeschlossen) — ohne focusin würde die Auswahl dadurch fast nie greifen, was genau
     // dem gemeldeten "funktioniert nur manchmal"-Verhalten entsprach.
+    // Strg/Cmd-Klick fügt die Zeile zur Mehrfachauswahl hinzu/entfernt sie, Umschalt-Klick markiert
+    // den Bereich ab der zuletzt einfach angeklickten Zeile — beides, damit sich mehrere Zeilen
+    // gemeinsam per Drag-Handle verschieben lassen (siehe attachTaskDrag).
     el.addEventListener('click', function (e) {
       if (e.target.closest('input, button, .drag-handle, .link-handle')) return;
+      if (e.shiftKey) { selectTaskRange(row); return; }
+      if (e.metaKey || e.ctrlKey) { toggleMultiSelectTask(row); return; }
       selectRow(task.phaseId, task.id);
     });
     el.addEventListener('focusin', function () { selectRow(task.phaseId, task.id); });
@@ -1681,10 +1740,12 @@ button, input{ font-family:var(--font-family); }
     var color = colorIdx === null ? 'var(--g400)' : phaseColor(colorIdx);
     var hatched = colorIdx === null ? false : phaseHatched(colorIdx);
 
+    var isSelected = task.id === selectedTaskId || !!multiSelectedTaskIds[task.id];
+
     if (task.milestone) {
       var offset = diffDays(fromISO(task.start), range.start) * dayWidth;
       var dia = document.createElement('div');
-      dia.className = 'milestone';
+      dia.className = 'milestone' + (isSelected ? ' bar-selected' : '');
       dia.dataset.taskId = task.id;
       dia.style.left = offset + 'px';
       dia.style.background = color;
@@ -1712,7 +1773,7 @@ button, input{ font-family:var(--font-family); }
     var width = Math.max((diffDays(fromISO(task.end), fromISO(task.start)) + 1) * dayWidth, dayWidth * 0.6);
 
     var bar = document.createElement('div');
-    bar.className = 'bar';
+    bar.className = 'bar' + (isSelected ? ' bar-selected' : '');
     bar.dataset.taskId = task.id;
     bar.style.left = left + 'px';
     bar.style.width = width + 'px';
@@ -1949,15 +2010,35 @@ button, input{ font-family:var(--font-family); }
         var origEnd = fromISO(task.end);
         var origDuration = diffDays(origEnd, origStart);
 
+        // Beim Ziehen der Balkenmitte ("move", nicht der Größenziehpunkte links/rechts) UND aktiver
+        // Mehrfachauswahl, zu der diese Aufgabe gehört, werden ALLE ausgewählten Aufgaben gemeinsam
+        // um denselben Tages-Delta nach vorne/hinten verschoben (Ann: "mehrere Zeitstrahlen
+        // gemeinsam auswählen und gemeinsam nach vorne und hinten verschieben") — Größenänderung
+        // bleibt bewusst auf die einzelne Aufgabe beschränkt, das ergibt für eine Gruppe keinen Sinn.
+        var groupMembers = [{ task: task, el: bar, origStart: origStart, origEnd: origEnd }];
+        if (mode === 'move') {
+          var groupIds = multiSelectGroupIds(task).filter(function (id) { return id !== task.id; });
+          groupMembers = groupMembers.concat(groupIds.map(function (id) {
+            var t = findTask(id);
+            if (!t) return null;
+            var el = timelineRowsInner.querySelector('.bar[data-task-id="' + id + '"], .milestone[data-task-id="' + id + '"]');
+            if (!el) return null;
+            return { task: t, el: el, origStart: fromISO(t.start), origEnd: fromISO(t.end) };
+          }).filter(Boolean));
+        }
+
         function onMove(ev) {
           var deltaPx = ev.clientX - startX;
           var deltaDays = Math.round(deltaPx / dayWidth);
           if (mode === 'move') {
-            var newStart = addDays(origStart, deltaDays);
-            var newEnd = addDays(newStart, origDuration);
-            bar.style.left = (diffDays(newStart, range.start) * dayWidth) + 'px';
-            bar.dataset.pendingStart = toISO(newStart);
-            bar.dataset.pendingEnd = toISO(newEnd);
+            groupMembers.forEach(function (m) {
+              var dur = diffDays(m.origEnd, m.origStart);
+              var newStart = addDays(m.origStart, deltaDays);
+              var newEnd = addDays(newStart, dur);
+              m.el.style.left = (diffDays(newStart, range.start) * dayWidth) + 'px';
+              m.el.dataset.pendingStart = toISO(newStart);
+              m.el.dataset.pendingEnd = toISO(newEnd);
+            });
           } else if (mode === 'left') {
             var ns = addDays(origStart, deltaDays);
             if (ns >= origEnd) ns = addDays(origEnd, -1);
@@ -1980,7 +2061,19 @@ button, input{ font-family:var(--font-family); }
           bar.releasePointerCapture(pointerId);
           bar.removeEventListener('pointermove', onMove);
           bar.removeEventListener('pointerup', onUp);
-          if (bar.dataset.pendingStart) {
+          if (mode === 'move') {
+            var moved = false;
+            groupMembers.forEach(function (m) {
+              if (!m.el.dataset.pendingStart) return;
+              m.task.start = m.el.dataset.pendingStart;
+              m.task.end = m.el.dataset.pendingEnd;
+              delete m.el.dataset.pendingStart;
+              delete m.el.dataset.pendingEnd;
+              applyDependencyConstraints(m.task.id, diffDays(fromISO(m.task.start), m.origStart), diffDays(fromISO(m.task.end), m.origEnd));
+              moved = true;
+            });
+            if (moved) { save(); renderAll(); }
+          } else if (bar.dataset.pendingStart) {
             task.start = bar.dataset.pendingStart;
             task.end = bar.dataset.pendingEnd;
             delete bar.dataset.pendingStart;
@@ -2010,26 +2103,46 @@ button, input{ font-family:var(--font-family); }
       var startX = e.clientX;
       var origDate = fromISO(task.start);
 
+      // Wie beim Balken-Verschieben (attachDragBar, mode "move"): ist dieser Meilenstein Teil einer
+      // aktiven Mehrfachauswahl, ziehen alle ausgewählten Aufgaben (Balken UND Meilensteine)
+      // gemeinsam um denselben Tages-Delta mit.
+      var groupMembers = [{ task: task, el: dia, origStart: origDate, origEnd: origDate }];
+      var groupIds = multiSelectGroupIds(task).filter(function (id) { return id !== task.id; });
+      groupMembers = groupMembers.concat(groupIds.map(function (id) {
+        var t = findTask(id);
+        if (!t) return null;
+        var el = timelineRowsInner.querySelector('.bar[data-task-id="' + id + '"], .milestone[data-task-id="' + id + '"]');
+        if (!el) return null;
+        return { task: t, el: el, origStart: fromISO(t.start), origEnd: fromISO(t.end) };
+      }).filter(Boolean));
+
       function onMove(ev) {
         var deltaPx = ev.clientX - startX;
         var deltaDays = Math.round(deltaPx / dayWidth);
-        var nd = addDays(origDate, deltaDays);
-        var offset = diffDays(nd, range.start) * dayWidth;
-        dia.style.left = offset + 'px';
-        dia.dataset.pendingDate = toISO(nd);
+        groupMembers.forEach(function (m) {
+          var dur = diffDays(m.origEnd, m.origStart);
+          var newStart = addDays(m.origStart, deltaDays);
+          var newEnd = addDays(newStart, dur);
+          m.el.style.left = (diffDays(newStart, range.start) * dayWidth) + 'px';
+          m.el.dataset.pendingStart = toISO(newStart);
+          m.el.dataset.pendingEnd = toISO(newEnd);
+        });
       }
       function onUp() {
         dia.releasePointerCapture(pointerId);
         dia.removeEventListener('pointermove', onMove);
         dia.removeEventListener('pointerup', onUp);
-        if (dia.dataset.pendingDate) {
-          task.start = dia.dataset.pendingDate;
-          task.end = dia.dataset.pendingDate;
-          delete dia.dataset.pendingDate;
-          applyDependencyConstraints(task.id, diffDays(fromISO(task.end), origDate));
-          save();
-          renderAll();
-        }
+        var moved = false;
+        groupMembers.forEach(function (m) {
+          if (!m.el.dataset.pendingStart) return;
+          m.task.start = m.el.dataset.pendingStart;
+          m.task.end = m.el.dataset.pendingEnd;
+          delete m.el.dataset.pendingStart;
+          delete m.el.dataset.pendingEnd;
+          applyDependencyConstraints(m.task.id, diffDays(fromISO(m.task.start), m.origStart), diffDays(fromISO(m.task.end), m.origEnd));
+          moved = true;
+        });
+        if (moved) { save(); renderAll(); }
       }
       dia.addEventListener('pointermove', onMove);
       dia.addEventListener('pointerup', onUp);
@@ -2553,7 +2666,27 @@ button, input{ font-family:var(--font-family); }
       var startClientY = e.clientY;
       var pending = null; // { phaseId, beforeTaskId, afterTaskId } — genau eines von before/after ist gesetzt (oder keins = ans Phasenende)
       var lastHighlightEl = null, lastHighlightPos = null;
-      taskRowEl.classList.add('task-dragging');
+
+      // Ist eine Mehrfachauswahl aktiv UND die gerade gegriffene Zeile Teil davon, werden ALLE
+      // ausgewählten Aufgaben gemeinsam verschoben (Ann: "mehrere Zeilen gemeinsam auswählen um sie
+      // gemeinsam zu verschieben") — ihre bisherige relative Reihenfolge (aus state.tasks) bleibt
+      // dabei erhalten, sie landen als zusammenhängender Block an der Zielposition. Ist die Zeile
+      // NICHT Teil der Mehrfachauswahl, verhält sich der Drag wie zuvor (nur diese eine Zeile).
+      var rawGroupIds = multiSelectGroupIds(task);
+      var groupIds = rawGroupIds;
+      if (rawGroupIds.length > 1) {
+        // multiSelectGroupIds liefert Anker + Zusatzauswahl ungeordnet — hier in die maßgebliche
+        // state.tasks-Reihenfolge bringen, damit die Gruppe ihre bisherige relative Reihenfolge behält.
+        var idSet = {};
+        rawGroupIds.forEach(function (id) { idSet[id] = true; });
+        groupIds = [];
+        state.tasks.forEach(function (t) { if (idSet[t.id]) groupIds.push(t.id); });
+      }
+      var groupEls = groupIds.map(function (id) {
+        var idx = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === id; });
+        return idx === -1 ? null : listRowEls[idx];
+      }).filter(Boolean);
+      groupEls.forEach(function (el) { el.classList.add('task-dragging'); });
 
       // pointermove feuert sehr häufig (60+/s), meist auf derselben Zielzeile — ein volles
       // "alle Zeilen durchgehen und Klassen entfernen" bei JEDEM Tick war spürbar unruhig beim
@@ -2594,7 +2727,7 @@ button, input{ font-family:var(--font-family); }
 
       function onMove(ev) {
         var dy = ev.clientY - startClientY;
-        taskRowEl.style.transform = 'translateY(' + dy + 'px)';
+        groupEls.forEach(function (el) { el.style.transform = 'translateY(' + dy + 'px)'; });
         pending = computeTarget(ev.clientY);
         var el = listRowEls[pending.highlightIdx];
         // Nur anfassen, wenn sich die Zielzeile oder die Davor/Danach-Seite tatsächlich geändert hat
@@ -2610,19 +2743,18 @@ button, input{ font-family:var(--font-family); }
         handle.releasePointerCapture(ev.pointerId);
         handle.removeEventListener('pointermove', onMove);
         handle.removeEventListener('pointerup', onUp);
-        taskRowEl.style.transform = '';
-        taskRowEl.classList.remove('task-dragging');
+        groupEls.forEach(function (el) { el.style.transform = ''; el.classList.remove('task-dragging'); });
         clearHighlight();
-        // Wenn direkt vor/nach der eigenen Zeile losgelassen wird, ist das effektiv keine Bewegung —
-        // ohne diesen Schutz würde die Suche nach beforeTaskId/afterTaskId ins Leere laufen (die
-        // eigene Aufgabe ist zu dem Zeitpunkt schon aus dem Array entfernt) und die Zeile fälschlich
-        // ans Phasenende springen.
-        if (pending && pending.beforeTaskId === task.id) pending = null;
-        if (pending && pending.afterTaskId === task.id) pending = null;
+        // Wenn direkt vor/nach einer der gezogenen Zeilen selbst losgelassen wird, ist das effektiv
+        // keine Bewegung — ohne diesen Schutz würde die Suche nach beforeTaskId/afterTaskId ins Leere
+        // laufen (die Gruppe ist zu dem Zeitpunkt schon aus dem Array entfernt) und fälschlich ans
+        // Phasenende springen.
+        if (pending && groupIds.indexOf(pending.beforeTaskId) !== -1) pending = null;
+        if (pending && groupIds.indexOf(pending.afterTaskId) !== -1) pending = null;
         if (pending) {
-          task.phaseId = pending.phaseId;
-          var fromIdx = state.tasks.indexOf(task);
-          if (fromIdx !== -1) state.tasks.splice(fromIdx, 1);
+          var groupTasks = groupIds.map(findTask).filter(Boolean);
+          state.tasks = state.tasks.filter(function (t) { return groupIds.indexOf(t.id) === -1; });
+          groupTasks.forEach(function (t) { t.phaseId = pending.phaseId; });
           var insertIdx;
           if (pending.beforeTaskId) {
             insertIdx = state.tasks.findIndex(function (t) { return t.id === pending.beforeTaskId; });
@@ -2638,7 +2770,8 @@ button, input{ font-family:var(--font-family); }
             }
             insertIdx = insertIdx === -1 ? state.tasks.length : insertIdx + 1;
           }
-          state.tasks.splice(insertIdx, 0, task);
+          // Gruppe als zusammenhängender Block einfügen, interne Reihenfolge (groupTasks) bleibt erhalten.
+          Array.prototype.splice.apply(state.tasks, [insertIdx, 0].concat(groupTasks));
           save();
         }
         renderAll();
@@ -3135,6 +3268,15 @@ button, input{ font-family:var(--font-family); }
 
     var pages = [], cur2 = [], y;
     var pdfTaskGeom = {};
+    // Zusatz-Beschriftungen NEBEN den Balken (barLabelDefs) landen im selben Bereich des Zeitstrahls
+    // wie die Abhängigkeitspfeile, die aber erst NACH allen Zeilen gezeichnet werden (siehe weiter
+    // unten) und dadurch über diesen Text liefen. Statt sie direkt in cur2/pages zu schreiben, werden
+    // sie hier pro Seite zwischengespeichert und erst NACH den Pfeilen angehängt, damit Text immer
+    // oben liegt (Ann: "im Druck ist mir aufgefallen, dass die Texte unter den Pfeilen sind").
+    var timelineTextByPage = {};
+    function pushTimelineText(pageIndex, op) {
+      (timelineTextByPage[pageIndex] || (timelineTextByPage[pageIndex] = [])).push(op);
+    }
 
     function colorOp(hex) {
       var c = hexToRgbFrac(hex);
@@ -3430,12 +3572,12 @@ button, input{ font-family:var(--font-family); }
           var side = bl.side;
           if (side === 'right' && barRightX + rightStack + labelTextW > MARGIN + fullW) side = 'left';
           else if (side === 'left' && barLeftX - leftStack - labelTextW < MARGIN) side = 'right';
-          cur2.push('0 0 0 rg');
+          pushTimelineText(pages.length, '0 0 0 rg');
           if (side === 'left') {
-            cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barLeftX - leftStack - labelTextW).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
+            pushTimelineText(pages.length, 'BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barLeftX - leftStack - labelTextW).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
             leftStack += labelTextW + 6;
           } else {
-            cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barRightX + rightStack).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
+            pushTimelineText(pages.length, 'BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barRightX + rightStack).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
             rightStack += labelTextW + 6;
           }
         });
@@ -3493,6 +3635,13 @@ button, input{ font-family:var(--font-family); }
         if (!predGeom || predGeom.page !== succGeom.page) return;
         drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, dep.type || 'FS');
       });
+    });
+
+    // Zurückgestellte Balken-Beschriftungen (barLabelDefs) jetzt NACH den Pfeilen einfügen, damit
+    // der Text auf jeder Seite über den Pfeilen liegt statt darunter.
+    Object.keys(timelineTextByPage).forEach(function (pageIndexKey) {
+      var pageArr = pageArrFor(parseInt(pageIndexKey, 10));
+      timelineTextByPage[pageIndexKey].forEach(function (op) { pageArr.push(op); });
     });
 
     // "Heute"-Linie ZULETZT (nach Balken UND Pfeilen) auf jeder Seite, auf der die Zeitachse den
