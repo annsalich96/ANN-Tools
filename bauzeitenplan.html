@@ -1126,6 +1126,15 @@ button, input{ font-family:var(--font-family); }
         : r.type === 'task' ? (r.task.id === selectedTaskId || !!multiSelectedTaskIds[r.task.id]) : false;
       el.classList.toggle('row-selected', isSelected);
     });
+    // Balken/Meilensteine im Zeitstrahl (bar-selected, siehe renderTaskMark) müssen hier ebenfalls
+    // synchron gehalten werden — sonst bekommt ein Balken nur beim NÄCHSTEN vollen renderAll() (z.B.
+    // nach einem Gruppen-Drag) seinen Auswahl-Rahmen entfernt, obwohl die Auswahl längst per
+    // einfachem Klick auf eine andere Zeile aufgehoben wurde (Ann: "die bekommen einen schwarzen
+    // Rand der dann später verschwindet").
+    timelineRowsInner.querySelectorAll('.bar[data-task-id], .milestone[data-task-id]').forEach(function (el) {
+      var id = el.dataset.taskId;
+      el.classList.toggle('bar-selected', id === selectedTaskId || !!multiSelectedTaskIds[id]);
+    });
   }
   // Strg/Cmd-Klick auf eine Aufgaben-Zeile: einzelne Zeile zur bestehenden Auswahl hinzufügen/daraus
   // entfernen, ohne die Ankerzeile (selectedTaskId) zu verändern — so lassen sich beliebige, auch
