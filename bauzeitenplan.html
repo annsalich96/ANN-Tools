@@ -2496,10 +2496,18 @@ button, input{ font-family:var(--font-family); }
       });
     }
   });
+  // Übrig gebliebener Handler aus der Zeit vor dem nativen .board-Scroll (siehe Kommentar oben):
+  // er rief bislang IMMER e.preventDefault() auf und leitete auch vertikale Gesten an
+  // timelineBody.scrollTop um — das läuft aber ins Leere (.timeline-body hat overflow-y:hidden)
+  // UND blockierte gleichzeitig den nativen .board-Scroll, sobald die Maus über der Liste stand
+  // (Ann: "ich kann nur nach unten scrollen wenn meine Maus auf der rechten Seite ist"). Jetzt wird
+  // nur noch eine eindeutig horizontale Geste (Trackpad-Seitswipe) an den Zeitstrahl umgeleitet —
+  // die Liste selbst hat nichts horizontal zu scrollen —, vertikal läuft alles nativ über .board.
   listColEl.addEventListener('wheel', function (e) {
-    timelineBody.scrollTop += e.deltaY;
-    timelineBody.scrollLeft += e.deltaX;
-    e.preventDefault();
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      timelineBody.scrollLeft += e.deltaX;
+      e.preventDefault();
+    }
   }, { passive: false });
 
   /* ────────────────────────── actions ────────────────────────── */
