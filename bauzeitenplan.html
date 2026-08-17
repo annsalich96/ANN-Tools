@@ -462,7 +462,7 @@ button, input{ font-family:var(--font-family); }
 
   <div class="legend" id="legend"></div>
 
-  <div class="board">
+  <div class="board" id="board">
     <div class="list-col" id="listCol">
       <div class="list-header">
         <div class="col-spacer-lead"></div>
@@ -853,6 +853,7 @@ button, input{ font-family:var(--font-family); }
 
   /* ────────────────────────── DOM refs ────────────────────────── */
   var $ = function (sel) { return document.querySelector(sel); };
+  var boardEl = $('#board');
   var listBodyInner = $('#listBodyInner');
   var timelineHeaderInner = $('#timelineHeaderInner');
   var timelineRowsInner = $('#timelineRowsInner');
@@ -2621,6 +2622,40 @@ button, input{ font-family:var(--font-family); }
     return blocks;
   }
 
+  // Automatisches Scrollen von .board während eines Zeilen-Drags, sobald der Zeiger nahe am
+  // oberen/unteren Rand steht — ohne das ließ sich eine Zeile per Drag nicht über den sichtbaren
+  // Bereich hinaus weit nach oben/unten verschieben, man musste den Drag abbrechen, manuell
+  // scrollen und erneut ansetzen (Ann: "ich brauche mehrere Anläufe, um das zu ändern"). Läuft per
+  // rAF-Schleife weiter, solange der Zeiger nahe am Rand steht, auch ohne weitere Mausbewegung.
+  function createDragAutoScroll(onScrollTick) {
+    var EDGE = 56, MAX_SPEED = 16;
+    var lastY = null, rafId = null;
+    function tick() {
+      if (lastY == null) { rafId = null; return; }
+      var rect = boardEl.getBoundingClientRect();
+      var before = boardEl.scrollTop;
+      if (lastY < rect.top + EDGE) {
+        var d1 = (rect.top + EDGE) - lastY;
+        boardEl.scrollTop = Math.max(0, boardEl.scrollTop - Math.min(MAX_SPEED, d1 * 0.35));
+      } else if (lastY > rect.bottom - EDGE) {
+        var d2 = lastY - (rect.bottom - EDGE);
+        boardEl.scrollTop += Math.min(MAX_SPEED, d2 * 0.35);
+      }
+      if (boardEl.scrollTop !== before) onScrollTick(lastY);
+      rafId = requestAnimationFrame(tick);
+    }
+    return {
+      update: function (y) {
+        lastY = y;
+        if (!rafId) rafId = requestAnimationFrame(tick);
+      },
+      stop: function () {
+        lastY = null;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      }
+    };
+  }
+
   function attachPhaseDrag(handle, phaseRowEl, phase) {
     handle.addEventListener('pointerdown', function (e) {
       e.preventDefault();
@@ -2631,13 +2666,14 @@ button, input{ font-family:var(--font-family); }
       var startTop = blocks[startIdx].top;
       var dragHeight = blocks[startIdx].height;
       var startClientY = e.clientY;
+      var startScrollTop = boardEl.scrollTop;
       var targetIdx = startIdx;
       phaseRowEl.classList.add('phase-dragging');
 
-      function onMove(ev) {
-        var dy = ev.clientY - startClientY;
+      function onMoveY(clientY) {
+        var dy = clientY - startClientY;
         phaseRowEl.style.transform = 'translateY(' + dy + 'px)';
-        var currentMid = startTop + dy + dragHeight / 2;
+        var currentMid = startTop + dy + (boardEl.scrollTop - startScrollTop) + dragHeight / 2;
         var best = startIdx, bestDist = Infinity;
         blocks.forEach(function (b, k) {
           var mid = b.top + b.height / 2;
@@ -2646,10 +2682,16 @@ button, input{ font-family:var(--font-family); }
         });
         targetIdx = best;
       }
+      var autoScroll = createDragAutoScroll(onMoveY);
+      function onMove(ev) {
+        autoScroll.update(ev.clientY);
+        onMoveY(ev.clientY);
+      }
       function onUp(ev) {
         handle.releasePointerCapture(ev.pointerId);
         handle.removeEventListener('pointermove', onMove);
         handle.removeEventListener('pointerup', onUp);
+        autoScroll.stop();
         phaseRowEl.style.transform = '';
         phaseRowEl.classList.remove('phase-dragging');
         if (targetIdx !== startIdx) {
@@ -2681,6 +2723,7 @@ button, input{ font-family:var(--font-family); }
       if (startIdx === -1) return;
       var startTop = startIdx * ROW_H;
       var startClientY = e.clientY;
+      var startScrollTop = boardEl.scrollTop;
       var pending = null; // { phaseId, beforeTaskId, afterTaskId } — genau eines von before/after ist gesetzt (oder keins = ans Phasenende)
       var lastHighlightEl = null, lastHighlightPos = null;
 
@@ -2717,7 +2760,7 @@ button, input{ font-family:var(--font-family); }
 
       function computeTarget(clientY) {
         var dy = clientY - startClientY;
-        var currentMid = startTop + dy + ROW_H / 2;
+        var currentMid = startTop + dy + (boardEl.scrollTop - startScrollTop) + ROW_H / 2;
         var idx = Math.max(0, Math.min(currentRows.length - 1, Math.floor(currentMid / ROW_H)));
         var r = currentRows[idx];
         if (r.type === 'phase') {
@@ -2742,10 +2785,10 @@ button, input{ font-family:var(--font-family); }
         };
       }
 
-      function onMove(ev) {
-        var dy = ev.clientY - startClientY;
+      function onMoveY(clientY) {
+        var dy = clientY - startClientY + (boardEl.scrollTop - startScrollTop);
         groupEls.forEach(function (el) { el.style.transform = 'translateY(' + dy + 'px)'; });
-        pending = computeTarget(ev.clientY);
+        pending = computeTarget(clientY);
         var el = listRowEls[pending.highlightIdx];
         // Nur anfassen, wenn sich die Zielzeile oder die Davor/Danach-Seite tatsächlich geändert hat
         // — bei Mausbewegungen INNERHALB derselben Zielzeile (der Normalfall zwischen zwei Ticks)
@@ -2756,10 +2799,16 @@ button, input{ font-family:var(--font-family); }
         lastHighlightEl = el;
         lastHighlightPos = pending.pos;
       }
+      var autoScroll = createDragAutoScroll(onMoveY);
+      function onMove(ev) {
+        autoScroll.update(ev.clientY);
+        onMoveY(ev.clientY);
+      }
       function onUp(ev) {
         handle.releasePointerCapture(ev.pointerId);
         handle.removeEventListener('pointermove', onMove);
         handle.removeEventListener('pointerup', onUp);
+        autoScroll.stop();
         groupEls.forEach(function (el) { el.style.transform = ''; el.classList.remove('task-dragging'); });
         clearHighlight();
         // Wenn direkt vor/nach einer der gezogenen Zeilen selbst losgelassen wird, ist das effektiv
