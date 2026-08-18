@@ -2289,60 +2289,63 @@ button, input{ font-family:var(--font-family); }
         var oldEnd = fromISO(t.end);
         var dur = diffDays(oldEnd, oldStart);
 
-        // Vorschlag: Delta des Vorgängers, der GERADE diese Kaskade ausgelöst hat — passend zum
-        // Beziehungstyp (FS/FF hängen am Vorgänger-Ende, SS/SF an dessen Start).
-        var proposedStart = oldStart;
-        matching.forEach(function (dep) {
-          var delta = (dep.type === 'FS' || dep.type === 'FF') ? eDelta : sDelta;
-          if (delta) {
-            var p = addDays(oldStart, delta);
-            if (p > proposedStart) proposedStart = p;
+        // Frühestmöglichen Start ZWEIMAL berechnen — einmal mit den AKTUELLEN (bereits
+        // aktualisierten) Vorgänger-Daten, einmal mit den REKONSTRUIERTEN ALTEN (vor der gerade
+        // auslösenden Verschiebung). Die Differenz zwischen der alten Grenze und dem tatsächlichen
+        // alten Start von t ist der "Puffer", den t bewusst zusätzlich hatte (z.B. weil jemand die
+        // Zeile manuell weiter nach hinten gezogen hat) — GENAU dieser Puffer wird auf die neue
+        // Grenze aufgeschlagen. Das ersetzt die frühere, rein Kalendertage-Delta-basierte
+        // Fortschreibung: die driftete um einen Tag, sobald sich durch die Verschiebung die
+        // Wochenend-Rundung änderte (z.B. Vorgänger-Ende wandert von Freitag auf Samstag — beide
+        // brauchen "+1 Arbeitstag", aber unterschiedlich viele Kalendertage), weil sie den alten
+        // Start blind um den rohen Delta des Vorgängers weiterschob statt den Puffer relativ zur
+        // (ebenfalls wochenend-gerundeten) Grenze zu betrachten.
+        function computeEffectiveMinStart(useOld) {
+          var minStart = null, minEnd = null;
+          deps.forEach(function (dep) {
+            var pred = findTask(dep.id);
+            if (!pred) return;
+            var lag = dep.lag || 0;
+            var isTriggering = useOld && dep.id === taskId;
+            var predEnd = isTriggering ? addDays(fromISO(pred.end), -eDelta) : fromISO(pred.end);
+            var predStart = isTriggering ? addDays(fromISO(pred.start), -sDelta) : fromISO(pred.start);
+            if (dep.type === 'FS') {
+              // Das Ende eines Vorgangs ist der letzte (inklusive) Arbeitstag daran — der
+              // Nachfolger darf deshalb frühestens am TAG DANACH beginnen, nicht am selben Tag
+              // (sonst würden beide Aufgaben am selben Tag "arbeiten"). Die anschließende
+              // Wochenend-Rundung sorgt dafür, dass daraus je nach Arbeitswoche (Mo–Fr/Mo–Sa/
+              // Mo–So) automatisch der richtige nächste Arbeitstag wird.
+              var v = addDays(predEnd, lag + 1);
+              if (minStart === null || v > minStart) minStart = v;
+            } else if (dep.type === 'SS') {
+              var v2 = addDays(predStart, lag);
+              if (minStart === null || v2 > minStart) minStart = v2;
+            } else if (dep.type === 'FF') {
+              var v3 = addDays(predEnd, lag);
+              if (minEnd === null || v3 > minEnd) minEnd = v3;
+            } else if (dep.type === 'SF') {
+              var v4 = addDays(predStart, lag);
+              if (minEnd === null || v4 > minEnd) minEnd = v4;
+            }
+          });
+          // Ende-Constraint (FF/SF) in ein äquivalentes Start-Constraint umrechnen, damit am Ende
+          // nur EIN frühestmöglicher Start übrig bleibt (Dauer bleibt dabei erhalten).
+          var minStartFromEnd = minEnd !== null ? addDays(minEnd, -dur) : null;
+          var effectiveMinStart = minStart;
+          if (minStartFromEnd !== null && (effectiveMinStart === null || minStartFromEnd > effectiveMinStart)) {
+            effectiveMinStart = minStartFromEnd;
           }
-        });
-
-        // Sicherheitsnetz: ALLE Abhängigkeiten von t frisch auswerten (nicht nur die auslösende),
-        // damit auch unveränderte Vorgänger ihre Grenze weiterhin durchsetzen.
-        var minStart = null, minEnd = null;
-        deps.forEach(function (dep) {
-          var pred = findTask(dep.id);
-          if (!pred) return;
-          var lag = dep.lag || 0;
-          if (dep.type === 'FS') {
-            // Das Ende eines Vorgangs ist der letzte (inklusive) Arbeitstag daran — der Nachfolger
-            // darf deshalb frühestens am TAG DANACH beginnen, nicht am selben Tag (sonst würden
-            // beide Aufgaben am selben Tag "arbeiten"). Die anschließende Wochenend-Rundung sorgt
-            // dafür, dass daraus je nach Arbeitswoche (Mo–Fr/Mo–Sa/Mo–So) automatisch der richtige
-            // nächste Arbeitstag wird.
-            var v = addDays(fromISO(pred.end), lag + 1);
-            if (minStart === null || v > minStart) minStart = v;
-          } else if (dep.type === 'SS') {
-            var v2 = addDays(fromISO(pred.start), lag);
-            if (minStart === null || v2 > minStart) minStart = v2;
-          } else if (dep.type === 'FF') {
-            var v3 = addDays(fromISO(pred.end), lag);
-            if (minEnd === null || v3 > minEnd) minEnd = v3;
-          } else if (dep.type === 'SF') {
-            var v4 = addDays(fromISO(pred.start), lag);
-            if (minEnd === null || v4 > minEnd) minEnd = v4;
+          // Auf einen Arbeitstag vorrücken, falls die errechnete Grenze auf ein Wochenende fällt.
+          if (effectiveMinStart !== null && !isWorkday(effectiveMinStart)) {
+            while (!isWorkday(effectiveMinStart)) effectiveMinStart = addDays(effectiveMinStart, 1);
           }
-        });
-        // Ende-Constraint (FF/SF) in ein äquivalentes Start-Constraint umrechnen, damit am Ende
-        // nur EIN frühestmöglicher Start übrig bleibt (Dauer bleibt dabei erhalten).
-        var minStartFromEnd = minEnd !== null ? addDays(minEnd, -dur) : null;
-        var effectiveMinStart = minStart;
-        if (minStartFromEnd !== null && (effectiveMinStart === null || minStartFromEnd > effectiveMinStart)) {
-          effectiveMinStart = minStartFromEnd;
+          return effectiveMinStart;
         }
-        // Auf einen Arbeitstag vorrücken, falls die errechnete Grenze auf ein Wochenende fällt.
-        if (effectiveMinStart !== null && !isWorkday(effectiveMinStart)) {
-          while (!isWorkday(effectiveMinStart)) effectiveMinStart = addDays(effectiveMinStart, 1);
-        }
+        var effectiveMinStart = computeEffectiveMinStart(false);
+        var oldEffectiveMinStart = computeEffectiveMinStart(true);
+        var slack = oldEffectiveMinStart !== null ? Math.max(0, diffDays(oldStart, oldEffectiveMinStart)) : 0;
 
-        var newStart = proposedStart;
-        if (effectiveMinStart !== null && newStart < effectiveMinStart) newStart = effectiveMinStart;
-        // Auch das per Delta verschobene Datum kann auf ein Wochenende fallen (der Kalendertage-
-        // Delta des Vorgängers kann ein Wochenende anders "einschließen" als die Zielaufgabe) —
-        // deshalb hier genauso wie effectiveMinStart auf den nächsten Arbeitstag vorrücken.
+        var newStart = effectiveMinStart !== null ? addDays(effectiveMinStart, slack) : oldStart;
         if (!isWorkday(newStart)) { while (!isWorkday(newStart)) newStart = addDays(newStart, 1); }
         if (newStart.getTime() === oldStart.getTime()) return;
         var shiftDelta = diffDays(newStart, oldStart);
