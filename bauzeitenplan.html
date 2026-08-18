@@ -852,6 +852,12 @@ button, input{ font-family:var(--font-family); }
   // (Ann: "die Farben der Beteiligten ändern sich immer, wenn ich eine neue Partei hinzufüge oder
   // einfach alle umstelle"). Ein einmal vergebener Index bleibt jetzt für den Rest des Projekts an
   // denselben Namen gebunden, auch wenn die Partei zwischenzeitlich aus keiner Zeile mehr auftaucht.
+  // assigneeOrder ist NUR für die Legende (nur aktuell tatsächlich verwendete Namen, nicht jeder
+  // je vergebene Farb-Slot) — assigneeIndex (= state.assigneeColorMap) bleibt die vollständige,
+  // dauerhafte Zuordnung und wächst weiter, auch wenn ein Name gerade aus keiner Zeile mehr
+  // auftaucht. Ohne diese Trennung listete die Legende irgendwann JEDEN je vorgekommenen Namen
+  // auf, inklusive jedes einzelnen Zwischenstands beim Tippen (siehe rebuildAssigneeIndex-Aufruf
+  // im "input"-Handler des Verantwortlich-Felds) — Legende wurde dadurch unlesbar/überlappend.
   var assigneeOrder = [];
   var assigneeIndex = {};
   function rebuildAssigneeIndex() {
@@ -859,13 +865,15 @@ button, input{ font-family:var(--font-family); }
     var map = state.assigneeColorMap;
     var nextIdx = 0;
     Object.keys(map).forEach(function (k) { if (map[k] >= nextIdx) nextIdx = map[k] + 1; });
+    var used = [], seen = {};
     state.tasks.forEach(function (t) {
       var a = (t.assignee || '').trim();
-      if (!a || map.hasOwnProperty(a)) return;
-      map[a] = nextIdx++;
+      if (!a) return;
+      if (!map.hasOwnProperty(a)) map[a] = nextIdx++;
+      if (!seen[a]) { seen[a] = true; used.push(a); }
     });
     assigneeIndex = map;
-    assigneeOrder = Object.keys(map).sort(function (x, y) { return map[x] - map[y]; });
+    assigneeOrder = used.sort(function (x, y) { return map[x] - map[y]; });
   }
   // liefert einen Farb-Index (für phaseColor/phaseHatched/phaseTextColor) oder null = neutral (kein Verantwortlicher)
   function resolveColorIdx(task, phaseIdx) {
@@ -1077,7 +1085,8 @@ button, input{ font-family:var(--font-family); }
       label.textContent = 'Verantwortlich';
       legendEl.appendChild(label);
       var anyUnassigned = state.tasks.some(function (t) { return !(t.assignee || '').trim(); });
-      assigneeOrder.forEach(function (name, idx) {
+      assigneeOrder.forEach(function (name) {
+        var idx = assigneeIndex[name];
         var item = document.createElement('span');
         item.className = 'legend-item';
         var sw = document.createElement('span');
@@ -1372,18 +1381,32 @@ button, input{ font-family:var(--font-family); }
     assignee.placeholder = 'Firma / Person';
     assignee.value = task.assignee || '';
     var assigneeRenderPending = null;
+    // Committet den aktuellen Feldwert dauerhaft in state.assigneeColorMap (neue Farbe vergeben,
+    // falls Name noch unbekannt) und rendert den Zeitstrahl neu — läuft NUR debounced (bei
+    // Tippende) bzw. beim Verlassen des Felds, NICHT bei jedem einzelnen Tastendruck. Vorher lief
+    // rebuildAssigneeIndex() synchron bei jedem "input"-Event und schrieb dadurch JEDEN
+    // Zwischenstand beim Tippen (z.B. "J", "Ja", "Jag", ...) dauerhaft als eigenen Legenden-Eintrag
+    // fest — die Legende wurde dadurch mit der Zeit unlesbar/überlappend (Ann: "im Druck wird
+    // jetzt wieder in der Legende der Text zum Teil überdeckt").
+    function commitAssignee() {
+      rebuildAssigneeIndex();
+      var newColorIdx = resolveColorIdx(task, row.colorIdx);
+      assigneeSw.className = 'swatch' + (newColorIdx !== null && phaseHatched(newColorIdx) ? ' hatched' : '');
+      assigneeSw.style.background = newColorIdx === null ? 'var(--g400)' : phaseColor(newColorIdx);
+      renderTimelineOnly();
+    }
     assignee.addEventListener('input', function () {
       task.assignee = assignee.value;
       save();
       // Verantwortlich beeinflusst den Zeitstrahl nur im Modus "Farbe: Verantwortlich" —
       // im Standard-Modus "Farbe: Phase" hat der Text keine visuelle Auswirkung, also nichts neu rendern.
       if (state.colorBy === 'assignee') {
-        rebuildAssigneeIndex();
-        // Swatch direkt hier aktualisieren (nicht erst beim nächsten vollen Render) — sonst
-        // zeigt der kleine Farbpunkt neben dem Feld die neue Farbe erst nach einem Refresh.
-        var newColorIdx = resolveColorIdx(task, row.colorIdx);
-        assigneeSw.className = 'swatch' + (newColorIdx !== null && phaseHatched(newColorIdx) ? ' hatched' : '');
-        assigneeSw.style.background = newColorIdx === null ? 'var(--g400)' : phaseColor(newColorIdx);
+        // Swatch-Vorschau während des Tippens: nur aus der BESTEHENDEN Zuordnung lesen (nicht
+        // schreiben) — ein noch unbekannter Name zeigt bis zum Commit einen neutralen Punkt.
+        var a = (assignee.value || '').trim();
+        var previewIdx = a && state.assigneeColorMap ? state.assigneeColorMap[a] : undefined;
+        assigneeSw.className = 'swatch' + (previewIdx !== undefined && phaseHatched(previewIdx) ? ' hatched' : '');
+        assigneeSw.style.background = previewIdx !== undefined ? phaseColor(previewIdx) : 'var(--g400)';
         // renderTimelineOnly() baut den GESAMTEN Zeitstrahl (alle Balken + Abhängigkeitspfeile) neu
         // auf — bei jedem einzelnen Tastendruck macht das die Eingabe spürbar ruckelig (Ann: "es
         // hackt so sehr, super langsam"). Genau wie beim Dauer-Feld (siehe dort) deshalb debounced,
@@ -1392,7 +1415,7 @@ button, input{ font-family:var(--font-family); }
         if (assigneeRenderPending) clearTimeout(assigneeRenderPending);
         assigneeRenderPending = setTimeout(function () {
           assigneeRenderPending = null;
-          renderTimelineOnly();
+          commitAssignee();
         }, 150);
       }
     });
@@ -1400,7 +1423,7 @@ button, input{ font-family:var(--font-family); }
       if (assigneeRenderPending) {
         clearTimeout(assigneeRenderPending);
         assigneeRenderPending = null;
-        renderTimelineOnly();
+        commitAssignee();
       }
     });
     el.appendChild(assignee);
@@ -3350,7 +3373,16 @@ button, input{ font-family:var(--font-family); }
       if (r.type === 'task' && r.task.name) maxNameLen = Math.max(maxNameLen, pdfEsc(r.task.name).length);
     });
     if (maxNameLen > 0) nameW = Math.max(nameW, maxNameLen * fontSize * 0.5 + 3);
+    // Verantwortlich-Spalte bekommt dieselbe Behandlung wie eben Vorgang: bisher rein fix
+    // BASE_ASSIGNEE_W * scaleH, ohne Rücksicht auf tatsächliche Namenslänge — reale Firmennamen
+    // ("Jagiera Bau GmbH", "APCOA Parking Services") wurden dadurch regelmäßig per pdfTruncate
+    // abgeschnitten (Ann: "die Spalte Verantwortliche ist teils zu kurz dass Text überdeckt wird").
+    var maxAssigneeLen = 0;
+    rows.forEach(function (r) {
+      if (r.type === 'task' && r.task.assignee) maxAssigneeLen = Math.max(maxAssigneeLen, pdfEsc(r.task.assignee).length);
+    });
     var assigneeW = BASE_ASSIGNEE_W * scaleH;
+    if (maxAssigneeLen > 0) assigneeW = Math.max(assigneeW, maxAssigneeLen * fontSize * 0.55 + 3);
     var dateW = Math.max(BASE_DATE_W * scaleH, fontSize * 5.8);
     var durationW = Math.max(BASE_DURATION_W * scaleH, fontSize * 3);
     var labelW = numW + nameW + assigneeW + 2 * dateW + durationW;
@@ -3385,7 +3417,7 @@ button, input{ font-family:var(--font-family); }
     // dann aktuellen/letzten Seite gezeichnet). So bleibt dieser Bereich frei von Gitterlinien,
     // statt dass diese durch die Legende hindurchlaufen.
     var legendItems = state.colorBy === 'assignee'
-      ? assigneeOrder.map(function (name, idx) { return { name: name, hex: resolvePhaseHex(idx) }; })
+      ? assigneeOrder.map(function (name) { return { name: name, hex: resolvePhaseHex(assigneeIndex[name]) }; })
       : state.phases.map(function (p, idx) { return { name: p.name, hex: resolvePhaseHex(idx) }; });
     // Breiten-Schätzung je Legenden-Eintrag (Swatch + Label + Abstand zum nächsten Eintrag) — an
     // EINER Stelle definiert und sowohl hier (Vorab-Berechnung der reservierten Höhe) als auch beim
