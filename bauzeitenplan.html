@@ -21,7 +21,7 @@
   --space-6:24px; --space-8:32px; --space-9:36px; --space-10:40px; --space-12:48px;
   --space-16:64px; --space-20:80px;
 
-  /* categorical phase palette — Anns exakte Marken-Hex-Werte, 8 Slots, feste Reihenfolge */
+  /* categorical phase palette — Anns exakte Marken-Hex-Werte, 15 Slots, feste Reihenfolge */
   --phase-1:#E4DA00; /* Gelb */
   --phase-2:#D3C3E8; /* Lavendel */
   --phase-3:#29723D; /* Grün */
@@ -34,6 +34,9 @@
   --phase-10:#EBAFC8; /* Rosa */
   --phase-11:#D22756; /* Magenta */
   --phase-12:#CCE0B2; /* Mintgrün */
+  --phase-13:#ACB5DD; /* Blaugrau */
+  --phase-14:#19265D; /* Marineblau */
+  --phase-15:#EC646A; /* Koralle */
 
   --row-h:40px;
   --bar-h:22px;
@@ -833,9 +836,9 @@ button, input{ font-family:var(--font-family); }
   function weekLabel(d) { return 'KW' + pad2(isoWeekNumber(d)); }
   function dayLabel(d) { return { main: pad2(d.getDate()), sub: WEEKDAYS[d.getDay()] }; }
 
-  var PHASE_COLORS = ['var(--phase-1)', 'var(--phase-2)', 'var(--phase-3)', 'var(--phase-4)', 'var(--phase-5)', 'var(--phase-6)', 'var(--phase-7)', 'var(--phase-8)', 'var(--phase-9)', 'var(--phase-10)', 'var(--phase-11)', 'var(--phase-12)'];
+  var PHASE_COLORS = ['var(--phase-1)', 'var(--phase-2)', 'var(--phase-3)', 'var(--phase-4)', 'var(--phase-5)', 'var(--phase-6)', 'var(--phase-7)', 'var(--phase-8)', 'var(--phase-9)', 'var(--phase-10)', 'var(--phase-11)', 'var(--phase-12)', 'var(--phase-13)', 'var(--phase-14)', 'var(--phase-15)'];
   // welche Slots brauchen dunklen Text (helle Fläche) statt weißen (dunkle Fläche)
-  var PHASE_TEXT_DARK = [true, true, false, true, false, true, true, true, false, true, false, true];
+  var PHASE_TEXT_DARK = [true, true, false, true, false, true, true, true, false, true, false, true, true, false, true];
   function phaseColorIndex(idx) { return idx % PHASE_COLORS.length; }
   function phaseColor(idx) { return PHASE_COLORS[phaseColorIndex(idx)]; }
   function phaseHatched(idx) { return idx >= PHASE_COLORS.length; }
@@ -3251,7 +3254,10 @@ button, input{ font-family:var(--font-family); }
   }
   function resolvePhaseHex(colorIdx) {
     if (colorIdx === null) return '#C7C7C7';
-    var varName = '--phase-' + ((colorIdx % 12) + 1);
+    // War bisher fest auf "% 12" verdrahtet (Palette hatte 12 Farben) — mit PHASE_COLORS.length statt
+    // fest 12 rechnen, sonst würde jede über Slot 12 hinaus neu hinzugefügte Farbe im PDF-Druck
+    // fälschlich auf einen der ersten 12 Slots zurückfallen statt ihre eigene Farbe zu zeigen.
+    var varName = '--phase-' + ((colorIdx % PHASE_COLORS.length) + 1);
     var v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return v || '#C7C7C7';
   }
