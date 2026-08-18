@@ -842,17 +842,27 @@ button, input{ font-family:var(--font-family); }
   function phaseTextColor(idx) { return PHASE_TEXT_DARK[phaseColorIndex(idx)] ? 'var(--color-black)' : '#fff'; }
 
   /* ────────────────────────── color by phase / by assignee ────────────────────────── */
+  // Farb-Index je Verantwortlichem wird in state.assigneeColorMap DAUERHAFT gespeichert (Name ->
+  // Index), statt bei jedem Aufruf frisch aus der aktuellen Reihenfolge von state.tasks abgeleitet
+  // zu werden — sonst bekam JEDE Partei eine neue Farbe, sobald sich die Zeilen-Reihenfolge ändert
+  // (Umsortieren per Drag) oder eine neue Partei VOR bereits bestehenden zum ersten Mal auftaucht
+  // (Ann: "die Farben der Beteiligten ändern sich immer, wenn ich eine neue Partei hinzufüge oder
+  // einfach alle umstelle"). Ein einmal vergebener Index bleibt jetzt für den Rest des Projekts an
+  // denselben Namen gebunden, auch wenn die Partei zwischenzeitlich aus keiner Zeile mehr auftaucht.
   var assigneeOrder = [];
   var assigneeIndex = {};
   function rebuildAssigneeIndex() {
-    assigneeOrder = [];
-    assigneeIndex = {};
+    if (!state.assigneeColorMap) state.assigneeColorMap = {};
+    var map = state.assigneeColorMap;
+    var nextIdx = 0;
+    Object.keys(map).forEach(function (k) { if (map[k] >= nextIdx) nextIdx = map[k] + 1; });
     state.tasks.forEach(function (t) {
       var a = (t.assignee || '').trim();
-      if (!a || assigneeIndex.hasOwnProperty(a)) return;
-      assigneeIndex[a] = assigneeOrder.length;
-      assigneeOrder.push(a);
+      if (!a || map.hasOwnProperty(a)) return;
+      map[a] = nextIdx++;
     });
+    assigneeIndex = map;
+    assigneeOrder = Object.keys(map).sort(function (x, y) { return map[x] - map[y]; });
   }
   // liefert einen Farb-Index (für phaseColor/phaseHatched/phaseTextColor) oder null = neutral (kein Verantwortlicher)
   function resolveColorIdx(task, phaseIdx) {
@@ -3635,12 +3645,12 @@ button, input{ font-family:var(--font-family); }
       if (task.milestone) {
         var mSize = Math.max(2.5, rowH * 0.45);
         cur2.push(colorOp(hex) + ' rg ' + (barX0 - mSize / 2).toFixed(2) + ' ' + (rowTop - rowH / 2 - mSize / 2).toFixed(2) + ' ' + mSize.toFixed(2) + ' ' + mSize.toFixed(2) + ' re f');
-        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0, rowTop: rowTop };
+        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0, rowTop: rowTop, num: row.num };
       } else {
         var barW = Math.max(1, (endIdx - startIdx + 1) * dayW);
         var barH = Math.max(2, rowH * 0.55);
         cur2.push(colorOp(hex) + ' rg ' + barX0.toFixed(2) + ' ' + (rowTop - rowH / 2 - barH / 2).toFixed(2) + ' ' + barW.toFixed(2) + ' ' + barH.toFixed(2) + ' re f');
-        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0 + barW, rowTop: rowTop };
+        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0 + barW, rowTop: rowTop, num: row.num };
       }
 
       // Text zuletzt, damit er über Gitter und Balken liegt.
@@ -3743,13 +3753,51 @@ button, input{ font-family:var(--font-family); }
       pageArr.push(style.fillOp);
       pageArr.push((x2 - arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' m ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' l ' + (x2 + arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' l f');
     }
+    // Randmarkierung für eine seitenübergreifende Abhängigkeit: statt den Pfeil stillschweigend
+    // wegzulassen (Ann: "wenn Pfeile über Blätter beim Druck gehen, dann verschwinden die"), zeigt
+    // ein kurzer Pfeilstummel plus Zeilenverweis auf JEDER der beiden Seiten, wohin die Verbindung
+    // führt — am Vorgänger nach unten/zur nächsten Seite, am Nachfolger nach oben/zur vorherigen
+    // Seite, je nachdem welche Seite tatsächlich weiter vorne liegt (Anlage-/Zeilenreihenfolge
+    // entspricht nicht zwingend der Seitenreihenfolge).
+    function drawPdfCrossPageStub(pageIndex, x, y, style, towardBottom, otherGeom) {
+      var stubLen = Math.max(10, rowH * 0.9);
+      var arrowSize = Math.max(2, rowH * 0.22);
+      var yEnd = towardBottom ? (y - stubLen) : (y + stubLen);
+      var pageArr = pageArrFor(pageIndex);
+      pageArr.push(style.strokeOp);
+      pageArr.push('0.75 w');
+      if (style.dash) pageArr.push(style.dash + ' 0 d');
+      pageArr.push(x.toFixed(2) + ' ' + y.toFixed(2) + ' m ' + x.toFixed(2) + ' ' + yEnd.toFixed(2) + ' l S');
+      if (style.dash) pageArr.push('[] 0 d');
+      var dir = towardBottom ? -1 : 1;
+      var approachY = yEnd - dir * arrowSize;
+      pageArr.push(style.fillOp);
+      pageArr.push((x - arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' m ' + x.toFixed(2) + ' ' + yEnd.toFixed(2) + ' l ' + (x + arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' l f');
+      var label = pdfEsc('Z. ' + otherGeom.num + ', S. ' + (otherGeom.page + 1));
+      var labelY = towardBottom ? (yEnd - 8) : (yEnd + 3);
+      pushTimelineText(pageIndex, '0 0 0 rg');
+      pushTimelineText(pageIndex, 'BT /F1 6.5 Tf 1 0 0 1 ' + (x - 16).toFixed(2) + ' ' + labelY.toFixed(2) + ' Tm (' + label + ') Tj ET');
+    }
     state.tasks.forEach(function (t) {
       var succGeom = pdfTaskGeom[t.id];
       if (!succGeom) return;
       (t.dependencies || []).forEach(function (dep) {
         var predGeom = pdfTaskGeom[dep.id];
-        if (!predGeom || predGeom.page !== succGeom.page) return;
-        drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, dep.type || 'FS');
+        if (!predGeom) return;
+        var depType = dep.type || 'FS';
+        var style = ARROW_STYLE[depType] || ARROW_STYLE.FS;
+        if (predGeom.page === succGeom.page) {
+          drawPdfArrow(pageArrFor(predGeom.page), predGeom, succGeom, depType);
+          return;
+        }
+        var clearance = rowH * 0.28;
+        var predX = (depType === 'SS' || depType === 'SF') ? predGeom.x1 : predGeom.x2;
+        var predY = predGeom.rowTop - clearance;
+        var succX = (depType === 'FF' || depType === 'SF') ? succGeom.x2 : succGeom.x1;
+        var succY = succGeom.rowTop - clearance;
+        var predFirst = predGeom.page < succGeom.page;
+        drawPdfCrossPageStub(predGeom.page, predX, predY, style, predFirst, succGeom);
+        drawPdfCrossPageStub(succGeom.page, succX, succY, style, !predFirst, predGeom);
       });
     });
 
