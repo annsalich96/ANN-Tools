@@ -3115,7 +3115,7 @@ button, input{ font-family:var(--font-family); }
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = (state.projectTitle || 'Zeitplan').replace(/[^\w\-]+/g, '_') + '.pdf';
+    a.download = buildFileName('', 'pdf');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -3955,7 +3955,7 @@ button, input{ font-family:var(--font-family); }
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = (state.projectTitle || 'Zeitplan').replace(/[^\w\-]+/g, '_') + '_Gantt.pdf';
+    a.download = buildFileName('_Gantt', 'pdf');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -3968,12 +3968,18 @@ button, input{ font-family:var(--font-family); }
   function sanitizeFilenamePart(s) {
     return String(s || '').trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ');
   }
-  function buildFileName() {
+  // Einheitliches Dateinamens-Schema für ALLE Exporte (Projektdatei, beide PDFs) — bisher nur für
+  // die JSON-Projektdatei genutzt, die PDF-Exporte hatten stattdessen nur den nackten Projekttitel
+  // ohne Datum/Bauvorhaben (Ann: "ich will dass meine Dateien direkt richtig benannt werden").
+  // Reihenfolge wie von Ann bestätigt: Datum, dann Bauvorhaben (inkl. was auch immer dort noch
+  // zusätzlich steht, z.B. ein Index/Revisionsstand — dafür gibt es bewusst kein eigenes Feld,
+  // das trägt man bei Bedarf selbst ins Bauvorhaben-Feld ein), dann Titel.
+  function buildFileName(suffix, ext) {
     var d = new Date();
     var ymd = String(d.getFullYear()).slice(2) + pad2(d.getMonth() + 1) + pad2(d.getDate());
     var bauvorhaben = sanitizeFilenamePart(state.projectSubtitle) || 'Projekt';
     var titel = sanitizeFilenamePart(state.projectTitle) || 'Zeitplan';
-    return ymd + '_' + bauvorhaben + '_' + titel + '.json';
+    return ymd + '_' + bauvorhaben + '_' + titel + (suffix || '') + '.' + (ext || 'json');
   }
   function saveProjectFile() {
     var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
