@@ -3645,12 +3645,12 @@ button, input{ font-family:var(--font-family); }
       if (task.milestone) {
         var mSize = Math.max(2.5, rowH * 0.45);
         cur2.push(colorOp(hex) + ' rg ' + (barX0 - mSize / 2).toFixed(2) + ' ' + (rowTop - rowH / 2 - mSize / 2).toFixed(2) + ' ' + mSize.toFixed(2) + ' ' + mSize.toFixed(2) + ' re f');
-        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0, rowTop: rowTop, num: row.num };
+        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0, rowTop: rowTop };
       } else {
         var barW = Math.max(1, (endIdx - startIdx + 1) * dayW);
         var barH = Math.max(2, rowH * 0.55);
         cur2.push(colorOp(hex) + ' rg ' + barX0.toFixed(2) + ' ' + (rowTop - rowH / 2 - barH / 2).toFixed(2) + ' ' + barW.toFixed(2) + ' ' + barH.toFixed(2) + ' re f');
-        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0 + barW, rowTop: rowTop, num: row.num };
+        pdfTaskGeom[task.id] = { page: pages.length, x1: barX0, x2: barX0 + barW, rowTop: rowTop };
       }
 
       // Text zuletzt, damit er über Gitter und Balken liegt.
@@ -3755,10 +3755,11 @@ button, input{ font-family:var(--font-family); }
     }
     // Randmarkierung für eine seitenübergreifende Abhängigkeit: statt den Pfeil stillschweigend
     // wegzulassen (Ann: "wenn Pfeile über Blätter beim Druck gehen, dann verschwinden die"), zeigt
-    // ein kurzer Pfeilstummel plus Zeilenverweis auf JEDER der beiden Seiten, wohin die Verbindung
-    // führt — am Vorgänger nach unten/zur nächsten Seite, am Nachfolger nach oben/zur vorherigen
-    // Seite, je nachdem welche Seite tatsächlich weiter vorne liegt (Anlage-/Zeilenreihenfolge
-    // entspricht nicht zwingend der Seitenreihenfolge).
+    // ein kurzer Pfeilstummel mit Seitenverweis ("S. X", ohne Zeilennummer — Ann: "es braucht nicht
+    // die Beschriftung im Druck zu Z und dann Nr.") auf JEDER der beiden Seiten, wohin die
+    // Verbindung führt — am Vorgänger nach unten/zur nächsten Seite, am Nachfolger nach oben/zur
+    // vorherigen Seite, je nachdem welche Seite tatsächlich weiter vorne liegt (Anlage-/
+    // Zeilenreihenfolge entspricht nicht zwingend der Seitenreihenfolge).
     function drawPdfCrossPageStub(pageIndex, x, y, style, towardBottom, otherGeom) {
       var stubLen = Math.max(10, rowH * 0.9);
       var arrowSize = Math.max(2, rowH * 0.22);
@@ -3773,10 +3774,10 @@ button, input{ font-family:var(--font-family); }
       var approachY = yEnd - dir * arrowSize;
       pageArr.push(style.fillOp);
       pageArr.push((x - arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' m ' + x.toFixed(2) + ' ' + yEnd.toFixed(2) + ' l ' + (x + arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' l f');
-      var label = pdfEsc('Z. ' + otherGeom.num + ', S. ' + (otherGeom.page + 1));
+      var label = pdfEsc('S. ' + (otherGeom.page + 1));
       var labelY = towardBottom ? (yEnd - 8) : (yEnd + 3);
       pushTimelineText(pageIndex, '0 0 0 rg');
-      pushTimelineText(pageIndex, 'BT /F1 6.5 Tf 1 0 0 1 ' + (x - 16).toFixed(2) + ' ' + labelY.toFixed(2) + ' Tm (' + label + ') Tj ET');
+      pushTimelineText(pageIndex, 'BT /F1 6.5 Tf 1 0 0 1 ' + (x - 10).toFixed(2) + ' ' + labelY.toFixed(2) + ' Tm (' + label + ') Tj ET');
     }
     state.tasks.forEach(function (t) {
       var succGeom = pdfTaskGeom[t.id];
