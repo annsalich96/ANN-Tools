@@ -176,6 +176,7 @@ button, input, textarea, select{ font-family:var(--font-family); }
 .col-gesamt{ flex:0 0 100px; text-align:right; }
 .col-lib{ flex:0 0 26px; }
 .col-del{ flex:0 0 26px; }
+.col-grip{ flex:0 0 16px; display:flex; align-items:center; justify-content:center; }
 
 .position-row input{
   border:1px solid transparent; outline:none; background:transparent; width:100%;
@@ -188,6 +189,28 @@ button, input, textarea, select{ font-family:var(--font-family); }
 .position-row .col-gesamt{ font-size:13px; font-weight:500; color:var(--color-black); }
 .position-row.inactive{ opacity:.45; }
 .position-row.inactive .col-gesamt, .position-row.inactive input{ text-decoration:line-through; }
+
+/* ── Zeilen per Greifpunkt sortieren (Drag&Drop) ─────── */
+.drag-grip{
+  cursor:grab; color:var(--g300); font-size:12px; line-height:1;
+  user-select:none; -webkit-user-select:none; touch-action:none;
+}
+.drag-grip:hover{ color:var(--g600); }
+.drag-grip:active{ cursor:grabbing; }
+.gruppe-header .drag-grip{ flex:0 0 auto; padding:0 2px; }
+.dnd-dragging{ position:relative; z-index:60; background:var(--color-white); box-shadow:0 6px 20px rgba(0,0,0,.18); border-radius:4px; }
+.dnd-indicator{ height:0; border-top:2px solid var(--color-black); margin:0; pointer-events:none; }
+
+/* ── Ansicht „Nach DIN" (KG als Überkategorie, bearbeitbar) ─ */
+.din-mode-hint{ font-size:12px; color:var(--g600); background:var(--g100); border-radius:4px; padding:8px 12px; margin-bottom:2px; }
+.gruppe-nr-static{ flex:0 0 auto; font-weight:600; color:var(--g600); padding:4px 6px; }
+.level-top .gruppe-nr-static{ font-size:13px; }
+.level-sub .gruppe-nr-static{ font-size:12px; }
+.gruppe-name-static{ flex:1 1 auto; min-width:0; font-weight:600; color:var(--color-black); padding:2px 4px; }
+.level-top .gruppe-name-static{ font-size:15px; }
+.level-sub .gruppe-name-static{ font-size:13px; }
+.pos-ctx{ font-size:10px; color:var(--g600); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:2px; padding:0 6px; }
+body.view-din .col-bez{ display:flex; flex-direction:column; align-items:stretch; }
 
 .add-inline-btn{
   appearance:none; border:1px dashed var(--g200); border-radius:4px; cursor:pointer;
@@ -343,7 +366,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 .kg-group-row.first-level td{ background:var(--g100); font-weight:700; }
 
 @media print{
-  .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-bereich-btn, .col-lib, .col-del{ display:none !important; }
+  .toolbar, .app-footer, .icon-btn, .add-inline-btn, .add-bereich-btn, .col-lib, .col-del,
+  .col-grip, .drag-grip, .dnd-indicator, .din-mode-hint{ display:none !important; }
   .board{ display:block; }
   .summary-col{ position:static; margin-top:var(--space-6); width:100%; flex:none; }
   .gruppe-card.level-top{ break-inside:avoid; }
@@ -373,6 +397,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       <button class="zoom-btn" data-kostenstand="berechnung">Kostenberechnung</button>
       <button class="zoom-btn" data-kostenstand="anschlag">Kostenanschlag</button>
     </div>
+    <div class="toolbar-group zoom-group" id="viewModeGroup">
+      <button class="zoom-btn" data-viewmode="bereiche" title="Nach eigenen Bereichen / Themen gliedern, Kostengruppe je Position als Etikett">Nach Bereichen</button>
+      <button class="zoom-btn" data-viewmode="din" title="Nach DIN 276 gliedern – die Kostengruppe wird zur Überkategorie (Werte bleiben bearbeitbar)">Nach DIN</button>
+    </div>
     <div class="toolbar-group">
       <label class="pct-field">Reserve <input type="number" id="reservePct" step="1" min="0" max="100"><span class="suffix">%</span></label>
       <label class="pct-field">Nebenkosten <input type="number" id="nkPct" step="1" min="0" max="100"><span class="suffix">%</span></label>
@@ -385,7 +413,6 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     </div>
     <div class="toolbar-group">
       <button class="btn" data-action="suggest-din" title="Für Positionen ohne Kostengruppe eine passende KG vorschlagen">Nach DIN einordnen</button>
-      <button class="btn" data-action="open-kg-page" title="Alle Positionen nach Kostengruppe statt nach Bereich zusammengefasst anzeigen">Nach Kostengruppen</button>
       <button class="btn" data-action="seed-din-skeleton" title="Die 8 Kostengruppen der 1. Ebene als leere Bereiche anlegen">DIN-Gerüst anlegen</button>
     </div>
     <div class="toolbar-group">
@@ -441,14 +468,6 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     <button class="btn primary" id="comparePdfBtn">Als PDF exportieren</button>
   </header>
   <div class="full-page-body" id="comparePageBody"></div>
-</div>
-
-<div class="full-page" id="kgPage" style="display:none">
-  <header class="full-page-header">
-    <button class="btn" data-action="close-kg-page">← Zurück</button>
-    <h2>Positionen nach Kostengruppe</h2>
-  </header>
-  <div class="full-page-body" id="kgPageBody"></div>
 </div>
 
 <datalist id="kgCodeList"></datalist>
@@ -909,6 +928,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       hinweiseText: DEFAULT_HINWEISE,
       aufgestelltVon: '',
       kostenstand: 'schaetzung',
+      viewMode: 'bereiche',
       reservePct: RESERVE_DEFAULTS.schaetzung,
       nkPct: 15,
       mwstPct: 19,
@@ -992,6 +1012,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (parsed.ustAnzeige === undefined) parsed.ustAnzeige = 'netto';
     if (parsed.hinweiseText === undefined) parsed.hinweiseText = DEFAULT_HINWEISE;
     if (parsed.aufgestelltVon === undefined) parsed.aufgestelltVon = '';
+    if (parsed.viewMode !== 'din' && parsed.viewMode !== 'bereiche') parsed.viewMode = 'bereiche';
     if (isLegacyBereicheFormat(parsed.bereiche)) parsed.bereiche = parsed.bereiche.map(convertLegacyBereich);
     parsed.bereiche.forEach(normalizeGruppe);
     parsed.snapshots.forEach(function (snap) {
@@ -1179,6 +1200,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     document.querySelectorAll('#kostenstandGroup .zoom-btn').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-kostenstand') === state.kostenstand);
     });
+    document.querySelectorAll('#viewModeGroup .zoom-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-viewmode') === (state.viewMode || 'bereiche'));
+    });
+    document.body.classList.toggle('view-din', state.viewMode === 'din');
     $('#reservePct').value = state.reservePct;
     $('#nkPct').value = state.nkPct;
     $('#mwstPct').value = state.mwstPct;
@@ -1188,13 +1213,15 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     return '<input type="text" class="col-kg-input ' + (extraClass || '') + '" list="kgCodeList" placeholder="KG" value="' + escHtml(value || '') + '" maxlength="3">';
   }
 
-  function positionRowHTML(p, nr) {
+  function positionRowHTML(p, nr, ctx) {
+    var din = ctx !== undefined;
     return '' +
       '<div class="position-row' + (p.active === false ? ' inactive' : '') + '" data-position-id="' + p.id + '">' +
+        '<div class="col-grip">' + (din ? '' : '<span class="drag-grip" title="Ziehen zum Sortieren">⠿</span>') + '</div>' +
         '<div class="col-active"><input type="checkbox" class="col-active-input" ' + (p.active === false ? '' : 'checked') + ' title="Position in Summe berücksichtigen"></div>' +
         '<div class="col-nr">' + nr + '</div>' +
         '<div class="col-kg">' + kgInputHTML(p.kg) + '</div>' +
-        '<div class="col-bez"><input type="text" class="col-bez-input" placeholder="Bezeichnung / Leistung" value="' + escHtml(p.bez) + '"></div>' +
+        '<div class="col-bez">' + (din && ctx ? '<div class="pos-ctx">' + escHtml(ctx) + '</div>' : '') + '<input type="text" class="col-bez-input" placeholder="Bezeichnung / Leistung" value="' + escHtml(p.bez) + '"></div>' +
         '<div class="col-menge"><input type="number" class="col-menge-input" step="any" placeholder="0" value="' + (p.menge == null ? '' : p.menge) + '"></div>' +
         '<div class="col-einheit"><input type="text" class="col-einheit-input" list="unitList" placeholder="Einheit" value="' + escHtml(p.einheit || '') + '"></div>' +
         '<div class="col-ep"><input type="number" class="col-ep-input" step="any" placeholder="0,00" value="' + (p.ep == null ? '' : p.ep) + '"></div>' +
@@ -1206,6 +1233,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   function positionsHeaderRowHTML() {
     return '<div class="positions-header-row">' +
+      '<div class="col-grip"></div>' +
       '<div class="col-active"></div>' +
       '<div class="col-nr">#</div>' +
       '<div class="col-kg">KG</div>' +
@@ -1239,6 +1267,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     return '' +
       '<div class="gruppe-card' + levelClass + '" data-node-id="' + gruppe.id + '" data-depth="' + depth + '"' + indentStyle + '>' +
         '<div class="gruppe-header' + levelClass + '">' +
+          '<span class="drag-grip" title="Ziehen zum Sortieren">⠿</span>' +
           '<input class="gruppe-nr" value="' + escHtml(gruppe.nr) + '" placeholder="Nr.">' +
           '<input class="gruppe-name" value="' + escHtml(gruppe.name) + '" placeholder="' + (isTop ? 'Bereich / Haus / Gewerk' : 'Titel / Teilbereich') + '">' +
           '<div class="gruppe-total">' + fmtEUR(total) + '</div>' +
@@ -1252,24 +1281,14 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
           '<div class="add-inline-row">' +
             '<button class="add-inline-btn" data-action="add-loose-position">+ Position direkt ' + (isTop ? 'im Bereich' : 'in dieser Ebene') + '</button>' +
             '<button class="add-inline-btn" data-action="add-subgruppe">+ Unterebene</button>' +
+            '<button class="add-inline-btn" data-action="add-subgruppe-from-din">+ Unterebene aus KG</button>' +
             '<button class="add-inline-btn" data-action="add-gruppe-from-library">+ Paket aus Bibliothek</button>' +
           '</div>' +
         '</div>' +
       '</div>';
   }
 
-  function renderBereiche() {
-    var col = $('#bereicheCol');
-    if (!state.bereiche.length) {
-      col.innerHTML = '<div class="empty-hint">Noch keine Bereiche. Leg mit „+ Bereich" los.</div>';
-    } else {
-      col.innerHTML = state.bereiche.map(function (b, idx) { return gruppeCardHTML(b, 0, idx, state.bereiche.length); }).join('');
-    }
-    col.innerHTML += '<div class="add-bereich-row">' +
-      '<button class="add-bereich-btn" data-action="add-bereich">+ Bereich hinzufügen</button>' +
-      '<button class="add-bereich-btn" data-action="add-bereich-from-din">+ Kostengruppe aus DIN 276</button>' +
-      '</div>';
-
+  function ensureDatalists() {
     if (!$('#unitList')) {
       var dl = document.createElement('datalist');
       dl.id = 'unitList';
@@ -1280,6 +1299,93 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (kgList && !kgList.childElementCount) {
       kgList.innerHTML = DIN276_KOSTENGRUPPEN.map(function (kg) { return '<option value="' + kg.code + '">' + escHtml(kg.title) + '</option>'; }).join('');
     }
+  }
+
+  function renderBereiche() {
+    ensureDatalists();
+    var col = $('#bereicheCol');
+    if (state.viewMode === 'din') { col.innerHTML = dinModeHTML(); return; }
+
+    if (!state.bereiche.length) {
+      col.innerHTML = '<div class="empty-hint">Noch keine Bereiche. Leg mit „+ Bereich" los.</div>';
+    } else {
+      col.innerHTML = state.bereiche.map(function (b, idx) { return gruppeCardHTML(b, 0, idx, state.bereiche.length); }).join('');
+    }
+    col.innerHTML += '<div class="add-bereich-row">' +
+      '<button class="add-bereich-btn" data-action="add-bereich">+ Bereich hinzufügen</button>' +
+      '<button class="add-bereich-btn" data-action="add-bereich-from-din">+ Kostengruppe aus DIN 276</button>' +
+      '</div>';
+  }
+
+  /* Abgeleitete Ansicht „Nach DIN": KG-Ebene 1 als Überkategorie, darunter die
+     konkrete KG, darunter die Positionen (mit Bereich als Kontext). Quelle bleibt
+     state.bereiche – hier wird nur anders gruppiert dargestellt. Werte und die
+     KG-Zuordnung je Position sind bearbeitbar; Struktur/Reihenfolge nicht. */
+  function dinSortKeys(a, b) {
+    if (a === 'ohne') return 1;
+    if (b === 'ohne') return -1;
+    return Number(a) - Number(b);
+  }
+  function dinModeHTML() {
+    var flat = allPositionsFlat();
+    if (!flat.length) {
+      return '<div class="empty-hint">Noch keine Positionen. Wechsle zu „Nach Bereichen" und leg Positionen an.</div>';
+    }
+    var tops = {};
+    flat.forEach(function (x) {
+      var kg = (x.position.kg || '').trim();
+      var top = kg ? (firstLevelOf(kg) || kg) : 'ohne';
+      if (!tops[top]) tops[top] = { subs: {}, order: [] };
+      var subKey = (kg && kg !== top) ? kg : '__direct__';
+      if (!tops[top].subs[subKey]) { tops[top].subs[subKey] = []; tops[top].order.push(subKey); }
+      tops[top].subs[subKey].push(x);
+    });
+
+    var hint = '<div class="din-mode-hint">Ansicht nach DIN 276 – die Kostengruppe ist die Überkategorie. ' +
+      'Mengen, Preise und die KG je Zeile lassen sich hier ändern; die KG-Zuordnung wirkt nach dem Verlassen des Feldes. ' +
+      'Bereiche anlegen, umsortieren und Zeilen verschieben geht in der Ansicht „Nach Bereichen".</div>';
+
+    var cards = Object.keys(tops).sort(dinSortKeys).map(function (top) {
+      var bucket = tops[top];
+      var def = DIN276_BY_CODE[top];
+      var topNr = top === 'ohne' ? '—' : top;
+      var topName = top === 'ohne' ? 'Ohne Kostengruppe' : (def ? def.title : 'Kostengruppe ' + top);
+      var topTotal = 0;
+      var bodyParts = bucket.order.slice().sort(function (a, b) {
+        if (a === '__direct__') return -1;
+        if (b === '__direct__') return 1;
+        return Number(a) - Number(b);
+      }).map(function (subKey) {
+        var entries = bucket.subs[subKey];
+        var subTotal = entries.reduce(function (s, x) { return s + nodeTotal(x.position); }, 0);
+        topTotal += subTotal;
+        var rows = entries.map(function (x, i) {
+          return positionRowHTML(x.position, i + 1, pathLabel(x.path) || '—');
+        }).join('');
+        var table = '<div class="positions-table">' + positionsHeaderRowHTML() + rows + '</div>';
+        if (subKey === '__direct__') return table;
+        var sdef = DIN276_BY_CODE[subKey];
+        return '<div class="gruppe-card level-sub">' +
+          '<div class="gruppe-header level-sub">' +
+            '<span class="gruppe-nr-static">' + escHtml(subKey) + '</span>' +
+            '<span class="gruppe-name-static">' + escHtml(sdef ? sdef.title : 'Kostengruppe ' + subKey) + '</span>' +
+            '<div class="gruppe-total">' + fmtEUR(subTotal) + '</div>' +
+          '</div>' +
+          '<div class="gruppe-body">' + table + '</div>' +
+        '</div>';
+      }).join('');
+
+      return '<div class="gruppe-card level-top">' +
+        '<div class="gruppe-header level-top">' +
+          '<span class="gruppe-nr-static">' + escHtml(topNr) + '</span>' +
+          '<span class="gruppe-name-static">' + escHtml(topName) + '</span>' +
+          '<div class="gruppe-total">' + fmtEUR(topTotal) + '</div>' +
+        '</div>' +
+        '<div class="gruppe-body">' + bodyParts + '</div>' +
+      '</div>';
+    }).join('');
+
+    return hint + cards;
   }
 
   function renderSummary() {
@@ -1358,6 +1464,103 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (newIdx < 0 || newIdx >= loc.list.length) return;
     var tmp = loc.list[loc.index]; loc.list[loc.index] = loc.list[newIdx]; loc.list[newIdx] = tmp;
     save(); renderBereiche(); renderSummary();
+  }
+
+  /* ── Zeilen per Greifpunkt verschieben (Drag&Drop) ─────
+     Wie im Bauzeitenplan: am ⠿-Griff ziehen. Positionen lassen sich innerhalb
+     einer Ebene und in andere Ebenen ziehen, Gruppen an andere Stellen im Baum
+     (nicht in sich selbst). Nur in der Ansicht „Nach Bereichen" aktiv. */
+  function nodeContainsList(node, list) {
+    if (!node || node.kind !== 'gruppe') return false;
+    if (node.children === list) return true;
+    return node.children.some(function (c) { return nodeContainsList(c, list); });
+  }
+  function applyNodeDrop(dragId, refEl, pos) {
+    var src = locate(dragId);
+    if (!src) return;
+    var destList, destIndex;
+    if (pos === 'append') {
+      var card = refEl.closest('.gruppe-card');
+      var destNode = card ? findGruppeById(card.getAttribute('data-node-id')) : null;
+      destList = destNode ? destNode.children : state.bereiche;
+      destIndex = destList.length;
+    } else {
+      var refId = refEl.classList.contains('position-row')
+        ? refEl.getAttribute('data-position-id')
+        : refEl.getAttribute('data-node-id');
+      var ref = locate(refId);
+      if (!ref) return;
+      destList = ref.list;
+      destIndex = ref.index + (pos === 'after' ? 1 : 0);
+    }
+    if (src.node.kind === 'gruppe' && nodeContainsList(src.node, destList)) return; // nicht in sich selbst
+    if (src.node.kind === 'position' && destList === state.bereiche) return; // Positionen brauchen eine Ebene
+    if (src.list === destList && (destIndex === src.index || destIndex === src.index + 1)) return; // kein echter Zug
+    var moved = src.list.splice(src.index, 1)[0];
+    if (src.list === destList && src.index < destIndex) destIndex--;
+    destList.splice(destIndex, 0, moved);
+    save(); renderBereiche(); renderSummary();
+  }
+  function onGripPointerDown(e) {
+    if (state.viewMode === 'din') return;
+    var grip = e.target.closest('.drag-grip');
+    if (!grip) return;
+    var rowEl = grip.closest('.position-row');
+    var cardEl = grip.closest('.gruppe-card');
+    var dragEl, dragId, kind;
+    if (rowEl) { dragEl = rowEl; dragId = rowEl.getAttribute('data-position-id'); kind = 'position'; }
+    else if (cardEl) { dragEl = cardEl; dragId = cardEl.getAttribute('data-node-id'); kind = 'gruppe'; }
+    else return;
+    e.preventDefault();
+    if (grip.setPointerCapture) { try { grip.setPointerCapture(e.pointerId); } catch (err) { /* nicht unterstützt */ } }
+    var startY = e.clientY;
+    var indicator = document.createElement('div');
+    indicator.className = 'dnd-indicator';
+    var lastRef = null, lastPos = null;
+    dragEl.classList.add('dnd-dragging');
+
+    function clearInd() { if (indicator.parentNode) indicator.parentNode.removeChild(indicator); }
+
+    function onMove(ev) {
+      dragEl.style.transform = 'translateY(' + (ev.clientY - startY) + 'px)';
+      dragEl.style.pointerEvents = 'none';
+      var under = document.elementFromPoint(ev.clientX, ev.clientY);
+      dragEl.style.pointerEvents = '';
+      if (!under) return;
+      var refRow = under.closest('.position-row');
+      var refCard = under.closest('.gruppe-card');
+      var body = under.closest('.gruppe-body');
+      var ref = null, pos = 'after';
+      if (kind === 'position' && refRow && refRow !== dragEl) {
+        var r = refRow.getBoundingClientRect();
+        ref = refRow; pos = ev.clientY < r.top + r.height / 2 ? 'before' : 'after';
+      } else if (refCard && refCard !== dragEl && !dragEl.contains(refCard)) {
+        var rc = refCard.getBoundingClientRect();
+        ref = refCard; pos = ev.clientY < rc.top + rc.height / 2 ? 'before' : 'after';
+      } else if (body && !dragEl.contains(body)) {
+        ref = body; pos = 'append';
+      }
+      if (ref === lastRef && pos === lastPos) return;
+      lastRef = ref; lastPos = pos;
+      clearInd();
+      if (!ref) return;
+      if (pos === 'append') ref.appendChild(indicator);
+      else ref.parentNode.insertBefore(indicator, pos === 'before' ? ref : ref.nextSibling);
+    }
+    function onUp(ev) {
+      if (grip.releasePointerCapture) { try { grip.releasePointerCapture(ev.pointerId); } catch (err) { /* nicht unterstützt */ } }
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onUp);
+      grip.removeEventListener('pointercancel', onUp);
+      dragEl.classList.remove('dnd-dragging');
+      dragEl.style.transform = '';
+      dragEl.style.pointerEvents = '';
+      clearInd();
+      if (lastRef) applyNodeDrop(dragId, lastRef, lastPos);
+    }
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onUp);
+    grip.addEventListener('pointercancel', onUp);
   }
   function addSubGruppe(parentId) {
     var parent = findGruppeById(parentId);
@@ -1520,17 +1723,23 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       }
     });
   }
-  function openDinPickerForNewBereich() {
+  function openDinPickerForTarget(targetId, titleText) {
     var body = '<div class="form-field din-picker-search"><label>Suche (Code oder Bezeichnung)</label><input type="text" id="dinPickerSearch" placeholder="z. B. 330 oder Außenwände"></div>' +
       '<div class="din-picker-list" id="dinPickerList">' + dinPickerListHTML('') + '</div>';
-    showModal('Bereich aus DIN 276 anlegen', body, {
+    showModal(titleText, body, {
       onOpen: function (overlay) {
-        overlay.setAttribute('data-target-position', 'NEW_BEREICH');
+        overlay.setAttribute('data-target-position', targetId);
         var input = $('#dinPickerSearch');
         input.addEventListener('input', function () { $('#dinPickerList').innerHTML = dinPickerListHTML(input.value); });
         input.focus();
       }
     });
+  }
+  function openDinPickerForNewBereich() {
+    openDinPickerForTarget('NEW_BEREICH', 'Bereich aus DIN 276 anlegen');
+  }
+  function openDinPickerForNewSubgruppe(parentId) {
+    openDinPickerForTarget('NEW_SUB:' + parentId, 'Unterebene aus DIN 276 anlegen');
   }
   function applyDinCode(targetId, code) {
     if (targetId === 'NEW_BEREICH') {
@@ -1538,6 +1747,17 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       if (!kgDef) return;
       state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kgDef.code, name: kgDef.title, children: [newPosition()] });
       save(); renderBereiche(); renderSummary();
+      closeModal();
+      return;
+    }
+    if (targetId && targetId.indexOf('NEW_SUB:') === 0) {
+      var parent = findGruppeById(targetId.slice(8));
+      var subDef = DIN276_BY_CODE[code];
+      if (parent && subDef) {
+        parent.children.push({ kind: 'gruppe', id: uid(), nr: subDef.code, name: subDef.title, children: [newPosition()] });
+        save(); renderBereiche(); renderSummary();
+        focusLast('.gruppe-card[data-node-id="' + parent.id + '"] > .gruppe-body > .gruppe-card:last-of-type > .gruppe-header > .gruppe-name');
+      }
       closeModal();
       return;
     }
@@ -1616,6 +1836,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     else if (action === 'move-node-up') moveNode(nodeId, -1);
     else if (action === 'move-node-down') moveNode(nodeId, 1);
     else if (action === 'add-subgruppe') addSubGruppe(nodeId);
+    else if (action === 'add-subgruppe-from-din') openDinPickerForNewSubgruppe(nodeId);
     else if (action === 'add-loose-position') addPositionToGruppe(nodeId);
     else if (action === 'add-position') addPositionToGruppe(nodeId);
     else if (action === 'delete-position') deleteNode(positionId);
@@ -1630,8 +1851,6 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     else if (action === 'save-snapshot') openSnapshotModal();
     else if (action === 'open-compare') openComparePage();
     else if (action === 'close-compare-page') closeComparePage();
-    else if (action === 'open-kg-page') openKgPage();
-    else if (action === 'close-kg-page') closeKgPage();
     else if (action === 'open-pdf-options') openPdfOptionsModal();
     else if (action === 'open-projektdaten') openProjektdatenModal();
     else if (action === 'insert-library-position') {
@@ -1732,6 +1951,23 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     state.kostenstand = val;
     state.reservePct = RESERVE_DEFAULTS[val];
     save(); renderToolbar(); renderSummary();
+  });
+
+  $('#viewModeGroup').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-viewmode]');
+    if (!btn) return;
+    state.viewMode = btn.getAttribute('data-viewmode');
+    save(); renderToolbar(); renderBereiche(); renderSummary();
+  });
+
+  // Griff zum Sortieren – ein Listener am Container reicht, der Inhalt wird bei jedem Render neu gebaut.
+  $('#bereicheCol').addEventListener('pointerdown', onGripPointerDown);
+
+  // In der DIN-Ansicht neu einsortieren, sobald die KG einer Zeile geändert und das Feld verlassen wird.
+  document.addEventListener('change', function (e) {
+    if (state.viewMode === 'din' && e.target.classList && e.target.classList.contains('col-kg-input')) {
+      renderBereiche();
+    }
   });
 
   /* ── Projektdaten (Deckblatt-Angaben) ────────────────── */
@@ -1902,65 +2138,6 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var pdfBtn = $('#comparePdfBtn');
     pdfBtn.disabled = !visible.length;
     pdfBtn.onclick = function () { downloadComparePDF(visible); };
-  }
-
-  /* ── "Nach Kostengruppen"-Ansicht ─────────────────────── */
-  function closeKgPage() { $('#kgPage').style.display = 'none'; $('.app').style.display = ''; }
-  function openKgPage() {
-    $('.app').style.display = 'none';
-    $('#kgPage').style.display = 'flex';
-    renderKgPage();
-  }
-  function renderKgPage() {
-    var flat = allPositionsFlat();
-    var byCode = {};
-    flat.forEach(function (x) {
-      var code = (x.position.kg || '').trim();
-      var key = code || 'ohne';
-      if (!byCode[key]) byCode[key] = [];
-      byCode[key].push(x);
-    });
-    var lvl1Buckets = {};
-    Object.keys(byCode).forEach(function (code) {
-      var lvl1 = code === 'ohne' ? 'ohne' : (firstLevelOf(code) || code);
-      if (!lvl1Buckets[lvl1]) lvl1Buckets[lvl1] = [];
-      lvl1Buckets[lvl1].push(code);
-    });
-    var lvl1Order = Object.keys(lvl1Buckets).sort(function (a, b) {
-      if (a === 'ohne') return 1; if (b === 'ohne') return -1;
-      return Number(a) - Number(b);
-    });
-
-    var rowsHtml = lvl1Order.map(function (lvl1) {
-      var lvl1Title = lvl1 === 'ohne' ? 'Ohne Kostengruppe' : (DIN276_BY_CODE[lvl1] ? lvl1 + ' ' + DIN276_BY_CODE[lvl1].title : 'KG ' + lvl1);
-      var lvl1Total = lvl1Buckets[lvl1].reduce(function (s, code) { return s + byCode[code].reduce(function (s2, x) { return s2 + positionTotal(x.position); }, 0); }, 0);
-      var sub = lvl1Buckets[lvl1].sort().map(function (code) {
-        if (code === lvl1 || (code === 'ohne' && lvl1 === 'ohne')) return '';
-        var title = DIN276_BY_CODE[code] ? code + ' ' + DIN276_BY_CODE[code].title : code;
-        var subTotal = byCode[code].reduce(function (s, x) { return s + positionTotal(x.position); }, 0);
-        var posRows = byCode[code].map(function (x) {
-          var ctx = pathLabel(x.path);
-          return '<tr class="position-row-cmp"><td>' + escHtml((ctx ? ctx + ' – ' : '') + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
-        }).join('');
-        return '<tr class="kg-group-row"><td>' + escHtml(title) + '</td><td>' + fmtEUR(subTotal) + '</td></tr>' + posRows;
-      }).join('');
-      var directPosRows = '';
-      if (lvl1Buckets[lvl1].length === 1 && lvl1Buckets[lvl1][0] === lvl1) {
-        directPosRows = byCode[lvl1].map(function (x) {
-          var ctx = pathLabel(x.path);
-          return '<tr class="position-row-cmp"><td>' + escHtml((ctx ? ctx + ' – ' : '') + (x.position.bez || '(ohne Bezeichnung)')) + '</td><td>' + fmtEUR(positionTotal(x.position)) + '</td></tr>';
-        }).join('');
-      }
-      return '<tr class="kg-group-row first-level"><td>' + escHtml(lvl1Title) + '</td><td>' + fmtEUR(lvl1Total) + '</td></tr>' + sub + directPosRows;
-    }).join('');
-
-    var s = computeSummary();
-    var totalRows = ['netto', 'reserve', 'nebenkosten', 'zwischensumme', 'mwst', 'brutto'].map(function (key) {
-      var lbls = { netto: 'Baukosten netto', reserve: 'Reserve', nebenkosten: 'Baunebenkosten', zwischensumme: 'Zwischensumme netto', mwst: 'MwSt.', brutto: 'Gesamt brutto' };
-      return '<tr class="' + (key === 'brutto' ? 'grand' : '') + '"><td>' + lbls[key] + '</td><td>' + fmtEUR(s[key]) + '</td></tr>';
-    }).join('');
-
-    $('#kgPageBody').innerHTML = '<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>Kostengruppe / Position</th><th>Betrag</th></tr></thead><tbody>' + rowsHtml + totalRows + '</tbody></table></div>';
   }
 
   /* ── PDF-Export (reine PDF-Syntax, keine externe Bibliothek) ─── */
