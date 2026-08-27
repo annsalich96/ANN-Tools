@@ -3183,6 +3183,8 @@ button, input{ font-family:var(--font-family); }
     doc += '<label class="print-option-field" id="printBarLabel1SideRow" style="display:none">Position 1<select id="printBarLabel1Side"><option value="right" selected>Rechts vom Balken</option><option value="left">Links vom Balken</option></select></label>';
     doc += '<label class="print-option-field">Balken-Beschriftung 2<select id="printBarLabel2">' + barLabelOptsHtml + '</select></label>';
     doc += '<label class="print-option-field" id="printBarLabel2SideRow" style="display:none">Position 2<select id="printBarLabel2Side"><option value="right" selected>Rechts vom Balken</option><option value="left">Links vom Balken</option></select></label>';
+    doc += '<label class="print-option-field">Balken-Beschriftung 3<select id="printBarLabel3">' + barLabelOptsHtml + '</select></label>';
+    doc += '<label class="print-option-field" id="printBarLabel3SideRow" style="display:none">Position 3<select id="printBarLabel3Side"><option value="right" selected>Rechts vom Balken</option><option value="left">Links vom Balken</option></select></label>';
     doc += '</div><div class="print-preview-actions"><button id="printPreviewDownload">PDF herunterladen</button></div></div>';
     doc += '<div class="print-preview-main"><embed class="print-preview-embed" id="printPreviewEmbed" type="application/pdf"></div>';
     doc += '</body></html>';
@@ -3208,6 +3210,9 @@ button, input{ font-family:var(--font-family); }
     var winBarLabel2El = win.document.getElementById('printBarLabel2');
     var winBarLabel2SideEl = win.document.getElementById('printBarLabel2Side');
     var winBarLabel2SideRowEl = win.document.getElementById('printBarLabel2SideRow');
+    var winBarLabel3El = win.document.getElementById('printBarLabel3');
+    var winBarLabel3SideEl = win.document.getElementById('printBarLabel3Side');
+    var winBarLabel3SideRowEl = win.document.getElementById('printBarLabel3SideRow');
     var winEmbedEl = win.document.getElementById('printPreviewEmbed');
     var winDownloadBtn = win.document.getElementById('printPreviewDownload');
     var currentBlobUrl = null;
@@ -3223,7 +3228,9 @@ button, input{ font-family:var(--font-family); }
         barLabel1Field: winBarLabel1El.value,
         barLabel1Side: winBarLabel1SideEl.value,
         barLabel2Field: winBarLabel2El.value,
-        barLabel2Side: winBarLabel2SideEl.value
+        barLabel2Side: winBarLabel2SideEl.value,
+        barLabel3Field: winBarLabel3El.value,
+        barLabel3Side: winBarLabel3SideEl.value
       };
     }
     function update() {
@@ -3255,6 +3262,11 @@ button, input{ font-family:var(--font-family); }
       update();
     });
     winBarLabel2SideEl.addEventListener('change', update);
+    winBarLabel3El.addEventListener('change', function () {
+      winBarLabel3SideRowEl.style.display = winBarLabel3El.value === 'none' ? 'none' : '';
+      update();
+    });
+    winBarLabel3SideEl.addEventListener('change', update);
     winDownloadBtn.addEventListener('click', function () { downloadGanttPDF(winSettings()); });
 
     update();
@@ -3717,13 +3729,14 @@ button, input{ font-family:var(--font-family); }
         cur2.push('BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (tx + 2).toFixed(2) + ' ' + textY + ' Tm (' + durDays + ') Tj ET');
       }
 
-      // Bis zu zwei unabhängige Zusatz-Beschriftungen neben dem Balken im Zeitstrahl (Vorgang/
+      // Bis zu drei unabhängige Zusatz-Beschriftungen neben dem Balken im Zeitstrahl (Vorgang/
       // Verantwortlich/Start/Ende), jede einzeln links oder rechts wählbar — nur wenn in den
       // Druckeinstellungen aktiviert. Mehrere Beschriftungen auf derselben Seite stapeln sich
       // nebeneinander, statt sich zu überlappen.
       var barLabelDefs = [];
       if (settings.barLabel1Field && settings.barLabel1Field !== 'none') barLabelDefs.push({ field: settings.barLabel1Field, side: settings.barLabel1Side || 'right' });
       if (settings.barLabel2Field && settings.barLabel2Field !== 'none') barLabelDefs.push({ field: settings.barLabel2Field, side: settings.barLabel2Side || 'right' });
+      if (settings.barLabel3Field && settings.barLabel3Field !== 'none') barLabelDefs.push({ field: settings.barLabel3Field, side: settings.barLabel3Side || 'right' });
       if (barLabelDefs.length) {
         var barLeftX = task.milestone ? (barX0 - mSize / 2) : barX0;
         var barRightX = task.milestone ? (barX0 + mSize / 2) : (barX0 + barW);
