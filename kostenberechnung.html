@@ -134,6 +134,12 @@ button, input, textarea, select{ font-family:var(--font-family); }
 }
 .level-top .gruppe-nr{ flex:0 0 44px; font-size:13px; }
 .level-sub .gruppe-nr{ flex:0 0 52px; font-size:12px; }
+.gruppe-kg-input{
+  flex:0 0 62px; outline:none; padding:4px 6px; border-radius:3px; text-align:center; font-weight:700;
+  border:1px solid var(--g300); background:var(--color-white); color:var(--color-black); font-size:12px;
+}
+.gruppe-kg-input:focus{ border-color:var(--g400); }
+.gruppe-kg-input::placeholder{ color:var(--g400); font-weight:600; }
 .gruppe-name{
   flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
   font-weight:600; padding:2px 4px; border-radius:2px; color:var(--color-black);
@@ -171,7 +177,7 @@ button, input, textarea, select{ font-family:var(--font-family); }
 .col-kg{ flex:0 0 56px; }
 .col-bez{ flex:1 1 auto; min-width:0; }
 .col-menge{ flex:0 0 74px; }
-.col-einheit{ flex:0 0 68px; }
+.col-einheit{ flex:0 0 80px; }
 .col-ep{ flex:0 0 92px; }
 .col-gesamt{ flex:0 0 100px; text-align:right; }
 .col-lib{ flex:0 0 26px; }
@@ -186,9 +192,16 @@ button, input, textarea, select{ font-family:var(--font-family); }
 .position-row input:focus{ border-color:var(--g400); background:var(--color-white); }
 .position-row input.col-menge-input, .position-row input.col-ep-input{ text-align:right; }
 .position-row input.col-kg-input{ text-align:center; font-weight:600; }
+.position-row input.col-kg-input.inherited::placeholder{ color:var(--g400); font-weight:600; opacity:1; }
+.position-row select.col-einheit-input{
+  border:1px solid var(--g200); outline:none; background:var(--color-white); width:100%;
+  font-size:13px; color:var(--color-black); padding:5px 4px; border-radius:3px; cursor:pointer;
+}
+.position-row select.col-einheit-input:hover{ border-color:var(--g400); }
+.position-row select.col-einheit-input:focus{ border-color:var(--g400); }
 .position-row .col-gesamt{ font-size:13px; font-weight:500; color:var(--color-black); }
 .position-row.inactive{ opacity:.45; }
-.position-row.inactive .col-gesamt, .position-row.inactive input{ text-decoration:line-through; }
+.position-row.inactive .col-gesamt, .position-row.inactive input, .position-row.inactive select{ text-decoration:line-through; }
 
 /* ── Zeilen per Greifpunkt sortieren (Drag&Drop) ─────── */
 .drag-grip{
@@ -478,7 +491,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   var STORAGE_KEY = 'kostenberechnung_state_v3';
   var LIBRARY_KEY = 'kostenberechnung_library_v3';
-  var UNITS = ['m²', 'm³', 'lfm', 'Stk', 'psch', 'kg', 'h', 'Std.', 'pauschal', 't', 'Satz'];
+  var UNITS = ['Stk', 'm', 'lfm', 'm²', 'm³', 'kg', 't', 'h', 'Std.', 'Tag', 'Wo', 'Mon.', 'psch', 'pauschal', 'Satz', '%'];
   var RESERVE_DEFAULTS = { schaetzung: 15, berechnung: 10, anschlag: 5 };
   var KOSTENSTAND_LABELS = { schaetzung: 'Kostenschätzung', berechnung: 'Kostenberechnung', anschlag: 'Kostenanschlag' };
   var DEFAULT_HINWEISE = 'Die vorliegende Kostenaufstellung beruht auf einer stichprobenartigen Besichtigung der Liegenschaft bzw. den vorliegenden Planungsunterlagen. Es wird keine Haftung dafür übernommen, dass die vorliegende Kostenschätzung die tatsächlichen Kosten wiedergibt.\n\nAnforderungen, die sich aus möglichen Auflagen der genehmigenden Behörden ergeben, sind nicht berücksichtigt. Noch ausstehende Gutachten und Untersuchungen von Spezialisten können zu einer Erhöhung des vorliegenden Kostenrahmens führen. Eine Konkretisierung der Kosten kann erst aufgrund einer in die Tiefe gehenden Planung erfolgen.\n\nEs wurden die Preise für eine Einzelvergabe der Bauleistungen angenommen. Bei einer Vergabe an einen Generalunternehmer ist mit höheren Preisen zu rechnen.';
@@ -913,9 +926,11 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
      Rekursiver Gruppen-Baum – jede Gruppe kann beliebig tief eigene
      Untergruppen und/oder Positionen enthalten (state.bereiche = Wurzelebene).
      Gruppe:   { kind:'gruppe', id, nr, name, children: [ Gruppe | Position ] }
+     Gruppe:   { kind:'gruppe', id, nr, name, kg, children: [...] }  – kg = Kostengruppe der Ebene;
+               Positionen ohne eigene kg erben die kg der nächsten übergeordneten Ebene.
      Position: { kind:'position', id, bez, menge, einheit, ep, active, kg } */
   function newPosition() { return { kind: 'position', id: uid(), bez: '', menge: null, einheit: 'psch', ep: null, active: true, kg: '' }; }
-  function newGruppe(nr) { return { kind: 'gruppe', id: uid(), nr: nr || '', name: '', children: [newPosition()] }; }
+  function newGruppe(nr) { return { kind: 'gruppe', id: uid(), nr: nr || '', name: '', kg: '', children: [newPosition()] }; }
 
   function seedData() {
     return {
@@ -933,7 +948,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       nkPct: 15,
       mwstPct: 19,
       bereiche: [
-        { kind: 'gruppe', id: uid(), nr: '0', name: 'Baustelleneinrichtung', children: [newPosition()] }
+        { kind: 'gruppe', id: uid(), nr: '0', name: 'Baustelleneinrichtung', kg: '', children: [newPosition()] }
       ],
       snapshots: []
     };
@@ -1026,6 +1041,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   function normalizeGruppe(g) {
     if (g.nr === undefined) g.nr = '';
     if (g.name === undefined) g.name = '';
+    if (g.kg === undefined) g.kg = '';
     if (!Array.isArray(g.children)) g.children = [];
     g.kind = 'gruppe';
     g.children.forEach(function (c) { if (c.kind === 'gruppe') normalizeGruppe(c); else normalizePosition(c); });
@@ -1167,18 +1183,32 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
   function computeSummary() { return computeTotals(state); }
 
+  /* Wirksame Kostengruppe einer Position: eigene KG, sonst die der nächsten
+     übergeordneten Ebene mit gesetzter KG (path = Gruppen von der Wurzel abwärts). */
+  function ancestorKg(path) {
+    for (var i = (path || []).length - 1; i >= 0; i--) {
+      var k = (path[i].kg || '').trim();
+      if (k) return k;
+    }
+    return '';
+  }
+  function effectiveKg(position, path) {
+    return (position.kg || '').trim() || ancestorKg(path);
+  }
+
   function kgRollup(bereiche) {
     var buckets = {};
-    function walk(nodes) {
+    function walk(nodes, inh) {
       nodes.forEach(function (n) {
         if (n.kind === 'position') {
-          var lvl1 = firstLevelOf(n.kg);
+          var eff = (n.kg || '').trim() || inh;
+          var lvl1 = firstLevelOf(eff);
           var key = lvl1 || 'unclassified';
           buckets[key] = (buckets[key] || 0) + positionTotal(n);
-        } else walk(n.children);
+        } else walk(n.children, (n.kg || '').trim() || inh);
       });
     }
-    walk(bereiche || state.bereiche);
+    walk(bereiche || state.bereiche, '');
     return buckets;
   }
 
@@ -1209,21 +1239,39 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     $('#mwstPct').value = state.mwstPct;
   }
 
-  function kgInputHTML(value, extraClass) {
-    return '<input type="text" class="col-kg-input ' + (extraClass || '') + '" list="kgCodeList" placeholder="KG" value="' + escHtml(value || '') + '" maxlength="3">';
+  function kgInputHTML(value, inherited) {
+    var own = (value || '').trim();
+    var inh = (inherited || '').trim();
+    var showInherited = !own && inh;
+    return '<input type="text" class="col-kg-input' + (showInherited ? ' inherited' : '') + '" list="kgCodeList" ' +
+      'placeholder="' + (showInherited ? '↳ ' + escHtml(inh) : 'KG') + '" ' +
+      'title="' + (inh ? 'Erbt KG ' + escHtml(inh) + ' von der Ebene – eigenen Wert eintragen, um sie zu überschreiben' : 'Kostengruppe dieser Position') + '" ' +
+      'value="' + escHtml(own) + '" maxlength="3">';
   }
 
-  function positionRowHTML(p, nr, ctx) {
+  function einheitSelectHTML(value) {
+    var v = (value || '').trim();
+    var opts = UNITS.slice();
+    if (v && opts.indexOf(v) === -1) opts.unshift(v);
+    return '<select class="col-einheit-input" title="Einheit wählen">' +
+      '<option value=""' + (v ? '' : ' selected') + '>–</option>' +
+      opts.map(function (u) {
+        return '<option value="' + escHtml(u) + '"' + (u === v ? ' selected' : '') + '>' + escHtml(u) + '</option>';
+      }).join('') +
+      '</select>';
+  }
+
+  function positionRowHTML(p, nr, ctx, inheritedKg) {
     var din = ctx !== undefined;
     return '' +
       '<div class="position-row' + (p.active === false ? ' inactive' : '') + '" data-position-id="' + p.id + '">' +
         '<div class="col-grip">' + (din ? '' : '<span class="drag-grip" title="Ziehen zum Sortieren">⠿</span>') + '</div>' +
         '<div class="col-active"><input type="checkbox" class="col-active-input" ' + (p.active === false ? '' : 'checked') + ' title="Position in Summe berücksichtigen"></div>' +
         '<div class="col-nr">' + nr + '</div>' +
-        '<div class="col-kg">' + kgInputHTML(p.kg) + '</div>' +
+        '<div class="col-kg">' + kgInputHTML(p.kg, inheritedKg) + '</div>' +
         '<div class="col-bez">' + (din && ctx ? '<div class="pos-ctx">' + escHtml(ctx) + '</div>' : '') + '<input type="text" class="col-bez-input" placeholder="Bezeichnung / Leistung" value="' + escHtml(p.bez) + '"></div>' +
         '<div class="col-menge"><input type="number" class="col-menge-input" step="any" placeholder="0" value="' + (p.menge == null ? '' : p.menge) + '"></div>' +
-        '<div class="col-einheit"><input type="text" class="col-einheit-input" list="unitList" placeholder="Einheit" value="' + escHtml(p.einheit || '') + '"></div>' +
+        '<div class="col-einheit">' + einheitSelectHTML(p.einheit) + '</div>' +
         '<div class="col-ep"><input type="number" class="col-ep-input" step="any" placeholder="0,00" value="' + (p.ep == null ? '' : p.ep) + '"></div>' +
         '<div class="col-gesamt">' + fmtEUR(rawPositionAmount(p)) + '</div>' +
         '<div class="col-lib"><button class="icon-btn" data-action="save-position-template" title="Als Vorlage in Bibliothek speichern">☆</button></div>' +
@@ -1247,28 +1295,34 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       '</div>';
   }
 
-  function positionsTableHTML(positions) {
-    var rows = positions.map(function (p, i) { return positionRowHTML(p, i + 1); }).join('');
+  function positionsTableHTML(positions, inheritedKg) {
+    var rows = positions.map(function (p, i) { return positionRowHTML(p, i + 1, undefined, inheritedKg); }).join('');
     return '<div class="positions-table">' + positionsHeaderRowHTML() + rows +
       '<div class="add-inline-row"><button class="add-inline-btn" data-action="add-position">+ Position</button>' +
       '<button class="add-inline-btn" data-action="add-position-from-library">+ Aus Bibliothek</button></div>' +
       '</div>';
   }
 
-  function gruppeCardHTML(gruppe, depth, idx, siblingCount) {
+  function gruppeCardHTML(gruppe, depth, idx, siblingCount, inheritedKg) {
     var loosePositions = gruppe.children.filter(function (c) { return c.kind === 'position'; });
     var subGruppen = gruppe.children.filter(function (c) { return c.kind === 'gruppe'; });
     var total = nodeTotal(gruppe);
     var isTop = depth === 0;
     var levelClass = isTop ? ' level-top' : ' level-sub';
     var indentStyle = depth > 1 ? ' style="margin-left:' + Math.min((depth - 1) * 18, 72) + 'px"' : '';
-    var subHTML = subGruppen.map(function (sg, i) { return gruppeCardHTML(sg, depth + 1, i, subGruppen.length); }).join('');
-    var looseHTML = loosePositions.length ? positionsTableHTML(loosePositions) : '';
+    var ownKg = (gruppe.kg || '').trim();
+    var effKg = ownKg || (inheritedKg || '');
+    var subHTML = subGruppen.map(function (sg, i) { return gruppeCardHTML(sg, depth + 1, i, subGruppen.length, effKg); }).join('');
+    var looseHTML = loosePositions.length ? positionsTableHTML(loosePositions, effKg) : '';
+    var kgTitle = ownKg && DIN276_BY_CODE[ownKg] ? DIN276_BY_CODE[ownKg].title : '';
     return '' +
       '<div class="gruppe-card' + levelClass + '" data-node-id="' + gruppe.id + '" data-depth="' + depth + '"' + indentStyle + '>' +
         '<div class="gruppe-header' + levelClass + '">' +
           '<span class="drag-grip" title="Ziehen zum Sortieren">⠿</span>' +
           '<input class="gruppe-nr" value="' + escHtml(gruppe.nr) + '" placeholder="Nr.">' +
+          '<input class="gruppe-kg-input" list="kgCodeList" maxlength="3" value="' + escHtml(ownKg) + '" ' +
+            'placeholder="' + (inheritedKg ? '↳ ' + escHtml(inheritedKg) : 'KG') + '" ' +
+            'title="' + (kgTitle ? 'KG ' + escHtml(ownKg) + ' – ' + escHtml(kgTitle) + '. ' : '') + 'Kostengruppe dieser Ebene – alle Positionen ohne eigene KG erben sie' + (inheritedKg && !ownKg ? ' (aktuell geerbt: ' + escHtml(inheritedKg) + ')' : '') + '">' +
           '<input class="gruppe-name" value="' + escHtml(gruppe.name) + '" placeholder="' + (isTop ? 'Bereich / Haus / Gewerk' : 'Titel / Teilbereich') + '">' +
           '<div class="gruppe-total">' + fmtEUR(total) + '</div>' +
           '<button class="icon-btn" data-action="save-gruppe-template" title="Als Paket in Bibliothek speichern">☆</button>' +
@@ -1333,7 +1387,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     }
     var tops = {};
     flat.forEach(function (x) {
-      var kg = (x.position.kg || '').trim();
+      var kg = effectiveKg(x.position, x.path);
       var top = kg ? (firstLevelOf(kg) || kg) : 'ohne';
       if (!tops[top]) tops[top] = { subs: {}, order: [] };
       var subKey = (kg && kg !== top) ? kg : '__direct__';
@@ -1342,8 +1396,8 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     });
 
     var hint = '<div class="din-mode-hint">Ansicht nach DIN 276 – die Kostengruppe ist die Überkategorie. ' +
-      'Mengen, Preise und die KG je Zeile lassen sich hier ändern; die KG-Zuordnung wirkt nach dem Verlassen des Feldes. ' +
-      'Bereiche anlegen, umsortieren und Zeilen verschieben geht in der Ansicht „Nach Bereichen".</div>';
+      'Mengen, Preise und die KG je Zeile lassen sich hier ändern; ein grauer „↳ 300"-Platzhalter heißt: von der Ebene geerbt. ' +
+      'Ebenen-KG und Struktur bearbeitest du in der Ansicht „Nach Bereichen".</div>';
 
     var cards = Object.keys(tops).sort(dinSortKeys).map(function (top) {
       var bucket = tops[top];
@@ -1360,7 +1414,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
         var subTotal = entries.reduce(function (s, x) { return s + nodeTotal(x.position); }, 0);
         topTotal += subTotal;
         var rows = entries.map(function (x, i) {
-          return positionRowHTML(x.position, i + 1, pathLabel(x.path) || '—');
+          return positionRowHTML(x.position, i + 1, pathLabel(x.path) || '—', ancestorKg(x.path));
         }).join('');
         var table = '<div class="positions-table">' + positionsHeaderRowHTML() + rows + '</div>';
         if (subKey === '__direct__') return table;
@@ -1439,7 +1493,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
 
   /* ── Mutationen ───────────────────────────────────────── */
   function addBereich() {
-    state.bereiche.push({ kind: 'gruppe', id: uid(), nr: String(state.bereiche.length), name: '', children: [newPosition()] });
+    state.bereiche.push({ kind: 'gruppe', id: uid(), nr: String(state.bereiche.length), name: '', kg: '', children: [newPosition()] });
     save(); renderBereiche(); renderSummary();
     focusLast('.gruppe-card.level-top > .gruppe-header > .gruppe-name');
   }
@@ -1566,7 +1620,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     var parent = findGruppeById(parentId);
     if (!parent) return;
     var subCount = parent.children.filter(function (c) { return c.kind === 'gruppe'; }).length;
-    parent.children.push({ kind: 'gruppe', id: uid(), nr: (parent.nr ? parent.nr + '.' : '') + (subCount + 1), name: '', children: [newPosition()] });
+    parent.children.push({ kind: 'gruppe', id: uid(), nr: (parent.nr ? parent.nr + '.' : '') + (subCount + 1), name: '', kg: '', children: [newPosition()] });
     save(); renderBereiche(); renderSummary();
     focusLast('.gruppe-card[data-node-id="' + parentId + '"] > .gruppe-body > .gruppe-card > .gruppe-header > .gruppe-name');
   }
@@ -1593,6 +1647,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   function cloneGruppeForLibrary(g) {
     return {
       name: g.name,
+      kg: g.kg || '',
       children: g.children.map(function (c) {
         return c.kind === 'gruppe' ? cloneGruppeForLibrary(c) : { bez: c.bez, menge: c.menge, einheit: c.einheit, ep: c.ep, kg: c.kg };
       })
@@ -1681,7 +1736,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
   function instantiateLibraryNode(node) {
     return {
-      kind: 'gruppe', id: uid(), nr: '', name: node.name || '',
+      kind: 'gruppe', id: uid(), nr: '', name: node.name || '', kg: node.kg || '',
       children: (node.children || []).map(function (c) {
         return ('children' in c) ? instantiateLibraryNode(c) : { kind: 'position', id: uid(), bez: c.bez, menge: c.menge, einheit: c.einheit, ep: c.ep, active: true, kg: c.kg || '' };
       })
@@ -1745,7 +1800,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
     if (targetId === 'NEW_BEREICH') {
       var kgDef = DIN276_BY_CODE[code];
       if (!kgDef) return;
-      state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kgDef.code, name: kgDef.title, children: [newPosition()] });
+      state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kgDef.code, name: kgDef.title, kg: kgDef.code, children: [newPosition()] });
       save(); renderBereiche(); renderSummary();
       closeModal();
       return;
@@ -1754,7 +1809,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       var parent = findGruppeById(targetId.slice(8));
       var subDef = DIN276_BY_CODE[code];
       if (parent && subDef) {
-        parent.children.push({ kind: 'gruppe', id: uid(), nr: subDef.code, name: subDef.title, children: [newPosition()] });
+        parent.children.push({ kind: 'gruppe', id: uid(), nr: subDef.code, name: subDef.title, kg: subDef.code, children: [newPosition()] });
         save(); renderBereiche(); renderSummary();
         focusLast('.gruppe-card[data-node-id="' + parent.id + '"] > .gruppe-body > .gruppe-card:last-of-type > .gruppe-header > .gruppe-name');
       }
@@ -1769,9 +1824,9 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   }
 
   function openDinSuggestModal() {
-    var candidates = allPositionsFlat().filter(function (x) { return !x.position.kg && (x.position.bez || '').trim(); });
+    var candidates = allPositionsFlat().filter(function (x) { return !effectiveKg(x.position, x.path) && (x.position.bez || '').trim(); });
     if (!candidates.length) {
-      showModal('Nach DIN einordnen', '<div class="lib-empty">Alle beschrifteten Positionen haben bereits eine Kostengruppe, oder es gibt noch keine Positionen mit Bezeichnung.</div>');
+      showModal('Nach DIN einordnen', '<div class="lib-empty">Alle beschrifteten Positionen haben bereits eine Kostengruppe (eigene oder von der Ebene geerbt), oder es gibt noch keine Positionen mit Bezeichnung.</div>');
       return;
     }
     var suggestions = {};
@@ -1816,7 +1871,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       return;
     }
     showConfirm('Die ' + toAdd.length + ' fehlenden Kostengruppen der 1. Ebene (' + toAdd.map(function (kg) { return kg.code; }).join(', ') + ') als leere Bereiche anlegen?', function () {
-      toAdd.forEach(function (kg) { state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kg.code, name: kg.title, children: [newPosition()] }); });
+      toAdd.forEach(function (kg) { state.bereiche.push({ kind: 'gruppe', id: uid(), nr: kg.code, name: kg.title, kg: kg.code, children: [newPosition()] }); });
       save(); renderBereiche(); renderSummary();
     });
   }
@@ -1925,6 +1980,7 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       if (g) {
         if (t.classList.contains('gruppe-nr')) { g.nr = t.value; save(); renderSummary(); return; }
         if (t.classList.contains('gruppe-name')) { g.name = t.value; save(); renderSummary(); return; }
+        if (t.classList.contains('gruppe-kg-input')) { g.kg = t.value.trim(); save(); renderSummary(); return; }
       }
     }
 
@@ -1963,10 +2019,23 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
   // Griff zum Sortieren – ein Listener am Container reicht, der Inhalt wird bei jedem Render neu gebaut.
   $('#bereicheCol').addEventListener('pointerdown', onGripPointerDown);
 
-  // In der DIN-Ansicht neu einsortieren, sobald die KG einer Zeile geändert und das Feld verlassen wird.
+  // Nach dem Verlassen eines KG-Feldes neu aufbauen. Bei einer Ebenen-KG immer (die geerbten
+  // Platzhalter der Unterzeilen ändern sich); bei einer Positions-KG nur in der DIN-Ansicht,
+  // damit in der Bereichs-Ansicht der Tab-Fluss beim Erfassen erhalten bleibt.
   document.addEventListener('change', function (e) {
-    if (state.viewMode === 'din' && e.target.classList && e.target.classList.contains('col-kg-input')) {
+    var t = e.target;
+    if (!t || !t.classList) return;
+    if (t.classList.contains('gruppe-kg-input') ||
+        (t.classList.contains('col-kg-input') && state.viewMode === 'din')) {
       renderBereiche();
+      renderSummary();
+      return;
+    }
+    // <select> für Einheit: manche Browser feuern hier nur "change", nicht "input".
+    if (t.classList.contains('col-einheit-input')) {
+      var row = t.closest('.position-row');
+      var p = row && findPositionById(row.getAttribute('data-position-id'));
+      if (p && p.einheit !== t.value) { p.einheit = t.value; save(); }
     }
   });
 
@@ -2307,10 +2376,10 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
       ensureSpace(80); detailHeaderRow();
 
       function isBlankPosition(p) { return !((p.bez || '').trim()) && p.menge == null && p.ep == null; }
-      function printPositionRow(p, idx) {
+      function printPositionRow(p, idx, inhKg) {
         ensureSpace();
         line(String(idx), 'F1', 8, MARGIN);
-        line(p.kg || '', 'F1', 8, MARGIN + 34);
+        line((p.kg || '').trim() || inhKg || '', 'F1', 8, MARGIN + 34);
         line(pdfTruncate(p.bez || '', 46), 'F1', 8, MARGIN + 62);
         line(p.menge == null ? '' : String(p.menge), 'F1', 8, 330);
         line(p.einheit || '', 'F1', 8, 375);
@@ -2318,22 +2387,24 @@ table.compare-table tr.position-row-cmp td:first-child{ padding-left:var(--space
         line(fmtEUR(rawPositionAmount(p)), 'F1', 8, 470);
         y -= 13;
       }
-      function printGruppeRecursive(g, depth) {
+      function printGruppeRecursive(g, depth, inhKg) {
         ensureSpace(depth === 0 ? 60 : 40);
         if (depth === 0) { y -= 4; ensureSpace(60); }
         var fontSize = depth === 0 ? 10 : 9;
         var indent = MARGIN + Math.min(depth * 10, 50);
-        cur.push('BT /F2 ' + fontSize + ' Tf 1 0 0 1 ' + indent + ' ' + y + ' Tm (' + pdfEsc((g.nr ? g.nr + '  ' : '') + pdfTruncate(g.name || 'Ohne Namen', depth === 0 ? 60 : 50)) + ') Tj ET');
+        var effKg = (g.kg || '').trim() || inhKg || '';
+        var kgTag = (g.kg || '').trim() ? '  [KG ' + (g.kg || '').trim() + ']' : '';
+        cur.push('BT /F2 ' + fontSize + ' Tf 1 0 0 1 ' + indent + ' ' + y + ' Tm (' + pdfEsc((g.nr ? g.nr + '  ' : '') + pdfTruncate(g.name || 'Ohne Namen', depth === 0 ? 56 : 46) + kgTag) + ') Tj ET');
         line(fmtEUR(nodeTotal(g)), 'F2', fontSize, PAGE_W - MARGIN - 70);
         y -= depth === 0 ? 16 : 13;
         var idx = 1;
         g.children.forEach(function (c) {
-          if (c.kind === 'position') { if (!isBlankPosition(c)) printPositionRow(c, idx++); return; }
-          printGruppeRecursive(c, depth + 1);
+          if (c.kind === 'position') { if (!isBlankPosition(c)) printPositionRow(c, idx++, effKg); return; }
+          printGruppeRecursive(c, depth + 1, effKg);
         });
       }
 
-      state.bereiche.forEach(function (b) { printGruppeRecursive(b, 0); });
+      state.bereiche.forEach(function (b) { printGruppeRecursive(b, 0, ''); });
     }
 
     /* ── Teil 4: Zusammenfassung ──────────────────────────── */
