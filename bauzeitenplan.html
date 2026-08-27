@@ -323,6 +323,10 @@ button, input{ font-family:var(--font-family); }
 /* Spiegelt die Mehrfachauswahl aus der Liste (Strg/Cmd- bzw. Umschalt-Klick) im Zeitstrahl —
    zeigt, welche Balken/Meilensteine beim Ziehen gemeinsam verschoben werden. */
 .bar.bar-selected, .milestone.bar-selected{ outline:2px solid var(--color-black); outline-offset:1px; }
+/* Markiert Vorgänge auf dem kritischen Pfad (siehe computeCriticalTaskIds) — bewusst ein
+   Rahmen (border), nicht outline, damit sich das mit der Mehrfachauswahl oben (outline)
+   nicht überschneidet und beides gleichzeitig sichtbar bleibt. */
+.bar.critical, .milestone.critical{ border:2px solid var(--color-black); }
 .bar .bar-label{
   position:relative; color:var(--color-black); font-size:11px; font-weight:600; padding:0 8px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
@@ -452,6 +456,9 @@ button, input{ font-family:var(--font-family); }
     <div class="toolbar-group zoom-group">
       <button class="zoom-btn colorby-btn active" data-colorby="phase">Farbe: Phase/Kategorie</button>
       <button class="zoom-btn colorby-btn" data-colorby="assignee">Farbe: Verantwortlich</button>
+    </div>
+    <div class="toolbar-group zoom-group" title="Markiert die Vorgänge, die den frühestmöglichen Endtermin des Projekts bestimmen — verzögert sich einer davon, verschiebt sich der Endtermin. Beruht auf den aktuellen Terminen/Verknüpfungen, ändert selbst keine Termine.">
+      <button class="zoom-btn critical-path-btn" data-action="toggle-critical-path" id="criticalPathBtn">Kritischen Pfad anzeigen</button>
     </div>
     <div class="toolbar-group zoom-group" title="Welche Wochentage als Arbeitstage zählen — betrifft Dauer-Berechnung, automatische Terminierung und die Wochenend-Schattierung im Zeitstrahl">
       <button class="zoom-btn workweek-btn active" data-workweek="mo-fr">Mo–Fr</button>
@@ -710,6 +717,7 @@ button, input{ font-family:var(--font-family); }
   var state = migrateDependencies(load());
   if (!state.colorBy) state.colorBy = 'phase';
   if (!state.workWeek) state.workWeek = 'mo-fr';
+  if (typeof state.showCriticalPath !== 'boolean') state.showCriticalPath = false;
   var saveScheduled = false;
   function persistToStorage() {
     if (saveScheduled) return;
@@ -797,6 +805,7 @@ button, input{ font-family:var(--font-family); }
   function applyStateToUI() {
     if (!state.colorBy) state.colorBy = 'phase';
     if (!state.workWeek) state.workWeek = 'mo-fr';
+    if (typeof state.showCriticalPath !== 'boolean') state.showCriticalPath = false;
     if (state.listWidth) {
       document.documentElement.style.setProperty('--list-w', Math.max(320, Math.min(900, state.listWidth)) + 'px');
     }
@@ -811,6 +820,7 @@ button, input{ font-family:var(--font-family); }
     document.querySelectorAll('.workweek-btn').forEach(function (b) {
       b.classList.toggle('active', b.dataset.workweek === state.workWeek);
     });
+    criticalPathBtn.classList.toggle('active', state.showCriticalPath);
     rebuildAssigneeIndex();
   }
 
@@ -896,6 +906,7 @@ button, input{ font-family:var(--font-family); }
   var legendEl = $('#legend');
   var projectTitleEl = $('#projectTitle');
   var projectSubtitleEl = $('#projectSubtitle');
+  var criticalPathBtn = $('#criticalPathBtn');
   var todayLabelEl = $('#todayLabel');
   var listColEl = document.querySelector('.list-col');
   var colResizeEl = $('#colResize');
@@ -1730,6 +1741,7 @@ button, input{ font-family:var(--font-family); }
     timelineRowsInner.style.height = (rows.length * ROW_H) + 'px';
     timelineRowEls = [];
     taskGeom = {};
+    criticalTaskIds = state.showCriticalPath ? computeCriticalTaskIds() : null;
 
     var dayWidth = zoomCfg.dayWidth;
     var gridXs = computeGridXs(range, zoomCfg);
@@ -1805,13 +1817,14 @@ button, input{ font-family:var(--font-family); }
     var colorIdx = resolveColorIdx(task, row.colorIdx);
     var color = colorIdx === null ? 'var(--g400)' : phaseColor(colorIdx);
     var hatched = colorIdx === null ? false : phaseHatched(colorIdx);
+    var isCritical = !!(criticalTaskIds && criticalTaskIds[task.id]);
 
     var isSelected = task.id === selectedTaskId || !!multiSelectedTaskIds[task.id];
 
     if (task.milestone) {
       var offset = diffDays(fromISO(task.start), range.start) * dayWidth;
       var dia = document.createElement('div');
-      dia.className = 'milestone' + (isSelected ? ' bar-selected' : '');
+      dia.className = 'milestone' + (isSelected ? ' bar-selected' : '') + (isCritical ? ' critical' : '');
       dia.dataset.taskId = task.id;
       dia.style.left = offset + 'px';
       dia.style.background = color;
@@ -1839,7 +1852,7 @@ button, input{ font-family:var(--font-family); }
     var width = Math.max((diffDays(fromISO(task.end), fromISO(task.start)) + 1) * dayWidth, dayWidth * 0.6);
 
     var bar = document.createElement('div');
-    bar.className = 'bar' + (isSelected ? ' bar-selected' : '');
+    bar.className = 'bar' + (isSelected ? ' bar-selected' : '') + (isCritical ? ' critical' : '');
     bar.dataset.taskId = task.id;
     bar.style.left = left + 'px';
     bar.style.width = width + 'px';
@@ -2459,6 +2472,106 @@ button, input{ font-family:var(--font-family); }
     return effectiveMinStart;
   }
 
+  // Kritischer Pfad (klassisches CPM: Vorwärts-/Rückwärtsdurchlauf, siehe "Kritischen Pfad
+  // anzeigen"-Toggle). Rein lesend — ändert NIE Termine, nur eine reine Auswertung on top der
+  // aktuellen Start-/Enddaten und Verknüpfungen.
+  //
+  // Vorwärtsdurchlauf: berechnet für jede Aufgabe frühestmöglichen Start/Ende (ES/EF) aus der
+  // AKTUELLEN Dauer + denselben FS/SS/FF/SF-Regeln wie earliestStartFromDeps — aber, anders als
+  // dort, rein aus den bereits berechneten ES/EF der Vorgänger (nicht aus deren live task.start/
+  // task.end), damit sich ein Puffer weiter vorne in der Kette korrekt bis hierhin durchreicht.
+  // Aufgaben ohne Vorgänger werden an ihrem eigenen aktuellen Start verankert (es gibt in diesem
+  // Tool keinen separaten globalen "Projektstart"-Wert außerhalb des Termin-Dialogs).
+  //
+  // Rückwärtsdurchlauf: von einem gemeinsamen Projektende (= spätestes EF über alle Aufgaben)
+  // rückwärts über die NACHFOLGER jeder Aufgabe (Umkehrung von task.dependencies) den spätesten
+  // erlaubten Start/Ende (LS/LF), mit denselben vier Beziehungstypen gespiegelt.
+  //
+  // Kritisch = Aufgabe hat keinen Puffer, d.h. ES === LS (identisches Datum).
+  function computeCriticalTaskIds() {
+    var order = topoOrderTasks();
+    var dur = {}, es = {}, ef = {};
+    order.forEach(function (t) {
+      var d = t.milestone ? 0 : Math.max(1, countWorkdays(fromISO(t.start), fromISO(t.end)));
+      dur[t.id] = d;
+      var minStart = null, minEnd = null;
+      (t.dependencies || []).forEach(function (dep) {
+        var predEs = es[dep.id], predEf = ef[dep.id];
+        if (!predEs || !predEf) return;
+        var lag = dep.lag || 0;
+        if (dep.type === 'FS') {
+          var v = addDays(predEf, lag + 1);
+          if (minStart === null || v > minStart) minStart = v;
+        } else if (dep.type === 'SS') {
+          var v2 = addDays(predEs, lag);
+          if (minStart === null || v2 > minStart) minStart = v2;
+        } else if (dep.type === 'FF') {
+          var v3 = addDays(predEf, lag);
+          if (minEnd === null || v3 > minEnd) minEnd = v3;
+        } else if (dep.type === 'SF') {
+          var v4 = addDays(predEs, lag);
+          if (minEnd === null || v4 > minEnd) minEnd = v4;
+        }
+      });
+      var minStartFromEnd = minEnd !== null ? subtractWorkingDays(minEnd, Math.max(1, d)) : null;
+      var start = minStart;
+      if (minStartFromEnd !== null && (start === null || minStartFromEnd > start)) start = minStartFromEnd;
+      if (start === null) {
+        start = midnight(fromISO(t.start));
+      } else {
+        while (!isWorkday(start)) start = addDays(start, 1);
+      }
+      es[t.id] = start;
+      ef[t.id] = t.milestone ? start : addWorkingDays(start, d);
+    });
+
+    var projectEnd = null;
+    order.forEach(function (t) {
+      if (projectEnd === null || ef[t.id] > projectEnd) projectEnd = ef[t.id];
+    });
+
+    var successors = {};
+    order.forEach(function (t) {
+      (t.dependencies || []).forEach(function (dep) {
+        (successors[dep.id] = successors[dep.id] || []).push({ id: t.id, type: dep.type, lag: dep.lag || 0 });
+      });
+    });
+
+    var ls = {}, lf = {};
+    for (var i = order.length - 1; i >= 0; i--) {
+      var t = order[i];
+      var succs = successors[t.id] || [];
+      // projectEnd ist IMMER eine gültige Obergrenze für den spätesten Abschluss jeder Aufgabe —
+      // nicht nur für Aufgaben ohne Nachfolger: eine Aufgabe kann über eine lockere SS/SF-Kante zu
+      // einem Nachfolger mit viel eigenem Puffer verbunden sein, ohne dass DIESE Kante ihr Ende
+      // wirklich einschränkt. Ohne den projectEnd-Kandidaten hier würde so eine Aufgabe fälschlich
+      // beliebig viel Puffer bekommen, obwohl sie tatsächlich (zufällig) die späteste Aufgabe im
+      // gesamten Plan ist.
+      var lfCandidates = [projectEnd], lsCandidates = [];
+      succs.forEach(function (s) {
+        var succLs = ls[s.id], succLf = lf[s.id];
+        if (succLs === undefined || succLf === undefined) return;
+        if (s.type === 'FS') lfCandidates.push(addDays(succLs, -(s.lag + 1)));
+        else if (s.type === 'SS') lsCandidates.push(addDays(succLs, -s.lag));
+        else if (s.type === 'FF') lfCandidates.push(addDays(succLf, -s.lag));
+        else if (s.type === 'SF') lsCandidates.push(addDays(succLf, -s.lag));
+      });
+      lfCandidates.forEach(function (cand) {
+        lsCandidates.push(t.milestone ? cand : subtractWorkingDays(cand, Math.max(1, dur[t.id])));
+      });
+      var start = lsCandidates[0];
+      lsCandidates.forEach(function (c) { if (c < start) start = c; });
+      ls[t.id] = start;
+      lf[t.id] = t.milestone ? start : addWorkingDays(start, dur[t.id]);
+    }
+
+    var critical = {};
+    order.forEach(function (t) {
+      if (es[t.id].getTime() === ls[t.id].getTime()) critical[t.id] = true;
+    });
+    return critical;
+  }
+
   // MS Projects "Automatisch terminieren": ausgehend von einem gewählten Projektstart werden ALLE
   // Termine neu berechnet — Aufgaben ohne Vorgänger starten am Projektstart, alle anderen folgen in
   // Abhängigkeits-Reihenfolge aus ihren Vorgängern (FS/SS/FF/SF + Verzug, Wochenenden werden
@@ -2582,6 +2695,7 @@ button, input{ font-family:var(--font-family); }
   /* ────────────────────────── actions ────────────────────────── */
   var currentRows = [];
   var taskGeom = {};
+  var criticalTaskIds = null;
   function defaultPhaseId() {
     if (selectedPhaseId && state.phases.some(function (p) { return p.id === selectedPhaseId; })) return selectedPhaseId;
     if (state.phases.length === 0) addPhase();
@@ -2984,6 +3098,14 @@ button, input{ font-family:var(--font-family); }
     });
     save();
     renderAll();
+  }
+
+  // Rein optische Markierung, ändert keine Termine/Verknüpfungen — deshalb reicht ein
+  // renderTimelineOnly() (kein save()/Undo-Eintrag nötig, siehe setZoom).
+  function toggleCriticalPath() {
+    state.showCriticalPath = !state.showCriticalPath;
+    criticalPathBtn.classList.toggle('active', state.showCriticalPath);
+    renderTimelineOnly();
   }
 
   function scrollToToday() {
@@ -4075,6 +4197,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'print') openPrintPreview();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
+      else if (action === 'toggle-critical-path') toggleCriticalPath();
       return;
     }
     var zoomEl = e.target.closest('[data-zoom]');
