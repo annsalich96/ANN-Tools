@@ -4248,13 +4248,15 @@ button, input{ font-family:var(--font-family); }
       // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs. Der
       // untere Rand ist MARGIN+FOOTER_RESERVE (nicht nur FOOTER_H), damit der für die Legende
       // reservierte Bereich am Fuß frei von Gitterlinien bleibt.
-      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       drawLabelColumnGrid(y, MARGIN + FOOTER_RESERVE);
       drawDayColumnGrid(y, MARGIN + FOOTER_RESERVE);
       // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
       // GESAMTE Seitenhöhe inkl. Kopfzeile, damit die Blöcke auch dort (und über die
       // Kategorie-/Phasenzeilen hinweg) klar erkennbar bleiben.
       drawTierBoundaries(pageTop, MARGIN + FOOTER_RESERVE);
+      // NACH den Gitterlinien: die Schattierung deckt die feinen Linien innerhalb der freien
+      // Zeitraeume ab -> gleichmaessige Flaeche im exakt selben Grau wie die Phasen-Zeilen.
+      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       pageBounds.push({ top: y, bottom: y });
     }
 
@@ -4974,10 +4976,10 @@ button, input{ font-family:var(--font-family); }
       if (d.t === 'scrolllink') { setScrollLink(d.on, false); return; }
       if (d.t === 'scroll') {
         if (!tlScrollLink) return;
-        tlApplyingScroll = true;
-        if (typeof d.top === 'number') boardEl.scrollTop = d.top;
-        if (typeof d.left === 'number') timelineBody.scrollLeft = d.left;
-        requestAnimationFrame(function () { tlApplyingScroll = false; });
+        var nt = Math.round(d.top || 0), nl = Math.round(d.left || 0);
+        tlLastSyncTop = nt; tlLastSyncLeft = nl; // merken -> eigener scroll-Event schickt das nicht zurueck
+        if (Math.abs(boardEl.scrollTop - nt) > 1) boardEl.scrollTop = nt;
+        if (Math.abs(timelineBody.scrollLeft - nl) > 1) timelineBody.scrollLeft = nl;
         return;
       }
       if (d.t !== 'state' || typeof d.s !== 'string') return;
@@ -5005,8 +5007,8 @@ button, input{ font-family:var(--font-family); }
   }
 
   /* Scroll-Kopplung zwischen den Fenstern (rauf/runter = boardEl, seitwaerts = timelineBody). */
-  var tlApplyingScroll = false;
-  var tlScrollSendQueued = false;
+  var tlLastSyncTop = null, tlLastSyncLeft = null;
+  var tlScrollRaf = 0;
   function updateScrollLinkUI() {
     document.querySelectorAll('.scrolllink-btn').forEach(function (b) {
       b.textContent = tlScrollLink ? 'Scroll gekoppelt' : 'Scroll koppeln';
@@ -5021,13 +5023,13 @@ button, input{ font-family:var(--font-family); }
   }
   function toggleScrollLink() { setScrollLink(!tlScrollLink, true); }
   function broadcastScroll() {
-    if (!tlChannel || !tlScrollLink || tlApplyingScroll || tlScrollSendQueued) return;
-    tlScrollSendQueued = true;
-    requestAnimationFrame(function () {
-      tlScrollSendQueued = false;
-      try {
-        tlChannel.postMessage({ t: 'scroll', top: boardEl.scrollTop, left: timelineBody.scrollLeft });
-      } catch (e) {}
+    if (!tlChannel || !tlScrollLink || tlScrollRaf) return;
+    tlScrollRaf = requestAnimationFrame(function () {
+      tlScrollRaf = 0;
+      var top = Math.round(boardEl.scrollTop), left = Math.round(timelineBody.scrollLeft);
+      if (top === tlLastSyncTop && left === tlLastSyncLeft) return; // kam gerade vom anderen Fenster
+      tlLastSyncTop = top; tlLastSyncLeft = left;
+      try { tlChannel.postMessage({ t: 'scroll', top: top, left: left }); } catch (e) {}
     });
   }
   if (boardEl) boardEl.addEventListener('scroll', broadcastScroll, { passive: true });
