@@ -176,7 +176,9 @@ button, input{ font-family:var(--font-family); }
 }
 .list-header .col-spacer-lead{ width:14px; flex:0 0 auto; }
 .list-header .col-num{ width:24px; flex:0 0 auto; text-align:right; }
-.list-header .col-spacer-trail{ width:20px; flex:0 0 auto; }
+.list-header .col-spacer-trail{ width:76px; flex:0 0 auto; }
+.list-header .col-spacer-icon{ width:14px; flex:0 0 auto; }
+.list-header .col-spacer-swatch{ width:9px; flex:0 0 auto; }
 .list-header .col-name{ flex:1 1 auto; }
 .list-header .col-assignee{ width:110px; text-align:left; }
 .list-header .col-date{ width:84px; text-align:left; }
@@ -307,6 +309,7 @@ button, input{ font-family:var(--font-family); }
 .tl-row{ position:relative; height:var(--row-h); border-bottom:1px solid var(--g200); }
 .tl-row.phase-row-bg{ background:var(--g100); }
 .tl-weekend-bg{ position:absolute; inset:0; pointer-events:none; }
+.tl-nonwork-bg{ position:absolute; top:0; bottom:0; background:var(--g100); pointer-events:none; }
 
 .phase-rollup{
   position:absolute; top:50%; transform:translateY(-50%); height:6px; border-radius:3px;
@@ -387,6 +390,16 @@ button, input{ font-family:var(--font-family); }
 }
 .confirm-msg{ font-size:13px; color:var(--color-black); margin:0 0 var(--space-5) 0; line-height:1.5; }
 .confirm-actions{ display:flex; justify-content:flex-end; gap:var(--space-3); }
+.nonwork-box{ width:min(560px, 92vw); max-height:80vh; overflow-y:auto; }
+.nonwork-list{ display:flex; flex-direction:column; gap:6px; margin-bottom:var(--space-2); }
+.nonwork-row{ display:flex; align-items:center; gap:6px; }
+.nonwork-row input[type=date]{ font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; font-family:var(--font-family); color:var(--color-black); }
+.nonwork-row .nonwork-dash{ color:var(--g600); }
+.nonwork-row .nonwork-label{ flex:1 1 auto; min-width:0; font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; font-family:var(--font-family); }
+.nonwork-holidays{ margin-top:var(--space-4); padding-top:var(--space-4); border-top:1px solid var(--g200); display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.nonwork-holidays label{ font-size:11px; font-weight:600; color:var(--g600); text-transform:uppercase; letter-spacing:0.08em; display:flex; align-items:center; gap:6px; }
+.nonwork-holidays select{ font-family:var(--font-family); font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; text-transform:none; letter-spacing:normal; font-weight:400; }
+.nonwork-hint{ font-size:11px; color:var(--g600); width:100%; margin:6px 0 0; }
 
 
 .col-resize{
@@ -466,6 +479,9 @@ button, input{ font-family:var(--font-family); }
       <button class="zoom-btn workweek-btn" data-workweek="mo-so">Mo–So</button>
     </div>
     <div class="toolbar-group">
+      <button class="btn" data-action="nonwork" title="Arbeitsfreie Tage/Zeiträume fürs ganze Projekt (Feiertage, Betriebsurlaub …) — werden wie Wochenenden behandelt: grau, zählen nicht als Arbeitstag, Termine rücken entsprechend">Arbeitsfreie Tage</button>
+    </div>
+    <div class="toolbar-group">
       <button class="btn" data-action="today">Heute</button>
       <button class="btn" data-action="auto-schedule" title="Alle Termine anhand von Vorgänger-Abhängigkeiten und Dauer neu berechnen — Vorgänger/Dauer zuerst festlegen, dann hier ein Startdatum eingeben">Termine automatisch setzen</button>
       <button class="btn" data-action="reset-dates" title="Alle Termine ab heute neu berechnen: Vorgänge ohne Vorgänger starten heute, alle anderen richten sich automatisch nach ihrem Vorgänger — Dauer und Verknüpfungen bleiben erhalten">Termine zurücksetzen</button>
@@ -480,6 +496,7 @@ button, input{ font-family:var(--font-family); }
     <div class="toolbar-group toolbar-group-end">
       <button class="btn" data-action="print" title="Öffnet eine eigene Druckseite in neuem Tab — Skalierung dort über den Browser-Druckdialog (wie bei Google Sheets)">Drucken</button>
       <button class="btn" data-action="export-pdf" title="Lädt den Zeitplan als PDF-Tabelle (nur Daten, ohne Balken) herunter">PDF-Tabelle exportieren</button>
+      <button class="btn" data-action="export-xlsx" title="Alle Daten als Excel-Datei (.xlsx) — öffnet auch in Google Sheets, importierbar in MS Project">Excel/Sheets exportieren</button>
     </div>
   </div>
 
@@ -490,7 +507,9 @@ button, input{ font-family:var(--font-family); }
       <div class="list-header">
         <div class="col-spacer-lead"></div>
         <div class="col-num">Nr.</div>
+        <div class="col-spacer-icon"></div>
         <div class="col-name">Vorgang</div>
+        <div class="col-spacer-swatch"></div>
         <div class="col-assignee">Verantwortlich</div>
         <div class="col-date">Start</div>
         <div class="col-date">Ende</div>
@@ -553,6 +572,25 @@ button, input{ font-family:var(--font-family); }
   </div>
 </div>
 
+<div class="confirm-overlay" id="nonworkOverlay">
+  <div class="confirm-box nonwork-box">
+    <p class="confirm-msg" style="font-weight:600;margin-bottom:var(--space-2)">Arbeitsfreie Tage</p>
+    <p class="confirm-msg" style="font-size:11px;color:var(--g600);margin-bottom:var(--space-3)">Gelten fürs ganze Projekt. Werden wie Wochenenden behandelt: grau hinterlegt, zählen nicht als Arbeitstag, Termine rücken entsprechend nach. Fällt ein Vorgangs-Start auf einen freien Tag, rückt er auf den nächsten Arbeitstag.</p>
+    <div id="nonworkList" class="nonwork-list"></div>
+    <button class="add-inline-btn" id="nonworkAdd" type="button">+ Zeitraum hinzufügen</button>
+    <div class="nonwork-holidays">
+      <label>Feiertagsvorlage
+        <select id="nonworkBundesland"><option value="BW">Baden-Württemberg</option><option value="BY">Bayern</option><option value="BE" selected>Berlin</option><option value="BB">Brandenburg</option><option value="HB">Bremen</option><option value="HH">Hamburg</option><option value="HE">Hessen</option><option value="MV">Mecklenburg-Vorpommern</option><option value="NI">Niedersachsen</option><option value="NW">Nordrhein-Westfalen</option><option value="RP">Rheinland-Pfalz</option><option value="SL">Saarland</option><option value="SN">Sachsen</option><option value="ST">Sachsen-Anhalt</option><option value="SH">Schleswig-Holstein</option><option value="TH">Thüringen</option></select>
+      </label>
+      <button class="btn" id="nonworkHolidayLoad" type="button">Gesetzliche Feiertage laden</button>
+      <p class="nonwork-hint" id="nonworkHolidayHint">Lädt die gesetzlichen Feiertage des gewählten Bundeslands für den Projektzeitraum. Ersetzt zuvor geladene Feiertage; von Hand eingetragene Zeiträume bleiben.</p>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn primary" id="nonworkClose" type="button">Fertig</button>
+    </div>
+  </div>
+</div>
+
 <div class="confirm-overlay" id="scheduleOverlay">
   <div class="confirm-box">
     <p class="confirm-msg">Termine automatisch setzen: Alle Vorgänge werden anhand ihrer Vorgänger-Abhängigkeiten (siehe Legende bei „Vorgänger“) und ihrer aktuellen Dauer neu berechnet. Vorgänge ohne Vorgänger starten am unten gewählten Datum, alle anderen folgen daraus.</p>
@@ -594,12 +632,30 @@ button, input{ font-family:var(--font-family); }
   // (inkl. freier Tage) — nur die Dauer-Zahl/-Eingabe rechnet in Arbeitstagen. Welche Wochentage
   // als Arbeitstage zählen, ist über `state.workWeek` einstellbar (Mo–Fr/Mo–Sa/Mo–So, siehe
   // setWorkWeek) — Standard bleibt Mo–Fr, wie zuvor fest verdrahtet.
+  // Projektweiter Kalender mit zusaetzlichen arbeitsfreien Tagen (Feiertage, Betriebsurlaub, ...).
+  // Werden GENAUSO behandelt wie Wochenenden: alles was Arbeitstage zaehlt (Dauer, addWorkingDays,
+  // countWorkdays, automatische Terminierung, Abhaengigkeits-Kaskade) laeuft durch isWorkday, und
+  // die Zeitstrahl-Schattierung greift denselben --g100-Grauton ab. state.nonWorkingDays haelt die
+  // Eintraege ({from,to,label,...}); nonWorkingSet ist das daraus abgeleitete Datum-Lookup (ISO-Strings),
+  // neu gebaut ueber rebuildNonWorkingSet() bei jeder Aenderung / beim Laden / bei Undo-Redo.
+  var nonWorkingSet = new Set();
+  function rebuildNonWorkingSet() {
+    nonWorkingSet = new Set();
+    (state.nonWorkingDays || []).forEach(function (p) {
+      if (!p || !p.from) return;
+      var d = fromISO(p.from), end = fromISO(p.to || p.from);
+      if (end < d) { var t = d; d = end; end = t; }
+      var guard = 0;
+      while (d <= end && guard++ < 4000) { nonWorkingSet.add(toISO(d)); d = addDays(d, 1); }
+    });
+  }
   function isWorkday(d) {
     var dow = d.getDay(); // 0 = So, 6 = Sa
     var ww = state.workWeek || 'mo-fr';
-    if (ww === 'mo-so') return true;
-    if (ww === 'mo-sa') return dow !== 0;
-    return dow !== 0 && dow !== 6;
+    if (ww === 'mo-fr' && (dow === 0 || dow === 6)) return false;
+    if (ww === 'mo-sa' && dow === 0) return false;
+    if (nonWorkingSet.size && nonWorkingSet.has(toISO(d))) return false;
+    return true;
   }
   // Liefert das Datum des workDays-ten Arbeitstags ab start (inklusive) — der Starttag zählt als
   // Tag 1, wenn er selbst ein Arbeitstag ist; fällt er auf ein Wochenende, rückt er zuerst auf den
@@ -682,7 +738,9 @@ button, input{ font-family:var(--font-family); }
       phases: phases,
       tasks: tasks,
       zoom: 'month',
-      colorBy: 'phase'
+      colorBy: 'phase',
+      nonWorkingDays: [],
+      holidayRegion: 'BE'
     };
   }
 
@@ -717,7 +775,10 @@ button, input{ font-family:var(--font-family); }
   var state = migrateDependencies(load());
   if (!state.colorBy) state.colorBy = 'phase';
   if (!state.workWeek) state.workWeek = 'mo-fr';
+  if (!Array.isArray(state.nonWorkingDays)) state.nonWorkingDays = [];
+  if (!state.holidayRegion) state.holidayRegion = 'BE';
   if (typeof state.showCriticalPath !== 'boolean') state.showCriticalPath = false;
+  rebuildNonWorkingSet();
   var saveScheduled = false;
   function persistToStorage() {
     if (saveScheduled) return;
@@ -805,7 +866,10 @@ button, input{ font-family:var(--font-family); }
   function applyStateToUI() {
     if (!state.colorBy) state.colorBy = 'phase';
     if (!state.workWeek) state.workWeek = 'mo-fr';
+    if (!Array.isArray(state.nonWorkingDays)) state.nonWorkingDays = [];
+    if (!state.holidayRegion) state.holidayRegion = 'BE';
     if (typeof state.showCriticalPath !== 'boolean') state.showCriticalPath = false;
+    rebuildNonWorkingSet();
     if (state.listWidth) {
       document.documentElement.style.setProperty('--list-w', Math.max(320, Math.min(900, state.listWidth)) + 'px');
     }
@@ -942,6 +1006,108 @@ button, input{ font-family:var(--font-family); }
   });
   scheduleCancel.addEventListener('click', closeAutoScheduleDialog);
   scheduleOverlay.addEventListener('click', function (e) { if (e.target === scheduleOverlay) closeAutoScheduleDialog(); });
+
+  /* ────────────────────────── arbeitsfreie Tage (Dialog) ────────────────────────── */
+  var nonworkOverlay = $('#nonworkOverlay');
+  var nonworkList = $('#nonworkList');
+  var nonworkBundesland = $('#nonworkBundesland');
+  var nonworkAddBtn = $('#nonworkAdd');
+  var nonworkHolidayLoadBtn = $('#nonworkHolidayLoad');
+  var nonworkCloseBtn = $('#nonworkClose');
+
+  function openNonWork() {
+    if (nonworkBundesland && state.holidayRegion) nonworkBundesland.value = state.holidayRegion;
+    renderNonWorkList();
+    nonworkOverlay.classList.add('open');
+  }
+  function closeNonWork() { nonworkOverlay.classList.remove('open'); }
+  function commitNonWork() { applyCalendarChange(); renderNonWorkList(); }
+
+  function renderNonWorkList() {
+    nonworkList.innerHTML = '';
+    var entries = (state.nonWorkingDays || []).slice().sort(function (a, b) {
+      return a.from < b.from ? -1 : a.from > b.from ? 1 : 0;
+    });
+    if (!entries.length) {
+      var empty = document.createElement('p');
+      empty.className = 'confirm-msg';
+      empty.style.cssText = 'font-size:12px;color:var(--g600);margin:0';
+      empty.textContent = 'Noch keine arbeitsfreien Tage eingetragen.';
+      nonworkList.appendChild(empty);
+    }
+    entries.forEach(function (p) {
+      var rowEl = document.createElement('div');
+      rowEl.className = 'nonwork-row';
+
+      var from = document.createElement('input');
+      from.type = 'date';
+      from.value = p.from;
+      from.addEventListener('change', function () {
+        if (!from.value) return;
+        p.from = from.value;
+        if (!p.to || p.to < p.from) p.to = p.from;
+        p.source = 'manuell';
+        commitNonWork();
+      });
+
+      var dash = document.createElement('span');
+      dash.className = 'nonwork-dash';
+      dash.textContent = '–';
+
+      var to = document.createElement('input');
+      to.type = 'date';
+      to.value = p.to || p.from;
+      to.addEventListener('change', function () {
+        if (!to.value) return;
+        p.to = to.value;
+        if (p.to < p.from) p.from = p.to;
+        p.source = 'manuell';
+        commitNonWork();
+      });
+
+      var label = document.createElement('input');
+      label.type = 'text';
+      label.className = 'nonwork-label';
+      label.placeholder = 'Bezeichnung (optional)';
+      label.value = p.label || '';
+      label.addEventListener('input', function () { p.label = label.value; });
+      label.addEventListener('change', function () { p.label = label.value; save(); });
+
+      var del = document.createElement('button');
+      del.className = 'row-del';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = 'Entfernen';
+      del.style.opacity = '1';
+      del.addEventListener('click', function () {
+        state.nonWorkingDays = (state.nonWorkingDays || []).filter(function (x) { return x.id !== p.id; });
+        commitNonWork();
+      });
+
+      rowEl.appendChild(from);
+      rowEl.appendChild(dash);
+      rowEl.appendChild(to);
+      rowEl.appendChild(label);
+      rowEl.appendChild(del);
+      nonworkList.appendChild(rowEl);
+    });
+  }
+
+  if (nonworkAddBtn) nonworkAddBtn.addEventListener('click', function () {
+    var today = toISO(midnight(new Date()));
+    state.nonWorkingDays = state.nonWorkingDays || [];
+    state.nonWorkingDays.push({ id: uid(), from: today, to: today, label: '', source: 'manuell' });
+    commitNonWork();
+  });
+  if (nonworkHolidayLoadBtn) nonworkHolidayLoadBtn.addEventListener('click', function () {
+    loadHolidays(nonworkBundesland.value);
+    renderNonWorkList();
+  });
+  if (nonworkCloseBtn) nonworkCloseBtn.addEventListener('click', closeNonWork);
+  if (nonworkOverlay) nonworkOverlay.addEventListener('click', function (e) {
+    if (e.target === nonworkOverlay) closeNonWork();
+  });
+
 
   // Kurzform von "Termine automatisch setzen" mit "heute" als festem Startdatum, ohne Dialog:
   // Vorgänge OHNE Vorgänger starten heute, alle anderen richten sich weiterhin ganz normal nach
@@ -1745,6 +1911,26 @@ button, input{ font-family:var(--font-family); }
 
     var dayWidth = zoomCfg.dayWidth;
     var gridXs = computeGridXs(range, zoomCfg);
+
+    // Arbeitsfreie Zeitraeume als graue Streifen im Hintergrund (gleicher --g100-Grauton wie die
+    // Wochenend-Schattierung). Ein durchgehendes Rechteck pro Zeitraum ueber die volle Hoehe, VOR
+    // den Zeilen eingehaengt -> Balken/Gitternetz/heute-Marker liegen darueber, Phasen-Zeilen
+    // (selber Grauton) ueberdecken es nahtlos.
+    (state.nonWorkingDays || []).forEach(function (p) {
+      if (!p || !p.from) return;
+      var na = fromISO(p.from), nb = fromISO(p.to || p.from);
+      if (nb < na) { var nt = na; na = nb; nb = nt; }
+      if (nb < range.start || na >= range.end) return;
+      if (na < range.start) na = range.start;
+      var nend = addDays(nb, 1);
+      if (nend > range.end) nend = range.end;
+      var strip = document.createElement('div');
+      strip.className = 'tl-nonwork-bg';
+      strip.style.left = (diffDays(na, range.start) * dayWidth) + 'px';
+      strip.style.width = (diffDays(nend, na) * dayWidth) + 'px';
+      if (p.label) strip.title = p.label;
+      timelineRowsInner.appendChild(strip);
+    });
 
     rows.forEach(function (row, i) {
       var rowEl = document.createElement('div');
@@ -3100,6 +3286,98 @@ button, input{ font-family:var(--font-family); }
     renderAll();
   }
 
+  // Nach jeder Aenderung am Arbeitskalender (arbeitsfreie Tage hinzu/entfernt, Feiertage geladen):
+  // gleiche Vorgehensweise wie setWorkWeek — die Arbeitstage-DAUER jedes Vorgangs bleibt erhalten,
+  // nur ihre Verteilung auf dem Kalender wird neu gerechnet. Zusaetzlich (Ann-Wunsch): faellt der
+  // Start eines Vorgangs/Meilensteins selbst auf einen freien Tag, rueckt er auf den naechsten
+  // Arbeitstag vor. Danach alle Abhaengigkeiten (FS/SS/FF/SF) einmal in Reihenfolge nachziehen.
+  function applyCalendarChange() {
+    rebuildNonWorkingSet();
+    var durations = {};
+    state.tasks.forEach(function (t) {
+      if (!t.milestone) durations[t.id] = Math.max(1, countWorkdays(fromISO(t.start), fromISO(t.end)));
+    });
+    state.tasks.forEach(function (t) {
+      if (t.milestone) {
+        var m = fromISO(t.start), g = 0;
+        while (!isWorkday(m) && g++ < 400) m = addDays(m, 1);
+        t.start = toISO(m); t.end = t.start;
+      } else {
+        var srt = fromISO(t.start), g2 = 0;
+        while (!isWorkday(srt) && g2++ < 400) srt = addDays(srt, 1);
+        t.start = toISO(srt);
+        t.end = toISO(addWorkingDays(srt, durations[t.id]));
+      }
+    });
+    topoOrderTasks().forEach(function (t) { applyDependencyConstraints(t.id); });
+    save();
+    renderAll();
+  }
+
+  // Ostersonntag (Gauss/Butcher) — Basis fuer alle beweglichen Feiertage.
+  function easterSunday(year) {
+    var a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    var d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3);
+    var h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4;
+    var l = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var month = Math.floor((h + l - 7 * m + 114) / 31);
+    var day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+  }
+  // Gesetzliche Feiertage eines Jahres fuer ein Bundesland (Kuerzel BW/BY/BE/...). Regionale Feiertage
+  // nach der ueblichen Zuordnung; rein katholisch-lokale Sonderfaelle (z.B. Augsburger Friedensfest)
+  // bleiben bewusst aussen vor.
+  function germanHolidays(year, bl) {
+    var E = easterSunday(year);
+    var list = [
+      { d: new Date(year, 0, 1), n: 'Neujahr' },
+      { d: addDays(E, -2), n: 'Karfreitag' },
+      { d: addDays(E, 1), n: 'Ostermontag' },
+      { d: new Date(year, 4, 1), n: 'Tag der Arbeit' },
+      { d: addDays(E, 39), n: 'Christi Himmelfahrt' },
+      { d: addDays(E, 50), n: 'Pfingstmontag' },
+      { d: new Date(year, 9, 3), n: 'Tag der Deutschen Einheit' },
+      { d: new Date(year, 11, 25), n: '1. Weihnachtstag' },
+      { d: new Date(year, 11, 26), n: '2. Weihnachtstag' }
+    ];
+    function inBL(arr) { return arr.indexOf(bl) >= 0; }
+    if (inBL(['BW', 'BY', 'ST'])) list.push({ d: new Date(year, 0, 6), n: 'Heilige Drei Koenige' });
+    if (inBL(['BE', 'MV'])) list.push({ d: new Date(year, 2, 8), n: 'Internationaler Frauentag' });
+    if (inBL(['BW', 'BY', 'HE', 'NW', 'RP', 'SL'])) list.push({ d: addDays(E, 60), n: 'Fronleichnam' });
+    if (inBL(['BY', 'SL'])) list.push({ d: new Date(year, 7, 15), n: 'Mariae Himmelfahrt' });
+    if (inBL(['TH'])) list.push({ d: new Date(year, 8, 20), n: 'Weltkindertag' });
+    if (inBL(['BB', 'HB', 'HH', 'MV', 'NI', 'SN', 'ST', 'SH', 'TH'])) list.push({ d: new Date(year, 9, 31), n: 'Reformationstag' });
+    if (inBL(['BW', 'BY', 'NW', 'RP', 'SL'])) list.push({ d: new Date(year, 10, 1), n: 'Allerheiligen' });
+    if (bl === 'SN') {
+      var bbt = new Date(year, 10, 22);
+      while (bbt.getDay() !== 3) bbt = addDays(bbt, -1);
+      list.push({ d: bbt, n: 'Buss- und Bettag' });
+    }
+    return list;
+  }
+  function loadHolidays(bl) {
+    state.holidayRegion = bl;
+    var years = {};
+    years[new Date().getFullYear()] = true;
+    state.tasks.forEach(function (t) {
+      if (t.start) years[fromISO(t.start).getFullYear()] = true;
+      if (t.end) years[fromISO(t.end).getFullYear()] = true;
+    });
+    // zuvor automatisch geladene Feiertage entfernen; von Hand eingetragene Zeitraeume bleiben
+    state.nonWorkingDays = (state.nonWorkingDays || []).filter(function (p) { return p.source !== 'feiertag'; });
+    Object.keys(years).forEach(function (y) {
+      germanHolidays(parseInt(y, 10), bl).forEach(function (hol) {
+        var iso = toISO(hol.d);
+        state.nonWorkingDays.push({ id: uid(), from: iso, to: iso, label: hol.n, source: 'feiertag', region: bl });
+      });
+    });
+    state.nonWorkingDays.sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+    applyCalendarChange();
+  }
+
   // Rein optische Markierung, ändert keine Termine/Verknüpfungen — deshalb reicht ein
   // renderTimelineOnly() (kein save()/Undo-Eintrag nötig, siehe setZoom).
   function toggleCriticalPath() {
@@ -4152,6 +4430,166 @@ button, input{ font-family:var(--font-family); }
     reader.readAsText(file);
   }
 
+
+  /* ────────────────────────── Excel-Export (.xlsx — ohne Bibliothek: ZIP + minimales OOXML) ────────────────────────── */
+  // Gleiches Prinzip wie der PDF-Export: die Datei-Bytes werden von Hand erzeugt, keine externe
+  // Abhaengigkeit. ZIP ohne Kompression (Methode 0) ist gueltig; Excel/LibreOffice/Google Sheets
+  // oeffnen das direkt, MS Project importiert es ueber den Assistenten.
+  function crc32(bytes) {
+    var table = crc32._t;
+    if (!table) {
+      table = crc32._t = [];
+      for (var n = 0; n < 256; n++) {
+        var c = n;
+        for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        table[n] = c >>> 0;
+      }
+    }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ table[(crc ^ bytes[i]) & 0xFF];
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  function zipStore(files) {
+    var enc = new TextEncoder();
+    var parts = [], central = [], offset = 0;
+    var now = new Date();
+    var dosTime = ((now.getHours() & 31) << 11) | ((now.getMinutes() & 63) << 5) | ((Math.floor(now.getSeconds() / 2)) & 31);
+    var dosDate = (((now.getFullYear() - 1980) & 127) << 9) | (((now.getMonth() + 1) & 15) << 5) | (now.getDate() & 31);
+    function u16(n) { return [n & 255, (n >>> 8) & 255]; }
+    function u32(n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+    files.forEach(function (f) {
+      var nameBytes = enc.encode(f.name);
+      var data = f.data;
+      var crc = crc32(data);
+      var local = [].concat(
+        u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(dosTime), u16(dosDate),
+        u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length), u16(0)
+      );
+      parts.push(new Uint8Array(local), nameBytes, data);
+      var cen = [].concat(
+        u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(dosTime), u16(dosDate),
+        u32(crc), u32(data.length), u32(data.length),
+        u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset)
+      );
+      central.push(new Uint8Array(cen), nameBytes);
+      offset += local.length + nameBytes.length + data.length;
+    });
+    var centralSize = central.reduce(function (a, c) { return a + c.length; }, 0);
+    var eocd = new Uint8Array([].concat(
+      u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+      u32(centralSize), u32(offset), u16(0)
+    ));
+    var total = offset + centralSize + eocd.length;
+    var out = new Uint8Array(total), pos = 0;
+    parts.forEach(function (c) { out.set(c, pos); pos += c.length; });
+    central.forEach(function (c) { out.set(c, pos); pos += c.length; });
+    out.set(eocd, pos);
+    return out;
+  }
+  function xlsxEsc(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function excelSerial(iso) {
+    var d = fromISO(iso);
+    return Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 86400000);
+  }
+  function exportXLSX() {
+    var rows = buildRows();
+    var predMap = buildTaskNumMap();
+    var header = ['Nr.', 'Phase/Kategorie', 'Vorgang', 'Verantwortlich', 'Start', 'Ende', 'Dauer (AT)', 'Vorgaenger', 'Meilenstein'];
+    var out = [header.map(function (h) { return { t: 's', v: h }; })];
+    rows.forEach(function (r) {
+      if (r.type === 'phase') {
+        out.push([{ t: 's', v: '' }, { t: 's', v: r.phase.name }, { t: 's', v: '' }, { t: 's', v: '' }, { t: 's', v: '' }, { t: 's', v: '' }, { t: 's', v: '' }, { t: 's', v: '' }, { t: 's', v: '' }]);
+      } else if (r.type === 'task') {
+        var t = r.task;
+        var ph = (state.phases.filter(function (x) { return x.id === t.phaseId; })[0] || {}).name || '';
+        var dur = t.milestone ? 0 : Math.max(1, countWorkdays(fromISO(t.start), fromISO(t.end)));
+        out.push([
+          { t: 'n', v: r.num },
+          { t: 's', v: ph },
+          { t: 's', v: t.name || '' },
+          { t: 's', v: t.assignee || '' },
+          { t: 'd', v: t.start },
+          { t: 'd', v: t.end },
+          { t: 'n', v: dur },
+          { t: 's', v: formatPredecessors(t, predMap.idToNum) },
+          { t: 's', v: t.milestone ? 'ja' : '' }
+        ]);
+      }
+    });
+
+    var COL = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+    var sd = '';
+    out.forEach(function (cells, ri) {
+      var rn = ri + 1;
+      sd += '<row r="' + rn + '">';
+      cells.forEach(function (c, ci) {
+        if (c.v === '' || c.v == null) return;
+        var ref = COL[ci] + rn;
+        if (c.t === 's') {
+          sd += '<c r="' + ref + '" t="inlineStr"' + (ri === 0 ? ' s="2"' : '') + '><is><t xml:space="preserve">' + xlsxEsc(c.v) + '</t></is></c>';
+        } else if (c.t === 'n') {
+          sd += '<c r="' + ref + '"' + (ri === 0 ? ' s="2"' : '') + '><v>' + c.v + '</v></c>';
+        } else if (c.t === 'd') {
+          sd += '<c r="' + ref + '" s="1"><v>' + excelSerial(c.v) + '</v></c>';
+        }
+      });
+      sd += '</row>';
+    });
+
+    var X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+    var sheet = X + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+      '<sheetFormatPr defaultRowHeight="15"/>' +
+      '<cols><col min="2" max="2" width="22" customWidth="1"/><col min="3" max="3" width="44" customWidth="1"/><col min="4" max="4" width="20" customWidth="1"/><col min="5" max="6" width="12" customWidth="1"/><col min="7" max="7" width="10" customWidth="1"/><col min="8" max="8" width="14" customWidth="1"/></cols>' +
+      '<sheetData>' + sd + '</sheetData></worksheet>';
+    var contentTypes = X + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+    var relsRoot = X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+    var workbook = X + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets><sheet name="Zeitplan" sheetId="1" r:id="rId1"/></sheets></workbook>';
+    var wbRels = X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+    var styles = X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<numFmts count="1"><numFmt numFmtId="164" formatCode="DD.MM.YYYY"/></numFmts>' +
+      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+      '<borders count="1"><border/></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="3">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+      '</cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+    var enc = new TextEncoder();
+    var files = [
+      { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
+      { name: '_rels/.rels', data: enc.encode(relsRoot) },
+      { name: 'xl/workbook.xml', data: enc.encode(workbook) },
+      { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(wbRels) },
+      { name: 'xl/styles.xml', data: enc.encode(styles) },
+      { name: 'xl/worksheets/sheet1.xml', data: enc.encode(sheet) }
+    ];
+    var blob = new Blob([zipStore(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = buildFileName('', 'xlsx');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+  }
+
   /* ────────────────────────── render orchestration ────────────────────────── */
   function renderTimelineOnly() {
     var range = getRange();
@@ -4194,6 +4632,8 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'reset-dates') resetAllDates();
       else if (action === 'sort-by-date') sortTasksByDate();
       else if (action === 'export-pdf') exportPDF();
+      else if (action === 'export-xlsx') exportXLSX();
+      else if (action === 'nonwork') openNonWork();
       else if (action === 'print') openPrintPreview();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
