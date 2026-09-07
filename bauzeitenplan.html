@@ -401,7 +401,7 @@ button, input{ font-family:var(--font-family); }
 .nonwork-holidays select{ font-family:var(--font-family); font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; text-transform:none; letter-spacing:normal; font-weight:400; }
 .nonwork-hint{ font-size:11px; color:var(--g600); width:100%; margin:6px 0 0; }
 .filter-label{ font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--g600); padding:0 6px 0 8px; }
-.filter-select{ font-family:var(--font-family); font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; background:var(--color-white); color:var(--color-black); max-width:200px; }
+.filter-select{ font-family:var(--font-family); font-size:13px; height:36px; box-sizing:border-box; padding:0 8px; border:1px solid var(--g200); border-radius:3px; background:var(--color-white); color:var(--color-black); max-width:220px; cursor:pointer; }
 .filter-select.active{ border-color:var(--color-black); font-weight:600; }
 .phase-row:hover .row-dup{ opacity:1; }
 .ctx-menu{ position:fixed; z-index:200; background:var(--color-white); border:1px solid var(--g200); border-radius:6px; box-shadow:0 6px 24px rgba(0,0,0,.16); padding:4px; min-width:210px; }
@@ -3126,6 +3126,24 @@ button, input{ font-family:var(--font-family); }
     });
   }
 
+  // Neue Zeile relativ zu einer bestehenden einfuegen — 'before' = oberhalb, 'after' = unterhalb.
+  function addRowRelative(anchorTaskId, milestone, where) {
+    var anchor = findTask(anchorTaskId);
+    if (!anchor) return;
+    var refStart = where === 'before' ? fromISO(anchor.start) : addDays(fromISO(anchor.end), 1);
+    var nt = {
+      id: uid(), phaseId: anchor.phaseId, name: '', assignee: '',
+      start: toISO(refStart), end: milestone ? toISO(refStart) : toISO(addDays(refStart, 7)),
+      progress: 0, milestone: !!milestone, dependencies: []
+    };
+    var idx = state.tasks.findIndex(function (t) { return t.id === anchorTaskId; });
+    state.tasks.splice(where === 'before' ? idx : idx + 1, 0, nt);
+    selectRow(anchor.phaseId, nt.id);
+    save();
+    renderAll();
+    focusRowName(nt.id);
+  }
+
   function addPhase() {
     state.phases.push({ id: uid(), name: 'Neue Phase', collapsed: false });
     save();
@@ -3839,6 +3857,7 @@ button, input{ font-family:var(--font-family); }
   }
 
   function buildGanttPDF(settings) {
+    rebuildNonWorkingSet();
     settings = settings || {};
     var paper = PDF_PAPER_PT[settings.paper || 'a4'];
     var landscape = settings.orientation !== 'portrait';
@@ -4034,6 +4053,24 @@ button, input{ font-family:var(--font-family); }
     function drawDayColumnGrid(yTop, yBottom) {
       for (var i = 1; i <= days.length; i++) vLine(MARGIN + labelW + i * dayW, yTop, yBottom);
     }
+    // Arbeitsfreie Tage (Wochenenden nach state.workWeek + eingetragene freie Zeitraeume/Feiertage)
+    // grau hinterlegen, damit der Druck wie der Bildschirm aussieht. Aufeinanderfolgende freie Tage
+    // werden zu EINEM Rechteck zusammengefasst. Wird VOR Gitterlinien/Balken gezeichnet.
+    function drawNonWorkShading(yTop, yBottom) {
+      if (yTop <= yBottom) return;
+      var h = (yTop - yBottom).toFixed(2);
+      var i = 0;
+      while (i < days.length) {
+        if (isWorkday(days[i])) { i++; continue; }
+        var j = i;
+        while (j < days.length && !isWorkday(days[j])) j++;
+        var x = MARGIN + labelW + i * dayW;
+        var w = (j - i) * dayW;
+        cur2.push('0.925 0.925 0.925 rg ' + x.toFixed(2) + ' ' + yBottom.toFixed(2) + ' ' + w.toFixed(2) + ' ' + h + ' re f');
+        i = j;
+      }
+      cur2.push('0 0 0 rg');
+    }
     // Zeichnet zusätzlich etwas dunklere Trennlinien an den Grenzen der unteren Kopfzeilen-Ebene
     // (Wochen in der Monatsansicht, Monate in der Jahresansicht) — damit sich diese Blöcke beim
     // Scannen der Balken klar von den normalen (helleren) Tagesspalten abheben, auch über die
@@ -4163,6 +4200,7 @@ button, input{ font-family:var(--font-family); }
       // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs. Der
       // untere Rand ist MARGIN+FOOTER_RESERVE (nicht nur FOOTER_H), damit der für die Legende
       // reservierte Bereich am Fuß frei von Gitterlinien bleibt.
+      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       drawLabelColumnGrid(y, MARGIN + FOOTER_RESERVE);
       drawDayColumnGrid(y, MARGIN + FOOTER_RESERVE);
       // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
@@ -4820,8 +4858,10 @@ button, input{ font-family:var(--font-family); }
       if (!t) return;
       var inMulti = (t.id === selectedTaskId) || !!multiSelectedTaskIds[t.id];
       var selCount = 1 + Object.keys(multiSelectedTaskIds).length;
-      ctxItem('Vorgang darunter einfügen', function () { selectRow(t.phaseId, t.id); addTask(t.phaseId); });
-      ctxItem('Meilenstein darunter einfügen', function () { selectRow(t.phaseId, t.id); addMilestone(t.phaseId); });
+      ctxItem('Vorgang oberhalb einfügen', function () { addRowRelative(t.id, false, 'before'); });
+      ctxItem('Vorgang unterhalb einfügen', function () { addRowRelative(t.id, false, 'after'); });
+      ctxItem('Meilenstein oberhalb einfügen', function () { addRowRelative(t.id, true, 'before'); });
+      ctxItem('Meilenstein unterhalb einfügen', function () { addRowRelative(t.id, true, 'after'); });
       ctxSep();
       if (inMulti && selCount > 1) {
         ctxItem(selCount + ' Zeilen duplizieren', function () { duplicateTasks(t); });
