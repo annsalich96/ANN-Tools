@@ -4114,7 +4114,7 @@ button, input{ font-family:var(--font-family); }
         while (j < days.length && shaded(days[j])) j++;
         var x = MARGIN + labelW + i * dayW;
         var w = (j - i) * dayW;
-        cur2.push('0.957 0.957 0.957 rg ' + x.toFixed(2) + ' ' + yBottom.toFixed(2) + ' ' + w.toFixed(2) + ' ' + h + ' re f');
+        cur2.push('0.970 0.970 0.970 rg ' + x.toFixed(2) + ' ' + yBottom.toFixed(2) + ' ' + w.toFixed(2) + ' ' + h + ' re f');
         i = j;
       }
       cur2.push('0 0 0 rg');
@@ -4248,15 +4248,17 @@ button, input{ font-family:var(--font-family); }
       // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs. Der
       // untere Rand ist MARGIN+FOOTER_RESERVE (nicht nur FOOTER_H), damit der für die Legende
       // reservierte Bereich am Fuß frei von Gitterlinien bleibt.
+      // Schattierung der freien Tage ZUERST (ganz unten), damit die Gitterlinien sichtbar
+      // durchlaufen. Der Grauton ist bewusst etwas heller als die Phasen-Zeilen: durch die
+      // durchscheinenden Tages-/Wochenlinien wirkt ein identisches Grau in den schmalen
+      // senkrechten Baendern sonst dunkler.
+      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       drawLabelColumnGrid(y, MARGIN + FOOTER_RESERVE);
       drawDayColumnGrid(y, MARGIN + FOOTER_RESERVE);
       // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
       // GESAMTE Seitenhöhe inkl. Kopfzeile, damit die Blöcke auch dort (und über die
       // Kategorie-/Phasenzeilen hinweg) klar erkennbar bleiben.
       drawTierBoundaries(pageTop, MARGIN + FOOTER_RESERVE);
-      // NACH den Gitterlinien: die Schattierung deckt die feinen Linien innerhalb der freien
-      // Zeitraeume ab -> gleichmaessige Flaeche im exakt selben Grau wie die Phasen-Zeilen.
-      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       pageBounds.push({ top: y, bottom: y });
     }
 
