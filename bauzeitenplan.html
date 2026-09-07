@@ -1020,8 +1020,87 @@ button, input{ font-family:var(--font-family); }
     renderNonWorkList();
     nonworkOverlay.classList.add('open');
   }
-  function closeNonWork() { nonworkOverlay.classList.remove('open'); }
-  function commitNonWork() { applyCalendarChange(); renderNonWorkList(); }
+  function closeNonWork() { flushNonworkApply(); nonworkOverlay.classList.remove('open'); }
+
+  // Kalender-Neuberechnung NICHT bei jedem Feld-Commit — sonst wurde die Liste (und damit die gerade
+  // bearbeiteten Datumsfelder) mitten im Bearbeiten neu aufgebaut, die zweite Eingabe lief ins Leere
+  // und die Termine verschoben sich pro Tastendruck kumulativ (Ann: "ich aendere die Daten und es
+  // zeigt nur das alte"). Jetzt: Feldwerte sofort in state, KEIN Neuaufbau der Liste beim Editieren,
+  // Neuberechnung + Zeitstrahl gebuendelt nach kurzer Pause bzw. spaetestens beim Schliessen.
+  var nonworkApplyTimer = null;
+  function scheduleNonworkApply() {
+    if (nonworkApplyTimer) clearTimeout(nonworkApplyTimer);
+    nonworkApplyTimer = setTimeout(function () { nonworkApplyTimer = null; applyCalendarChange(); }, 400);
+  }
+  function flushNonworkApply() {
+    if (!nonworkApplyTimer) return;
+    clearTimeout(nonworkApplyTimer);
+    nonworkApplyTimer = null;
+    applyCalendarChange();
+  }
+
+  function makeNonworkRow(p) {
+    var rowEl = document.createElement('div');
+    rowEl.className = 'nonwork-row';
+    rowEl.dataset.id = p.id;
+
+    var from = document.createElement('input');
+    from.type = 'date';
+    from.value = p.from;
+    from.addEventListener('change', function () {
+      if (!from.value) return;
+      p.from = from.value;
+      if (!p.to || p.to < p.from) { p.to = p.from; to.value = p.to; }
+      p.source = 'manuell';
+      save();
+      scheduleNonworkApply();
+    });
+
+    var dash = document.createElement('span');
+    dash.className = 'nonwork-dash';
+    dash.textContent = '–';
+
+    var to = document.createElement('input');
+    to.type = 'date';
+    to.value = p.to || p.from;
+    to.addEventListener('change', function () {
+      if (!to.value) return;
+      p.to = to.value;
+      if (p.to < p.from) { p.from = p.to; from.value = p.from; }
+      p.source = 'manuell';
+      save();
+      scheduleNonworkApply();
+    });
+
+    var label = document.createElement('input');
+    label.type = 'text';
+    label.className = 'nonwork-label';
+    label.placeholder = 'Bezeichnung (optional)';
+    label.value = p.label || '';
+    label.addEventListener('input', function () { p.label = label.value; });
+    label.addEventListener('change', function () { p.label = label.value; save(); });
+
+    var del = document.createElement('button');
+    del.className = 'row-del';
+    del.type = 'button';
+    del.textContent = '×';
+    del.title = 'Entfernen';
+    del.style.opacity = '1';
+    del.addEventListener('click', function () {
+      state.nonWorkingDays = (state.nonWorkingDays || []).filter(function (x) { return x.id !== p.id; });
+      rowEl.remove();
+      if (!nonworkList.querySelector('.nonwork-row')) renderNonWorkList();
+      save();
+      scheduleNonworkApply();
+    });
+
+    rowEl.appendChild(from);
+    rowEl.appendChild(dash);
+    rowEl.appendChild(to);
+    rowEl.appendChild(label);
+    rowEl.appendChild(del);
+    return rowEl;
+  }
 
   function renderNonWorkList() {
     nonworkList.innerHTML = '';
@@ -1034,70 +1113,24 @@ button, input{ font-family:var(--font-family); }
       empty.style.cssText = 'font-size:12px;color:var(--g600);margin:0';
       empty.textContent = 'Noch keine arbeitsfreien Tage eingetragen.';
       nonworkList.appendChild(empty);
+      return;
     }
-    entries.forEach(function (p) {
-      var rowEl = document.createElement('div');
-      rowEl.className = 'nonwork-row';
-
-      var from = document.createElement('input');
-      from.type = 'date';
-      from.value = p.from;
-      from.addEventListener('change', function () {
-        if (!from.value) return;
-        p.from = from.value;
-        if (!p.to || p.to < p.from) p.to = p.from;
-        p.source = 'manuell';
-        commitNonWork();
-      });
-
-      var dash = document.createElement('span');
-      dash.className = 'nonwork-dash';
-      dash.textContent = '–';
-
-      var to = document.createElement('input');
-      to.type = 'date';
-      to.value = p.to || p.from;
-      to.addEventListener('change', function () {
-        if (!to.value) return;
-        p.to = to.value;
-        if (p.to < p.from) p.from = p.to;
-        p.source = 'manuell';
-        commitNonWork();
-      });
-
-      var label = document.createElement('input');
-      label.type = 'text';
-      label.className = 'nonwork-label';
-      label.placeholder = 'Bezeichnung (optional)';
-      label.value = p.label || '';
-      label.addEventListener('input', function () { p.label = label.value; });
-      label.addEventListener('change', function () { p.label = label.value; save(); });
-
-      var del = document.createElement('button');
-      del.className = 'row-del';
-      del.type = 'button';
-      del.textContent = '×';
-      del.title = 'Entfernen';
-      del.style.opacity = '1';
-      del.addEventListener('click', function () {
-        state.nonWorkingDays = (state.nonWorkingDays || []).filter(function (x) { return x.id !== p.id; });
-        commitNonWork();
-      });
-
-      rowEl.appendChild(from);
-      rowEl.appendChild(dash);
-      rowEl.appendChild(to);
-      rowEl.appendChild(label);
-      rowEl.appendChild(del);
-      nonworkList.appendChild(rowEl);
-    });
+    entries.forEach(function (p) { nonworkList.appendChild(makeNonworkRow(p)); });
   }
 
   if (nonworkAddBtn) nonworkAddBtn.addEventListener('click', function () {
     var today = toISO(midnight(new Date()));
+    var entry = { id: uid(), from: today, to: today, label: '', source: 'manuell' };
     state.nonWorkingDays = state.nonWorkingDays || [];
-    state.nonWorkingDays.push({ id: uid(), from: today, to: today, label: '', source: 'manuell' });
-    commitNonWork();
+    state.nonWorkingDays.push(entry);
+    var emptyMsg = nonworkList.querySelector('.confirm-msg');
+    if (emptyMsg) emptyMsg.remove();
+    var newRow = makeNonworkRow(entry);
+    nonworkList.appendChild(newRow);
+    var firstInput = newRow.querySelector('input');
+    if (firstInput) firstInput.focus();
+    save();
+    scheduleNonworkApply();
   });
   if (nonworkHolidayLoadBtn) nonworkHolidayLoadBtn.addEventListener('click', function () {
     loadHolidays(nonworkBundesland.value);
@@ -4558,7 +4591,7 @@ button, input{ font-family:var(--font-family); }
       '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
       '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
     var styles = X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      '<numFmts count="1"><numFmt numFmtId="164" formatCode="DD.MM.YYYY"/></numFmts>' +
+      '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd\.mm\.yyyy"/></numFmts>' +
       '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
       '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
       '<borders count="1"><border/></borders>' +
