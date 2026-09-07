@@ -422,6 +422,7 @@ button, input{ font-family:var(--font-family); }
 }
 .tl-window-title{ font-size:13px; font-weight:600; color:var(--color-black); }
 .tl-window-hint{ font-size:11px; color:var(--g600); }
+.btn.scrolllink-on{ background:var(--color-black); color:var(--color-white); border-color:var(--color-black); }
 
 
 .col-resize{
@@ -483,6 +484,10 @@ button, input{ font-family:var(--font-family); }
     <div class="toolbar-group">
       <button class="btn primary" data-action="add-phase">+ Phase/Kategorie</button>
     </div>
+    <div class="toolbar-group">
+      <button class="btn" data-action="open-timeline-window" title="Öffnet den Zeitstrahl in einem eigenen Fenster (z. B. für den zweiten Monitor) — bleibt live mit dem Hauptfenster synchronisiert">Zeitstrahl-Fenster</button>
+      <button class="btn scrolllink-btn" data-action="toggle-scroll-link" title="Scrollen zwischen Haupt- und Zeitstrahl-Fenster koppeln (rauf/runter und seitwärts)">Scroll koppeln</button>
+    </div>
     <div class="toolbar-group zoom-group">
       <button class="zoom-btn" data-zoom="week">Woche</button>
       <button class="zoom-btn active" data-zoom="month">Monat</button>
@@ -520,7 +525,6 @@ button, input{ font-family:var(--font-family); }
       <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
     </div>
     <div class="toolbar-group toolbar-group-end">
-      <button class="btn" data-action="open-timeline-window" title="Öffnet den Zeitstrahl in einem eigenen Fenster (z. B. für den zweiten Monitor) — bleibt live mit dem Hauptfenster synchronisiert">Zeitstrahl-Fenster</button>
       <button class="btn" data-action="print" title="Öffnet eine eigene Druckseite in neuem Tab — Skalierung dort über den Browser-Druckdialog (wie bei Google Sheets)">Drucken</button>
       <button class="btn" data-action="export-pdf" title="Lädt den Zeitplan als PDF-Tabelle (nur Daten, ohne Balken) herunter">PDF-Tabelle exportieren</button>
       <button class="btn" data-action="export-xlsx" title="Alle Daten als Excel-Datei (.xlsx) — öffnet auch in Google Sheets, importierbar in MS Project">Excel/Sheets exportieren</button>
@@ -640,6 +644,9 @@ button, input{ font-family:var(--font-family); }
 
   // Zweiter-Bildschirm-Modus: dieselbe Datei mit #zeitstrahl geoeffnet -> nur Zeitstrahl, live-synchron.
   var TL_WINDOW_MODE = (window.location.hash || '').toLowerCase().indexOf('zeitstrahl') !== -1;
+  var SCROLL_LINK_KEY = 'annBauzeitenplanScrollLink';
+  var tlScrollLink = true;
+  try { tlScrollLink = localStorage.getItem(SCROLL_LINK_KEY) !== '0'; } catch (e) {}
 
   /* ────────────────────────── date utils ────────────────────────── */
   var MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -3748,7 +3755,8 @@ button, input{ font-family:var(--font-family); }
     doc += '<label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent<input type="number" id="printCustomPct" value="100" min="10" max="400"></label>';
     doc += '<label class="print-option-field">Ränder<select id="printMargin"><option value="10" selected>Standard</option><option value="5">Schmal</option><option value="20">Breit</option></select></label>';
     doc += '<label class="print-option-field">Abhängigkeitspfeile<select id="printShowArrows"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
-    doc += '<label class="print-option-field">Wochenenden / freie Tage grau<select id="printShowNonwork"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
+    doc += '<label class="print-option-field">Wochenenden grau<select id="printShowWeekends"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
+    doc += '<label class="print-option-field">Feiertage / freie Tage grau<select id="printShowHolidays"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
     doc += '<label class="print-option-field">Zoom-Stufe<select id="printZoom">' + zoomOptsHtml + '</select></label>';
     var barLabelOptsHtml = '<option value="none" selected>Kein</option><option value="name">Vorgang</option><option value="assignee">Verantwortlich</option><option value="start">Start</option><option value="end">Ende</option>';
     doc += '<label class="print-option-field">Balken-Beschriftung 1<select id="printBarLabel1">' + barLabelOptsHtml + '</select></label>';
@@ -3776,7 +3784,8 @@ button, input{ font-family:var(--font-family); }
     var winCustomPctRowEl = win.document.getElementById('printCustomPctRow');
     var winMarginEl = win.document.getElementById('printMargin');
     var winShowArrowsEl = win.document.getElementById('printShowArrows');
-    var winShowNonworkEl = win.document.getElementById('printShowNonwork');
+    var winShowWeekendsEl = win.document.getElementById('printShowWeekends');
+    var winShowHolidaysEl = win.document.getElementById('printShowHolidays');
     var winZoomEl = win.document.getElementById('printZoom');
     var winBarLabel1El = win.document.getElementById('printBarLabel1');
     var winBarLabel1SideEl = win.document.getElementById('printBarLabel1Side');
@@ -3799,7 +3808,8 @@ button, input{ font-family:var(--font-family); }
         customPct: parseFloat(winCustomPctEl.value) || 100,
         marginMm: parseFloat(winMarginEl.value),
         showArrows: winShowArrowsEl.value !== 'no',
-        showNonwork: winShowNonworkEl.value !== 'no',
+        showWeekends: winShowWeekendsEl.value !== 'no',
+        showHolidays: winShowHolidaysEl.value !== 'no',
         zoom: winZoomEl.value,
         barLabel1Field: winBarLabel1El.value,
         barLabel1Side: winBarLabel1SideEl.value,
@@ -3827,7 +3837,8 @@ button, input{ font-family:var(--font-family); }
     winOrientationEl.addEventListener('change', update);
     winMarginEl.addEventListener('change', update);
     winShowArrowsEl.addEventListener('change', update);
-    winShowNonworkEl.addEventListener('change', update);
+    winShowWeekendsEl.addEventListener('change', update);
+    winShowHolidaysEl.addEventListener('change', update);
     winCustomPctEl.addEventListener('input', update);
     winZoomEl.addEventListener('change', update);
     winBarLabel1El.addEventListener('change', function () {
@@ -4078,14 +4089,29 @@ button, input{ font-family:var(--font-family); }
     // Arbeitsfreie Tage (Wochenenden nach state.workWeek + eingetragene freie Zeitraeume/Feiertage)
     // grau hinterlegen, damit der Druck wie der Bildschirm aussieht. Aufeinanderfolgende freie Tage
     // werden zu EINEM Rechteck zusammengefasst. Wird VOR Gitterlinien/Balken gezeichnet.
+    function isWeeklyOff(d) {
+      var ww = state.workWeek || 'mo-fr';
+      var dow = d.getDay();
+      if (ww === 'mo-so') return false;
+      if (ww === 'mo-sa') return dow === 0;
+      return dow === 0 || dow === 6;
+    }
+    // Wochenenden (nach Arbeitswoche) und eingetragene freie Tage/Feiertage koennen im Druck
+    // getrennt ein-/ausgeblendet werden (settings.showWeekends / settings.showHolidays).
     function drawNonWorkShading(yTop, yBottom) {
       if (yTop <= yBottom) return;
+      var showW = settings.showWeekends !== false;
+      var showH = settings.showHolidays !== false;
+      if (!showW && !showH) return;
       var h = (yTop - yBottom).toFixed(2);
+      function shaded(d) {
+        return (showW && isWeeklyOff(d)) || (showH && nonWorkingSet.has(toISO(d)));
+      }
       var i = 0;
       while (i < days.length) {
-        if (isWorkday(days[i])) { i++; continue; }
+        if (!shaded(days[i])) { i++; continue; }
         var j = i;
-        while (j < days.length && !isWorkday(days[j])) j++;
+        while (j < days.length && shaded(days[j])) j++;
         var x = MARGIN + labelW + i * dayW;
         var w = (j - i) * dayW;
         cur2.push('0.925 0.925 0.925 rg ' + x.toFixed(2) + ' ' + yBottom.toFixed(2) + ' ' + w.toFixed(2) + ' ' + h + ' re f');
@@ -4222,7 +4248,7 @@ button, input{ font-family:var(--font-family); }
       // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs. Der
       // untere Rand ist MARGIN+FOOTER_RESERVE (nicht nur FOOTER_H), damit der für die Legende
       // reservierte Bereich am Fuß frei von Gitterlinien bleibt.
-      if (settings.showNonwork !== false) drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
+      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       drawLabelColumnGrid(y, MARGIN + FOOTER_RESERVE);
       drawDayColumnGrid(y, MARGIN + FOOTER_RESERVE);
       // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
@@ -4939,6 +4965,19 @@ button, input{ font-family:var(--font-family); }
       if (!d) return;
       if (d.t === 'hello') {
         try { tlChannel.postMessage({ t: 'state', s: JSON.stringify(state) }); } catch (e) {}
+        try { tlChannel.postMessage({ t: 'scrolllink', on: tlScrollLink }); } catch (e) {}
+        if (tlScrollLink) {
+          try { tlChannel.postMessage({ t: 'scroll', top: boardEl.scrollTop, left: timelineBody.scrollLeft }); } catch (e) {}
+        }
+        return;
+      }
+      if (d.t === 'scrolllink') { setScrollLink(d.on, false); return; }
+      if (d.t === 'scroll') {
+        if (!tlScrollLink) return;
+        tlApplyingScroll = true;
+        if (typeof d.top === 'number') boardEl.scrollTop = d.top;
+        if (typeof d.left === 'number') timelineBody.scrollLeft = d.left;
+        requestAnimationFrame(function () { tlApplyingScroll = false; });
         return;
       }
       if (d.t !== 'state' || typeof d.s !== 'string') return;
@@ -4964,6 +5003,35 @@ button, input{ font-family:var(--font-family); }
     }
     w.focus();
   }
+
+  /* Scroll-Kopplung zwischen den Fenstern (rauf/runter = boardEl, seitwaerts = timelineBody). */
+  var tlApplyingScroll = false;
+  var tlScrollSendQueued = false;
+  function updateScrollLinkUI() {
+    document.querySelectorAll('.scrolllink-btn').forEach(function (b) {
+      b.textContent = tlScrollLink ? 'Scroll gekoppelt' : 'Scroll koppeln';
+      b.classList.toggle('scrolllink-on', tlScrollLink);
+    });
+  }
+  function setScrollLink(on, broadcast) {
+    tlScrollLink = !!on;
+    try { localStorage.setItem(SCROLL_LINK_KEY, tlScrollLink ? '1' : '0'); } catch (e) {}
+    updateScrollLinkUI();
+    if (broadcast && tlChannel) { try { tlChannel.postMessage({ t: 'scrolllink', on: tlScrollLink }); } catch (e) {} }
+  }
+  function toggleScrollLink() { setScrollLink(!tlScrollLink, true); }
+  function broadcastScroll() {
+    if (!tlChannel || !tlScrollLink || tlApplyingScroll || tlScrollSendQueued) return;
+    tlScrollSendQueued = true;
+    requestAnimationFrame(function () {
+      tlScrollSendQueued = false;
+      try {
+        tlChannel.postMessage({ t: 'scroll', top: boardEl.scrollTop, left: timelineBody.scrollLeft });
+      } catch (e) {}
+    });
+  }
+  if (boardEl) boardEl.addEventListener('scroll', broadcastScroll, { passive: true });
+  if (timelineBody) timelineBody.addEventListener('scroll', broadcastScroll, { passive: true });
   if (TL_WINDOW_MODE) {
     var tlApp = document.getElementById('app');
     if (tlApp) tlApp.classList.add('timeline-only');
@@ -4981,12 +5049,14 @@ button, input{ font-family:var(--font-family); }
         '<button class="zoom-btn colorby-btn" data-colorby="phase">Farbe: Phase/Kategorie</button>' +
         '<button class="zoom-btn colorby-btn" data-colorby="assignee">Farbe: Verantwortlich</button>' +
       '</div>' +
+      '<button class="btn scrolllink-btn" data-action="toggle-scroll-link" title="Scrollen mit dem Hauptfenster koppeln">Scroll koppeln</button>' +
       '<span class="tl-window-hint">Live synchronisiert mit dem Hauptfenster</span>';
     var tlBoard = document.getElementById('board');
     if (tlApp && tlBoard) tlApp.insertBefore(tlBar, tlBoard);
     updateTlWindowTitle();
     if (tlChannel) { try { tlChannel.postMessage({ t: 'hello' }); } catch (e) {} }
   }
+  updateScrollLinkUI();
 
   /* ────────────────────────── event wiring ────────────────────────── */
   document.addEventListener('click', function (e) {
@@ -5007,6 +5077,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'nonwork') openNonWork();
       else if (action === 'print') openPrintPreview();
       else if (action === 'open-timeline-window') openTimelineWindow();
+      else if (action === 'toggle-scroll-link') toggleScrollLink();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
       else if (action === 'toggle-critical-path') toggleCriticalPath();
@@ -5110,7 +5181,7 @@ button, input{ font-family:var(--font-family); }
     selectRow(null, null);
   });
   renderAll();
-  requestAnimationFrame(scrollToToday);
+  if (!(TL_WINDOW_MODE && tlScrollLink)) requestAnimationFrame(scrollToToday);
 })();
 
 </script>
