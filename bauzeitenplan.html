@@ -409,6 +409,19 @@ button, input{ font-family:var(--font-family); }
 .ctx-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; padding:7px 10px; border-radius:4px; cursor:pointer; font-family:var(--font-family); font-size:12px; color:var(--color-black); }
 .ctx-menu button:hover{ background:var(--g100); }
 .ctx-menu hr{ border:none; border-top:1px solid var(--g200); margin:4px 2px; }
+.tl-window-bar{ display:none; }
+.app.timeline-only .toolbar,
+.app.timeline-only .app-header,
+.app.timeline-only .app-footer,
+.app.timeline-only .list-col,
+.app.timeline-only .col-resize{ display:none !important; }
+.app.timeline-only .timeline-col{ flex:1 1 100%; min-width:0; }
+.app.timeline-only .tl-window-bar{
+  display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap;
+  padding:var(--space-3) var(--space-6); border-bottom:1px solid var(--g200); background:var(--color-white);
+}
+.tl-window-title{ font-size:13px; font-weight:600; color:var(--color-black); }
+.tl-window-hint{ font-size:11px; color:var(--g600); }
 
 
 .col-resize{
@@ -507,6 +520,7 @@ button, input{ font-family:var(--font-family); }
       <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
     </div>
     <div class="toolbar-group toolbar-group-end">
+      <button class="btn" data-action="open-timeline-window" title="Öffnet den Zeitstrahl in einem eigenen Fenster (z. B. für den zweiten Monitor) — bleibt live mit dem Hauptfenster synchronisiert">Zeitstrahl-Fenster</button>
       <button class="btn" data-action="print" title="Öffnet eine eigene Druckseite in neuem Tab — Skalierung dort über den Browser-Druckdialog (wie bei Google Sheets)">Drucken</button>
       <button class="btn" data-action="export-pdf" title="Lädt den Zeitplan als PDF-Tabelle (nur Daten, ohne Balken) herunter">PDF-Tabelle exportieren</button>
       <button class="btn" data-action="export-xlsx" title="Alle Daten als Excel-Datei (.xlsx) — öffnet auch in Google Sheets, importierbar in MS Project">Excel/Sheets exportieren</button>
@@ -623,6 +637,9 @@ button, input{ font-family:var(--font-family); }
 <script>
 (function () {
   'use strict';
+
+  // Zweiter-Bildschirm-Modus: dieselbe Datei mit #zeitstrahl geoeffnet -> nur Zeitstrahl, live-synchron.
+  var TL_WINDOW_MODE = (window.location.hash || '').toLowerCase().indexOf('zeitstrahl') !== -1;
 
   /* ────────────────────────── date utils ────────────────────────── */
   var MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -803,6 +820,7 @@ button, input{ font-family:var(--font-family); }
     requestAnimationFrame(function () {
       saveScheduled = false;
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+      broadcastState();
     });
   }
 
@@ -3730,6 +3748,7 @@ button, input{ font-family:var(--font-family); }
     doc += '<label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent<input type="number" id="printCustomPct" value="100" min="10" max="400"></label>';
     doc += '<label class="print-option-field">Ränder<select id="printMargin"><option value="10" selected>Standard</option><option value="5">Schmal</option><option value="20">Breit</option></select></label>';
     doc += '<label class="print-option-field">Abhängigkeitspfeile<select id="printShowArrows"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
+    doc += '<label class="print-option-field">Wochenenden / freie Tage grau<select id="printShowNonwork"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
     doc += '<label class="print-option-field">Zoom-Stufe<select id="printZoom">' + zoomOptsHtml + '</select></label>';
     var barLabelOptsHtml = '<option value="none" selected>Kein</option><option value="name">Vorgang</option><option value="assignee">Verantwortlich</option><option value="start">Start</option><option value="end">Ende</option>';
     doc += '<label class="print-option-field">Balken-Beschriftung 1<select id="printBarLabel1">' + barLabelOptsHtml + '</select></label>';
@@ -3757,6 +3776,7 @@ button, input{ font-family:var(--font-family); }
     var winCustomPctRowEl = win.document.getElementById('printCustomPctRow');
     var winMarginEl = win.document.getElementById('printMargin');
     var winShowArrowsEl = win.document.getElementById('printShowArrows');
+    var winShowNonworkEl = win.document.getElementById('printShowNonwork');
     var winZoomEl = win.document.getElementById('printZoom');
     var winBarLabel1El = win.document.getElementById('printBarLabel1');
     var winBarLabel1SideEl = win.document.getElementById('printBarLabel1Side');
@@ -3779,6 +3799,7 @@ button, input{ font-family:var(--font-family); }
         customPct: parseFloat(winCustomPctEl.value) || 100,
         marginMm: parseFloat(winMarginEl.value),
         showArrows: winShowArrowsEl.value !== 'no',
+        showNonwork: winShowNonworkEl.value !== 'no',
         zoom: winZoomEl.value,
         barLabel1Field: winBarLabel1El.value,
         barLabel1Side: winBarLabel1SideEl.value,
@@ -3806,6 +3827,7 @@ button, input{ font-family:var(--font-family); }
     winOrientationEl.addEventListener('change', update);
     winMarginEl.addEventListener('change', update);
     winShowArrowsEl.addEventListener('change', update);
+    winShowNonworkEl.addEventListener('change', update);
     winCustomPctEl.addEventListener('input', update);
     winZoomEl.addEventListener('change', update);
     winBarLabel1El.addEventListener('change', function () {
@@ -4200,7 +4222,7 @@ button, input{ font-family:var(--font-family); }
       // das O(Zeilen × Tage) Strichzeichnungen und damit unnötig riesige, langsame PDFs. Der
       // untere Rand ist MARGIN+FOOTER_RESERVE (nicht nur FOOTER_H), damit der für die Legende
       // reservierte Bereich am Fuß frei von Gitterlinien bleibt.
-      drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
+      if (settings.showNonwork !== false) drawNonWorkShading(y, MARGIN + FOOTER_RESERVE);
       drawLabelColumnGrid(y, MARGIN + FOOTER_RESERVE);
       drawDayColumnGrid(y, MARGIN + FOOTER_RESERVE);
       // Dunklere Trennlinien an den Wochen-/Monatsgrenzen (siehe drawTierBoundaries) über die
@@ -4893,6 +4915,79 @@ button, input{ font-family:var(--font-family); }
   window.addEventListener('blur', hideCtxMenu);
   if (typeof boardEl !== 'undefined' && boardEl) boardEl.addEventListener('scroll', hideCtxMenu, true);
 
+  /* ── Zeitstrahl-Fenster (zweiter Bildschirm): Live-Sync ueber BroadcastChannel ── */
+  var tlChannel = null;
+  try { tlChannel = new BroadcastChannel('annBauzeitenplanSync'); } catch (e) { tlChannel = null; }
+  var tlApplyingRemote = false;
+  var tlSendPending = false;
+  function broadcastState() {
+    if (!tlChannel || tlApplyingRemote || tlSendPending) return;
+    tlSendPending = true;
+    setTimeout(function () {
+      tlSendPending = false;
+      try { tlChannel.postMessage({ t: 'state', s: JSON.stringify(state) }); } catch (e) {}
+    }, 120);
+  }
+  function updateTlWindowTitle() {
+    var el = document.querySelector('.tl-window-title');
+    if (el) el.textContent = 'Zeitstrahl · ' + (state.projectTitle || 'Bauzeitenplan');
+    try { document.title = 'Zeitstrahl — ' + (state.projectTitle || 'Bauzeitenplan'); } catch (e) {}
+  }
+  if (tlChannel) {
+    tlChannel.onmessage = function (ev) {
+      var d = ev && ev.data;
+      if (!d) return;
+      if (d.t === 'hello') {
+        try { tlChannel.postMessage({ t: 'state', s: JSON.stringify(state) }); } catch (e) {}
+        return;
+      }
+      if (d.t !== 'state' || typeof d.s !== 'string') return;
+      if (d.s === JSON.stringify(state)) return;
+      tlApplyingRemote = true;
+      try {
+        state = migrateDependencies(JSON.parse(d.s));
+        applyStateToUI();
+        rebuildNonWorkingSet();
+        lastSnapshot = JSON.stringify(state);
+        renderAll();
+        if (TL_WINDOW_MODE) updateTlWindowTitle();
+      } catch (e) {}
+      tlApplyingRemote = false;
+    };
+  }
+  function openTimelineWindow() {
+    var url = window.location.pathname + window.location.search + '#zeitstrahl';
+    var w = window.open(url, 'annBauzeitenplanZeitstrahl', 'width=1600,height=900');
+    if (!w) {
+      showConfirm('Pop-up wurde blockiert. Bitte Pop-ups fuer diese Seite erlauben und erneut versuchen.', function () {}, { okLabel: 'OK', hideCancel: true });
+      return;
+    }
+    w.focus();
+  }
+  if (TL_WINDOW_MODE) {
+    var tlApp = document.getElementById('app');
+    if (tlApp) tlApp.classList.add('timeline-only');
+    var tlBar = document.createElement('div');
+    tlBar.className = 'tl-window-bar';
+    tlBar.innerHTML =
+      '<span class="tl-window-title">Zeitstrahl</span>' +
+      '<div class="zoom-group">' +
+        '<button class="zoom-btn" data-zoom="week">Woche</button>' +
+        '<button class="zoom-btn" data-zoom="month">Monat</button>' +
+        '<button class="zoom-btn" data-zoom="year">Jahr</button>' +
+      '</div>' +
+      '<button class="btn" data-action="today">Heute</button>' +
+      '<div class="zoom-group">' +
+        '<button class="zoom-btn colorby-btn" data-colorby="phase">Farbe: Phase/Kategorie</button>' +
+        '<button class="zoom-btn colorby-btn" data-colorby="assignee">Farbe: Verantwortlich</button>' +
+      '</div>' +
+      '<span class="tl-window-hint">Live synchronisiert mit dem Hauptfenster</span>';
+    var tlBoard = document.getElementById('board');
+    if (tlApp && tlBoard) tlApp.insertBefore(tlBar, tlBoard);
+    updateTlWindowTitle();
+    if (tlChannel) { try { tlChannel.postMessage({ t: 'hello' }); } catch (e) {} }
+  }
+
   /* ────────────────────────── event wiring ────────────────────────── */
   document.addEventListener('click', function (e) {
     var actionEl = e.target.closest('[data-action]');
@@ -4911,6 +5006,7 @@ button, input{ font-family:var(--font-family); }
       else if (action === 'export-xlsx') exportXLSX();
       else if (action === 'nonwork') openNonWork();
       else if (action === 'print') openPrintPreview();
+      else if (action === 'open-timeline-window') openTimelineWindow();
       else if (action === 'save-file') saveProjectFile();
       else if (action === 'open-file') fileInputEl.click();
       else if (action === 'toggle-critical-path') toggleCriticalPath();
