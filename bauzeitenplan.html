@@ -400,6 +400,15 @@ button, input{ font-family:var(--font-family); }
 .nonwork-holidays label{ font-size:11px; font-weight:600; color:var(--g600); text-transform:uppercase; letter-spacing:0.08em; display:flex; align-items:center; gap:6px; }
 .nonwork-holidays select{ font-family:var(--font-family); font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; text-transform:none; letter-spacing:normal; font-weight:400; }
 .nonwork-hint{ font-size:11px; color:var(--g600); width:100%; margin:6px 0 0; }
+.filter-label{ font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--g600); padding:0 6px 0 8px; }
+.filter-select{ font-family:var(--font-family); font-size:12px; padding:4px 6px; border:1px solid var(--g200); border-radius:4px; background:var(--color-white); color:var(--color-black); max-width:200px; }
+.filter-select.active{ border-color:var(--color-black); font-weight:600; }
+.phase-row:hover .row-dup{ opacity:1; }
+.ctx-menu{ position:fixed; z-index:200; background:var(--color-white); border:1px solid var(--g200); border-radius:6px; box-shadow:0 6px 24px rgba(0,0,0,.16); padding:4px; min-width:210px; }
+.ctx-menu[hidden]{ display:none; }
+.ctx-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; padding:7px 10px; border-radius:4px; cursor:pointer; font-family:var(--font-family); font-size:12px; color:var(--color-black); }
+.ctx-menu button:hover{ background:var(--g100); }
+.ctx-menu hr{ border:none; border-top:1px solid var(--g200); margin:4px 2px; }
 
 
 .col-resize{
@@ -480,6 +489,10 @@ button, input{ font-family:var(--font-family); }
     </div>
     <div class="toolbar-group">
       <button class="btn" data-action="nonwork" title="Arbeitsfreie Tage/Zeiträume fürs ganze Projekt (Feiertage, Betriebsurlaub …) — werden wie Wochenenden behandelt: grau, zählen nicht als Arbeitstag, Termine rücken entsprechend">Arbeitsfreie Tage</button>
+    </div>
+    <div class="toolbar-group">
+      <label class="filter-label" for="assigneeFilter">Filter</label>
+      <select id="assigneeFilter" class="filter-select" title="Nur Vorgänge eines Verantwortlichen/einer Firma anzeigen — blendet die übrigen Zeilen vorübergehend aus (nur Ansicht, betrifft Export/Druck nicht)"><option value="">Alle Verantwortlichen</option></select>
     </div>
     <div class="toolbar-group">
       <button class="btn" data-action="today">Heute</button>
@@ -571,6 +584,9 @@ button, input{ font-family:var(--font-family); }
     </div>
   </div>
 </div>
+
+<datalist id="assigneeList"></datalist>
+<div class="ctx-menu" id="ctxMenu" hidden></div>
 
 <div class="confirm-overlay" id="nonworkOverlay">
   <div class="confirm-box nonwork-box">
@@ -777,6 +793,7 @@ button, input{ font-family:var(--font-family); }
   if (!state.workWeek) state.workWeek = 'mo-fr';
   if (!Array.isArray(state.nonWorkingDays)) state.nonWorkingDays = [];
   if (!state.holidayRegion) state.holidayRegion = 'BE';
+  if (typeof state.assigneeFilter !== 'string') state.assigneeFilter = '';
   if (typeof state.showCriticalPath !== 'boolean') state.showCriticalPath = false;
   rebuildNonWorkingSet();
   var saveScheduled = false;
@@ -868,6 +885,7 @@ button, input{ font-family:var(--font-family); }
     if (!state.workWeek) state.workWeek = 'mo-fr';
     if (!Array.isArray(state.nonWorkingDays)) state.nonWorkingDays = [];
     if (!state.holidayRegion) state.holidayRegion = 'BE';
+    if (typeof state.assigneeFilter !== 'string') state.assigneeFilter = '';
     if (typeof state.showCriticalPath !== 'boolean') state.showCriticalPath = false;
     rebuildNonWorkingSet();
     if (state.listWidth) {
@@ -1267,19 +1285,34 @@ button, input{ font-family:var(--font-family); }
   // stehen. Deshalb hier bewusst KEIN Sortieren nach Startdatum mehr — `state.tasks` ist die
   // maßgebliche Reihenfolge (gepflegt von insertTaskIntoArray beim Anlegen und attachTaskDrag beim
   // manuellen Verschieben pro Zeile), buildRows filtert hier nur noch nach Phase.
+  function taskMatchesFilter(t) {
+    var f = state.assigneeFilter || '';
+    if (!f) return true;
+    var a = (t.assignee || '').trim();
+    if (f === '__none__') return a === '';
+    return a === f;
+  }
   function buildRows() {
     rebuildAssigneeIndex();
     var rows = [];
     var taskNum = 0;
+    var filtering = !!(state.assigneeFilter || '');
     state.phases.forEach(function (phase, idx) {
       var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; });
+      var anyVisible = !filtering || phaseTasks.some(taskMatchesFilter);
+      if (!anyVisible) {
+        // Nummern der sichtbaren Zeilen stabil halten: durchgezaehlte Vorgaenge weiterzaehlen
+        if (!phase.collapsed) phaseTasks.forEach(function () { taskNum++; });
+        return;
+      }
       rows.push({ type: 'phase', phase: phase, colorIdx: idx, tasks: phaseTasks });
       if (!phase.collapsed) {
         phaseTasks.forEach(function (task) {
           taskNum++;
+          if (filtering && !taskMatchesFilter(task)) return;
           rows.push({ type: 'task', task: task, phase: phase, colorIdx: idx, num: taskNum });
         });
-        rows.push({ type: 'add', phase: phase });
+        if (!filtering) rows.push({ type: 'add', phase: phase });
       }
     });
     return rows;
@@ -1456,6 +1489,7 @@ button, input{ font-family:var(--font-family); }
     var phase = row.phase;
     var el = document.createElement('div');
     el.className = 'phase-row' + (phase.id === selectedPhaseId && !selectedTaskId ? ' row-selected' : '');
+    el.dataset.phaseId = phase.id;
 
     var dragHandle = document.createElement('span');
     dragHandle.className = 'drag-handle';
@@ -1490,25 +1524,18 @@ button, input{ font-family:var(--font-family); }
     var actions = document.createElement('span');
     actions.className = 'row-actions';
 
+    var dupPhase = document.createElement('button');
+    dupPhase.className = 'row-dup';
+    dupPhase.textContent = '⧉';
+    dupPhase.title = 'Phase mit allen Vorgängen duplizieren';
+    dupPhase.addEventListener('click', function () { duplicatePhase(phase); });
+    actions.appendChild(dupPhase);
+
     var del = document.createElement('button');
     del.className = 'row-del';
     del.textContent = '×';
     del.title = 'Phase löschen';
-    del.addEventListener('click', function () {
-      var msg = row.tasks.length > 0
-        ? 'Phase "' + phase.name + '" und alle ' + row.tasks.length + ' zugehörigen Vorgänge löschen?'
-        : 'Phase "' + phase.name + '" löschen?';
-      showConfirm(msg, function () {
-        var removedIds = state.tasks.filter(function (t) { return t.phaseId === phase.id; }).map(function (t) { return t.id; });
-        state.tasks = state.tasks.filter(function (t) { return t.phaseId !== phase.id; });
-        state.tasks.forEach(function (t) {
-          if (t.dependencies) t.dependencies = t.dependencies.filter(function (d) { return removedIds.indexOf(d.id) === -1; });
-        });
-        state.phases = state.phases.filter(function (p) { return p.id !== phase.id; });
-        save();
-        renderAll();
-      });
-    });
+    del.addEventListener('click', function () { deletePhaseWithConfirm(phase); });
     actions.appendChild(del);
     el.appendChild(actions);
 
@@ -1540,6 +1567,7 @@ button, input{ font-family:var(--font-family); }
     var task = row.task;
     var el = document.createElement('div');
     el.className = 'task-row' + ((task.id === selectedTaskId || multiSelectedTaskIds[task.id]) ? ' row-selected' : '');
+    el.dataset.taskId = task.id;
 
     var taskDragHandle = document.createElement('span');
     taskDragHandle.className = 'drag-handle';
@@ -1576,6 +1604,7 @@ button, input{ font-family:var(--font-family); }
     var name = document.createElement('input');
     name.className = 'task-name';
     name.value = task.name;
+    name.placeholder = task.milestone ? 'Meilenstein' : 'Vorgang';
     name.addEventListener('input', function () { task.name = name.value; save(); updateTaskLabelOnly(task); });
     el.appendChild(name);
 
@@ -1589,6 +1618,7 @@ button, input{ font-family:var(--font-family); }
     var assignee = document.createElement('input');
     assignee.className = 'assignee-input';
     assignee.placeholder = 'Firma / Person';
+    assignee.setAttribute('list', 'assigneeList');
     assignee.value = task.assignee || '';
     var assigneeRenderPending = null;
     // Committet den aktuellen Feldwert dauerhaft in state.assigneeColorMap (neue Farbe vergeben,
@@ -1635,6 +1665,9 @@ button, input{ font-family:var(--font-family); }
         assigneeRenderPending = null;
         commitAssignee();
       }
+      // Autovervollstaendigungs-Liste + Filter-Dropdown nachziehen, sobald ein Name fertig
+      // eingegeben ist (im Modus "Farbe: Phase" laeuft sonst kein Re-Render, siehe oben).
+      refreshAssigneeWidgets();
     });
     el.appendChild(assignee);
 
@@ -2966,7 +2999,7 @@ button, input{ font-family:var(--font-family); }
     if (!phaseId) phaseId = defaultPhaseId();
     var start = defaultNewTaskStart(phaseId);
     var newTask = {
-      id: uid(), phaseId: phaseId, name: 'Neuer Vorgang', assignee: '',
+      id: uid(), phaseId: phaseId, name: '', assignee: '',
       start: toISO(start), end: toISO(addDays(start, 7)), progress: 0, milestone: false, dependencies: []
     };
     insertTaskIntoArray(phaseId, newTask);
@@ -2976,19 +3009,21 @@ button, input{ font-family:var(--font-family); }
     selectRow(phaseId, newTask.id);
     save();
     renderAll();
+    focusRowName(newTask.id);
   }
 
   function addMilestone(phaseId) {
     if (!phaseId) phaseId = defaultPhaseId();
     var start = defaultNewTaskStart(phaseId);
     var newTask = {
-      id: uid(), phaseId: phaseId, name: 'Neuer Meilenstein', assignee: '',
+      id: uid(), phaseId: phaseId, name: '', assignee: '',
       start: toISO(start), end: toISO(start), progress: 0, milestone: true, dependencies: []
     };
     insertTaskIntoArray(phaseId, newTask);
     selectRow(phaseId, newTask.id);
     save();
     renderAll();
+    focusRowName(newTask.id);
   }
 
   // Dupliziert eine Aufgabe — ist sie Teil einer aktiven Mehrfachauswahl, wird die ganze Gruppe
@@ -3023,6 +3058,72 @@ button, input{ font-family:var(--font-family); }
     newIds.slice(1).forEach(function (id) { multiSelectedTaskIds[id] = true; });
     save();
     renderAll();
+  }
+
+  function focusRowName(id) {
+    var i = currentRows.findIndex(function (r) { return r.type === 'task' && r.task.id === id; });
+    if (i !== -1 && listRowEls[i]) {
+      var inp = listRowEls[i].querySelector('.task-name');
+      if (inp) { inp.focus(); inp.select && inp.select(); }
+    }
+  }
+
+  // Ganze Phase inkl. aller Vorgaenge duplizieren. Abhaengigkeiten INNERHALB der Phase werden auf
+  // die Kopien umgebogen, Verweise nach ausserhalb bleiben auf den Originalen (wie bei duplicateTasks).
+  function duplicatePhase(phase) {
+    var origIdx = state.phases.findIndex(function (p) { return p.id === phase.id; });
+    if (origIdx === -1) return;
+    var newPhase = { id: uid(), name: (phase.name || '') + ' (Kopie)', collapsed: phase.collapsed };
+    state.phases.splice(origIdx + 1, 0, newPhase);
+    var phaseTasks = state.tasks.filter(function (t) { return t.phaseId === phase.id; });
+    var idMap = {};
+    var clones = phaseTasks.map(function (t) {
+      var c = JSON.parse(JSON.stringify(t));
+      c.id = uid(); c.phaseId = newPhase.id; c.progress = 0;
+      idMap[t.id] = c.id;
+      return c;
+    });
+    clones.forEach(function (c) {
+      (c.dependencies || []).forEach(function (d) { if (idMap[d.id]) d.id = idMap[d.id]; });
+    });
+    var lastIdx = -1;
+    for (var i = state.tasks.length - 1; i >= 0; i--) { if (state.tasks[i].phaseId === phase.id) { lastIdx = i; break; } }
+    if (lastIdx === -1) lastIdx = state.tasks.length - 1;
+    Array.prototype.splice.apply(state.tasks, [lastIdx + 1, 0].concat(clones));
+    selectedPhaseId = newPhase.id; selectedTaskId = null; multiSelectedTaskIds = {};
+    save();
+    renderAll();
+  }
+
+  function deleteTasksGroup(task) {
+    var ids = multiSelectGroupIds(task);
+    var idset = {}; ids.forEach(function (id) { idset[id] = true; });
+    var run = function () {
+      state.tasks = state.tasks.filter(function (x) { return !idset[x.id]; });
+      state.tasks.forEach(function (x) {
+        if (x.dependencies) x.dependencies = x.dependencies.filter(function (d) { return !idset[d.id]; });
+      });
+      selectedTaskId = null; multiSelectedTaskIds = {};
+      save(); renderAll();
+    };
+    if (ids.length > 1) showConfirm(ids.length + ' Zeilen loeschen?', run, { okLabel: 'Loeschen' });
+    else run();
+  }
+
+  function deletePhaseWithConfirm(phase) {
+    var pts = state.tasks.filter(function (t) { return t.phaseId === phase.id; });
+    var msg = pts.length > 0
+      ? 'Phase "' + phase.name + '" und alle ' + pts.length + ' zugehoerigen Vorgaenge loeschen?'
+      : 'Phase "' + phase.name + '" loeschen?';
+    showConfirm(msg, function () {
+      var removedIds = pts.map(function (t) { return t.id; });
+      state.tasks = state.tasks.filter(function (t) { return t.phaseId !== phase.id; });
+      state.tasks.forEach(function (t) {
+        if (t.dependencies) t.dependencies = t.dependencies.filter(function (d) { return removedIds.indexOf(d.id) === -1; });
+      });
+      state.phases = state.phases.filter(function (p) { return p.id !== phase.id; });
+      save(); renderAll();
+    });
   }
 
   function addPhase() {
@@ -3610,6 +3711,7 @@ button, input{ font-family:var(--font-family); }
     doc += '<label class="print-option-field">Skalierung<select id="printScaleMode"><option value="fit-width" selected>Optimale Breite</option><option value="fit-height">Optimale Höhe</option><option value="fit-page">An Seite anpassen</option><option value="100">Normal (100%)</option><option value="custom">Benutzerdefiniert</option></select></label>';
     doc += '<label class="print-option-field" id="printCustomPctRow" style="display:none">Prozent<input type="number" id="printCustomPct" value="100" min="10" max="400"></label>';
     doc += '<label class="print-option-field">Ränder<select id="printMargin"><option value="10" selected>Standard</option><option value="5">Schmal</option><option value="20">Breit</option></select></label>';
+    doc += '<label class="print-option-field">Abhängigkeitspfeile<select id="printShowArrows"><option value="yes" selected>Anzeigen</option><option value="no">Ausblenden</option></select></label>';
     doc += '<label class="print-option-field">Zoom-Stufe<select id="printZoom">' + zoomOptsHtml + '</select></label>';
     var barLabelOptsHtml = '<option value="none" selected>Kein</option><option value="name">Vorgang</option><option value="assignee">Verantwortlich</option><option value="start">Start</option><option value="end">Ende</option>';
     doc += '<label class="print-option-field">Balken-Beschriftung 1<select id="printBarLabel1">' + barLabelOptsHtml + '</select></label>';
@@ -3636,6 +3738,7 @@ button, input{ font-family:var(--font-family); }
     var winCustomPctEl = win.document.getElementById('printCustomPct');
     var winCustomPctRowEl = win.document.getElementById('printCustomPctRow');
     var winMarginEl = win.document.getElementById('printMargin');
+    var winShowArrowsEl = win.document.getElementById('printShowArrows');
     var winZoomEl = win.document.getElementById('printZoom');
     var winBarLabel1El = win.document.getElementById('printBarLabel1');
     var winBarLabel1SideEl = win.document.getElementById('printBarLabel1Side');
@@ -3657,6 +3760,7 @@ button, input{ font-family:var(--font-family); }
         scaleMode: winScaleModeEl.value,
         customPct: parseFloat(winCustomPctEl.value) || 100,
         marginMm: parseFloat(winMarginEl.value),
+        showArrows: winShowArrowsEl.value !== 'no',
         zoom: winZoomEl.value,
         barLabel1Field: winBarLabel1El.value,
         barLabel1Side: winBarLabel1SideEl.value,
@@ -3683,6 +3787,7 @@ button, input{ font-family:var(--font-family); }
     winPaperSizeEl.addEventListener('change', update);
     winOrientationEl.addEventListener('change', update);
     winMarginEl.addEventListener('change', update);
+    winShowArrowsEl.addEventListener('change', update);
     winCustomPctEl.addEventListener('input', update);
     winZoomEl.addEventListener('change', update);
     winBarLabel1El.addEventListener('change', function () {
@@ -4266,7 +4371,7 @@ button, input{ font-family:var(--font-family); }
       pageArr.push(style.fillOp);
       pageArr.push((x - arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' m ' + x.toFixed(2) + ' ' + yEnd.toFixed(2) + ' l ' + (x + arrowSize * 0.6).toFixed(2) + ' ' + approachY.toFixed(2) + ' l f');
     }
-    state.tasks.forEach(function (t) {
+    if (settings.showArrows !== false) state.tasks.forEach(function (t) {
       var succGeom = pdfTaskGeom[t.id];
       if (!succGeom) return;
       (t.dependencies || []).forEach(function (dep) {
@@ -4637,6 +4742,7 @@ button, input{ font-family:var(--font-family); }
   }
 
   function renderAll() {
+    refreshAssigneeWidgets();
     currentRows = buildRows();
     renderLegend();
     renderList(currentRows);
@@ -4649,6 +4755,103 @@ button, input{ font-family:var(--font-family); }
     renderTodayMarker(range, zoomCfg.dayWidth);
     timelineHeaderInner.style.transform = 'translateX(' + (-timelineBody.scrollLeft) + 'px)';
   }
+
+  /* ── Autovervollstaendigung + Filter fuer Verantwortlich/Firma ── */
+  function distinctAssignees() {
+    var seen = {}, out = [];
+    state.tasks.forEach(function (t) {
+      var a = (t.assignee || '').trim();
+      if (a && !seen[a]) { seen[a] = 1; out.push(a); }
+    });
+    out.sort(function (a, b) { return a.localeCompare(b, 'de'); });
+    return out;
+  }
+  function refreshAssigneeWidgets() {
+    var names = distinctAssignees();
+    var dl = document.getElementById('assigneeList');
+    if (dl) dl.innerHTML = names.map(function (n) {
+      return '<option value="' + n.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"></option>';
+    }).join('');
+    var sel = document.getElementById('assigneeFilter');
+    if (sel) {
+      var anyNone = state.tasks.some(function (t) { return !(t.assignee || '').trim(); });
+      var cur = state.assigneeFilter || '';
+      // gewaehlter Filter existiert nicht mehr -> zuruecksetzen
+      if (cur && cur !== '__none__' && names.indexOf(cur) === -1) { cur = ''; state.assigneeFilter = ''; }
+      if (cur === '__none__' && !anyNone) { cur = ''; state.assigneeFilter = ''; }
+      var html = '<option value="">Alle Verantwortlichen</option>';
+      names.forEach(function (n) {
+        var v = n.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        html += '<option value="' + v + '"' + (n === cur ? ' selected' : '') + '>' + v + '</option>';
+      });
+      if (anyNone) html += '<option value="__none__"' + (cur === '__none__' ? ' selected' : '') + '>Ohne Verantwortlichen</option>';
+      sel.innerHTML = html;
+      sel.value = cur;
+      sel.classList.toggle('active', !!cur);
+    }
+  }
+  var assigneeFilterEl = document.getElementById('assigneeFilter');
+  if (assigneeFilterEl) assigneeFilterEl.addEventListener('change', function () {
+    state.assigneeFilter = assigneeFilterEl.value || '';
+    save();
+    renderAll();
+  });
+
+  /* ── Rechtsklick-Menue auf Listen-Zeilen ── */
+  var ctxMenu = document.getElementById('ctxMenu');
+  function hideCtxMenu() { if (ctxMenu) { ctxMenu.hidden = true; ctxMenu.innerHTML = ''; } }
+  function ctxItem(label, fn) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.addEventListener('click', function () { hideCtxMenu(); fn(); });
+    ctxMenu.appendChild(b);
+  }
+  function ctxSep() { ctxMenu.appendChild(document.createElement('hr')); }
+  document.addEventListener('contextmenu', function (e) {
+    if (!ctxMenu || !e.target.closest || !e.target.closest('#listBodyInner')) return;
+    var taskRow = e.target.closest('.task-row');
+    var phaseRow = e.target.closest('.phase-row');
+    if (!taskRow && !phaseRow) return;
+    e.preventDefault();
+    ctxMenu.innerHTML = '';
+    if (taskRow && taskRow.dataset.taskId) {
+      var t = findTask(taskRow.dataset.taskId);
+      if (!t) return;
+      var inMulti = (t.id === selectedTaskId) || !!multiSelectedTaskIds[t.id];
+      var selCount = 1 + Object.keys(multiSelectedTaskIds).length;
+      ctxItem('Vorgang darunter einfügen', function () { selectRow(t.phaseId, t.id); addTask(t.phaseId); });
+      ctxItem('Meilenstein darunter einfügen', function () { selectRow(t.phaseId, t.id); addMilestone(t.phaseId); });
+      ctxSep();
+      if (inMulti && selCount > 1) {
+        ctxItem(selCount + ' Zeilen duplizieren', function () { duplicateTasks(t); });
+        ctxItem(selCount + ' Zeilen löschen', function () { deleteTasksGroup(t); });
+      } else {
+        ctxItem('Duplizieren', function () { duplicateTasks(t); });
+        ctxItem('Löschen', function () { deleteTasksGroup(t); });
+      }
+    } else if (phaseRow && phaseRow.dataset.phaseId) {
+      var p = null;
+      state.phases.forEach(function (x) { if (x.id === phaseRow.dataset.phaseId) p = x; });
+      if (!p) return;
+      ctxItem('Vorgang hinzufügen', function () { selectRow(p.id, null); addTask(p.id); });
+      ctxItem('Meilenstein hinzufügen', function () { selectRow(p.id, null); addMilestone(p.id); });
+      ctxSep();
+      ctxItem('Phase duplizieren', function () { duplicatePhase(p); });
+      ctxItem('Phase löschen', function () { deletePhaseWithConfirm(p); });
+    } else { return; }
+    ctxMenu.hidden = false;
+    var mw = ctxMenu.offsetWidth || 210;
+    var mh = ctxMenu.offsetHeight || 220;
+    var x = Math.min(e.clientX, window.innerWidth - mw - 8);
+    var y = Math.min(e.clientY, window.innerHeight - mh - 8);
+    ctxMenu.style.left = Math.max(8, x) + 'px';
+    ctxMenu.style.top = Math.max(8, y) + 'px';
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#ctxMenu')) hideCtxMenu(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideCtxMenu(); });
+  window.addEventListener('blur', hideCtxMenu);
+  if (typeof boardEl !== 'undefined' && boardEl) boardEl.addEventListener('scroll', hideCtxMenu, true);
 
   /* ────────────────────────── event wiring ────────────────────────── */
   document.addEventListener('click', function (e) {
