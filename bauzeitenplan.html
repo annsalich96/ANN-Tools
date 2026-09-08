@@ -409,6 +409,15 @@ button, input{ font-family:var(--font-family); }
 .ctx-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; padding:7px 10px; border-radius:4px; cursor:pointer; font-family:var(--font-family); font-size:12px; color:var(--color-black); }
 .ctx-menu button:hover{ background:var(--g100); }
 .ctx-menu hr{ border:none; border-top:1px solid var(--g200); margin:4px 2px; }
+.legend .swatch.clickable{ cursor:pointer; }
+.legend .swatch.clickable:hover{ box-shadow:0 0 0 2px var(--g400); }
+.color-pop{ position:fixed; z-index:210; background:var(--color-white); border:1px solid var(--g200); border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.18); padding:8px; }
+.color-pop[hidden]{ display:none; }
+.color-pop .cp-title{ font-size:11px; font-weight:600; color:var(--g600); text-transform:uppercase; letter-spacing:0.06em; margin:0 2px 6px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.color-pop .cp-grid{ display:grid; grid-template-columns:repeat(5, 22px); gap:6px; }
+.color-pop .cp-sw{ width:22px; height:22px; border-radius:5px; border:1px solid rgba(0,0,0,.16); cursor:pointer; padding:0; appearance:none; }
+.color-pop .cp-sw:hover{ box-shadow:0 0 0 2px var(--g400); }
+.color-pop .cp-sw.current{ box-shadow:0 0 0 2px var(--color-black); }
 .tl-window-bar{ display:none; }
 .app.timeline-only .toolbar,
 .app.timeline-only .app-header,
@@ -605,6 +614,7 @@ button, input{ font-family:var(--font-family); }
 
 <datalist id="assigneeList"></datalist>
 <div class="ctx-menu" id="ctxMenu" hidden></div>
+<div class="color-pop" id="colorPop" hidden></div>
 
 <div class="confirm-overlay" id="nonworkOverlay">
   <div class="confirm-box nonwork-box">
@@ -1358,8 +1368,10 @@ button, input{ font-family:var(--font-family); }
         var item = document.createElement('span');
         item.className = 'legend-item';
         var sw = document.createElement('span');
-        sw.className = 'swatch' + (phaseHatched(idx) ? ' hatched' : '');
+        sw.className = 'swatch clickable' + (phaseHatched(idx) ? ' hatched' : '');
         sw.style.background = phaseColor(idx);
+        sw.title = 'Farbe ändern';
+        sw.addEventListener('click', function (ev) { ev.stopPropagation(); openColorPicker(sw, name); });
         item.appendChild(sw);
         var txt = document.createElement('span');
         txt.textContent = name;
@@ -4944,6 +4956,58 @@ button, input{ font-family:var(--font-family); }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideCtxMenu(); });
   window.addEventListener('blur', hideCtxMenu);
   if (typeof boardEl !== 'undefined' && boardEl) boardEl.addEventListener('scroll', hideCtxMenu, true);
+
+  /* ── Farb-Auswahl fuer Verantwortliche (Klick auf das Farbfeld in der Legende) ── */
+  var colorPop = document.getElementById('colorPop');
+  function hideColorPop() { if (colorPop) { colorPop.hidden = true; colorPop.innerHTML = ''; } }
+  function openColorPicker(anchorEl, name) {
+    if (!colorPop) return;
+    rebuildAssigneeIndex();
+    var curIdx = (state.assigneeColorMap && state.assigneeColorMap[name] != null)
+      ? (state.assigneeColorMap[name] % PHASE_COLORS.length) : -1;
+    colorPop.innerHTML = '';
+    var title = document.createElement('p');
+    title.className = 'cp-title';
+    title.textContent = 'Farbe: ' + name;
+    colorPop.appendChild(title);
+    var grid = document.createElement('div');
+    grid.className = 'cp-grid';
+    for (var i = 0; i < PHASE_COLORS.length; i++) {
+      (function (ci) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cp-sw' + (ci === curIdx ? ' current' : '');
+        b.style.background = PHASE_COLORS[ci];
+        b.title = 'Farbe ' + (ci + 1);
+        b.addEventListener('click', function () {
+          state.assigneeColorMap = state.assigneeColorMap || {};
+          state.assigneeColorMap[name] = ci;
+          assigneeIndex = state.assigneeColorMap;
+          hideColorPop();
+          save();
+          renderAll();
+        });
+        grid.appendChild(b);
+      })(i);
+    }
+    colorPop.appendChild(grid);
+    colorPop.hidden = false;
+    var r = anchorEl.getBoundingClientRect();
+    var pw = colorPop.offsetWidth || 170, ph = colorPop.offsetHeight || 150;
+    var x = Math.min(r.left, window.innerWidth - pw - 8);
+    var y = r.bottom + 6;
+    if (y + ph > window.innerHeight - 8) y = Math.max(8, r.top - ph - 6);
+    colorPop.style.left = Math.max(8, x) + 'px';
+    colorPop.style.top = y + 'px';
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    if (e.target.closest('#colorPop') || e.target.closest('.legend .swatch.clickable')) return;
+    hideColorPop();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideColorPop(); });
+  window.addEventListener('blur', hideColorPop);
+  if (typeof boardEl !== 'undefined' && boardEl) boardEl.addEventListener('scroll', hideColorPop, true);
 
   /* ── Zeitstrahl-Fenster (zweiter Bildschirm): Live-Sync ueber BroadcastChannel ── */
   var tlChannel = null;
