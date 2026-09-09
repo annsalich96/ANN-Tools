@@ -3735,6 +3735,10 @@ button, input{ font-family:var(--font-family); }
       font-family:var(--font-family); font-weight:500; text-transform:none; letter-spacing:0;\
       color:var(--color-black); background:var(--color-white);\
     }\
+    .print-profile-row{ display:flex; flex-direction:column; gap:8px; padding-bottom:14px; margin-bottom:2px; border-bottom:1px solid var(--g200); }\
+    .print-profile-btns{ display:flex; gap:8px; }\
+    .print-profile-btns button{ flex:1; appearance:none; border:1px solid var(--g200); background:var(--color-white); color:var(--color-black); border-radius:3px; padding:7px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; font-family:var(--font-family); cursor:pointer; }\
+    .print-profile-btns button:hover{ background:var(--g100); }\
     .print-preview-actions{ display:flex; flex-direction:column; gap:12px; margin-top:24px; }\
     .print-preview-actions button{\
       appearance:none; border:1px solid var(--color-black); background:var(--color-black); color:#fff;\
@@ -3757,6 +3761,7 @@ button, input{ font-family:var(--font-family); }
 
     var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Drucken — ' + escHtml(title) + '</title><style>' + rootVars + '\n' + PRINT_PREVIEW_TAB_CSS + '</style></head><body>';
     doc += '<div class="print-preview-sidebar"><h3>Drucken</h3><div class="print-preview-grid">';
+    doc += '<div class="print-profile-row"><label class="print-option-field" style="text-transform:none">Druckprofil<select id="printProfile"><option value="">— aktuelle Einstellungen —</option></select></label><div class="print-profile-btns"><button type="button" id="printProfileSave">Speichern als…</button><button type="button" id="printProfileDelete">Löschen</button></div></div>';
     var zoomOpts = { week: 'Woche', month: 'Monat', year: 'Jahr' };
     var zoomOptsHtml = Object.keys(zoomOpts).map(function (z) {
       return '<option value="' + z + '"' + (z === state.zoom ? ' selected' : '') + '>' + zoomOpts[z] + '</option>';
@@ -3868,6 +3873,75 @@ button, input{ font-family:var(--font-family); }
       update();
     });
     winBarLabel3SideEl.addEventListener('change', update);
+    /* ── Druckprofile (benannt, global im Browser gespeichert — unabhaengig vom Projekt) ── */
+    var winProfileEl = win.document.getElementById('printProfile');
+    var winProfileSaveBtn = win.document.getElementById('printProfileSave');
+    var winProfileDeleteBtn = win.document.getElementById('printProfileDelete');
+    var PRINT_PROFILES_KEY = 'annBauzeitenplanPrintProfiles';
+    function loadPrintProfiles() {
+      try { var a = JSON.parse(localStorage.getItem(PRINT_PROFILES_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+    }
+    function savePrintProfiles(a) {
+      try { localStorage.setItem(PRINT_PROFILES_KEY, JSON.stringify(a)); } catch (e) {}
+    }
+    function readControls() {
+      return {
+        paper: winPaperSizeEl.value, orientation: winOrientationEl.value, scaleMode: winScaleModeEl.value,
+        customPct: winCustomPctEl.value, margin: winMarginEl.value,
+        showArrows: winShowArrowsEl.value, showWeekends: winShowWeekendsEl.value, showHolidays: winShowHolidaysEl.value,
+        zoom: winZoomEl.value,
+        barLabel1: winBarLabel1El.value, barLabel1Side: winBarLabel1SideEl.value,
+        barLabel2: winBarLabel2El.value, barLabel2Side: winBarLabel2SideEl.value,
+        barLabel3: winBarLabel3El.value, barLabel3Side: winBarLabel3SideEl.value
+      };
+    }
+    function applyControls(v) {
+      if (!v) return;
+      function setv(el, val) { if (el && val != null && val !== '') el.value = val; }
+      setv(winPaperSizeEl, v.paper); setv(winOrientationEl, v.orientation); setv(winScaleModeEl, v.scaleMode);
+      if (v.customPct != null && v.customPct !== '') winCustomPctEl.value = v.customPct;
+      setv(winMarginEl, v.margin);
+      setv(winShowArrowsEl, v.showArrows); setv(winShowWeekendsEl, v.showWeekends); setv(winShowHolidaysEl, v.showHolidays);
+      setv(winZoomEl, v.zoom);
+      setv(winBarLabel1El, v.barLabel1); setv(winBarLabel1SideEl, v.barLabel1Side);
+      setv(winBarLabel2El, v.barLabel2); setv(winBarLabel2SideEl, v.barLabel2Side);
+      setv(winBarLabel3El, v.barLabel3); setv(winBarLabel3SideEl, v.barLabel3Side);
+      winCustomPctRowEl.style.display = winScaleModeEl.value === 'custom' ? '' : 'none';
+      winBarLabel1SideRowEl.style.display = winBarLabel1El.value === 'none' ? 'none' : '';
+      winBarLabel2SideRowEl.style.display = winBarLabel2El.value === 'none' ? 'none' : '';
+      winBarLabel3SideRowEl.style.display = winBarLabel3El.value === 'none' ? 'none' : '';
+      update();
+    }
+    function refreshProfileSelect(selectName) {
+      var profs = loadPrintProfiles();
+      winProfileEl.innerHTML = '<option value="">— aktuelle Einstellungen —</option>' +
+        profs.map(function (p) {
+          var n = escHtml(p.name);
+          return '<option value="' + n + '"' + (p.name === selectName ? ' selected' : '') + '>' + n + '</option>';
+        }).join('');
+    }
+    refreshProfileSelect('');
+    winProfileEl.addEventListener('change', function () {
+      if (!winProfileEl.value) return;
+      var p = loadPrintProfiles().filter(function (x) { return x.name === winProfileEl.value; })[0];
+      if (p) applyControls(p.values);
+    });
+    winProfileSaveBtn.addEventListener('click', function () {
+      var name = (win.prompt('Name für das Druckprofil:', winProfileEl.value || '') || '').trim();
+      if (!name) return;
+      var profs = loadPrintProfiles().filter(function (x) { return x.name !== name; });
+      profs.push({ name: name, values: readControls() });
+      profs.sort(function (a, b) { return a.name.localeCompare(b.name, 'de'); });
+      savePrintProfiles(profs);
+      refreshProfileSelect(name);
+    });
+    winProfileDeleteBtn.addEventListener('click', function () {
+      var name = winProfileEl.value;
+      if (!name) return;
+      savePrintProfiles(loadPrintProfiles().filter(function (x) { return x.name !== name; }));
+      refreshProfileSelect('');
+    });
+
     winDownloadBtn.addEventListener('click', function () { downloadGanttPDF(winSettings()); });
 
     update();
