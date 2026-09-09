@@ -4136,6 +4136,20 @@ button, input{ font-family:var(--font-family); }
     function pushTimelineText(pageIndex, op) {
       (timelineTextByPage[pageIndex] || (timelineTextByPage[pageIndex] = [])).push(op);
     }
+    // Belegte Rechtecke der bereits platzierten Balken-Beschriftungen je Seite — damit sich zwei
+    // Beschriftungen (auch aus benachbarten/gestaffelten Zeilen) niemals ueberlagern.
+    var pageLabelBoxes = {};
+    function labelBoxFree(pageIndex, b) {
+      var arr = pageLabelBoxes[pageIndex];
+      if (arr) for (var i = 0; i < arr.length; i++) {
+        var o = arr[i];
+        if (b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1) return false;
+      }
+      return true;
+    }
+    function recordLabelBox(pageIndex, b) {
+      (pageLabelBoxes[pageIndex] || (pageLabelBoxes[pageIndex] = [])).push(b);
+    }
 
     function colorOp(hex) {
       var c = hexToRgbFrac(hex);
@@ -4455,6 +4469,11 @@ button, input{ font-family:var(--font-family); }
         var barLeftX = task.milestone ? (barX0 - mSize / 2) : barX0;
         var barRightX = task.milestone ? (barX0 + mSize / 2) : (barX0 + barW);
         var leftStack = 4, rightStack = 4;
+        var labelTY = parseFloat(textY);
+        var labelBoxTop = labelTY + fontSize * 0.85;
+        var labelBoxBot = labelTY - fontSize * 0.28;
+        var listRight = MARGIN + labelW;   // Zeitstrahl beginnt hier — Beschriftungen duerfen NICHT in die Listenspalten
+        var pageRight = MARGIN + fullW;
         barLabelDefs.forEach(function (bl) {
           var labelText = '';
           if (bl.field === 'name') labelText = task.name || '';
@@ -4464,19 +4483,26 @@ button, input{ font-family:var(--font-family); }
           if (!labelText) return;
           var labelEsc = pdfEsc(labelText);
           var labelTextW = labelEsc.length * fontSize * 0.5;
-          // Weicht automatisch auf die andere Seite DIESES Balkens aus, wenn die bevorzugte Seite
-          // über den Blattrand hinauslaufen würde (Ann: "die fallen manchmal rechts raus aus dem
-          // Blatt") — betrifft vor allem Aufgaben nahe dem rechten/linken Rand des Zeitraums.
-          var side = bl.side;
-          if (side === 'right' && barRightX + rightStack + labelTextW > MARGIN + fullW) side = 'left';
-          else if (side === 'left' && barLeftX - leftStack - labelTextW < MARGIN) side = 'right';
-          pushTimelineText(pages.length, '0 0 0 rg');
-          if (side === 'left') {
-            pushTimelineText(pages.length, 'BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barLeftX - leftStack - labelTextW).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
-            leftStack += labelTextW + 6;
-          } else {
-            pushTimelineText(pages.length, 'BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + (barRightX + rightStack).toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
-            rightStack += labelTextW + 6;
+          var other = bl.side === 'left' ? 'right' : 'left';
+          // Reihenfolge der Platzierungsversuche: bevorzugte Seite, andere Seite, dann jeweils
+          // weiter nach aussen ruecken. Erst wenn NIRGENDS kollisionsfrei -> Beschriftung weglassen
+          // (lieber fehlt sie, als dass sich Texte ueberlagern — Ann: "das darf nicht passieren").
+          var placed = false;
+          for (var attempt = 0; attempt < 6 && !placed; attempt++) {
+            var side = (attempt % 2 === 0) ? bl.side : other;
+            var bump = Math.floor(attempt / 2) * (labelTextW + 6);
+            var x0, x1;
+            if (side === 'left') { x1 = barLeftX - leftStack - bump; x0 = x1 - labelTextW; }
+            else { x0 = barRightX + rightStack + bump; x1 = x0 + labelTextW; }
+            if (x0 < listRight || x1 > pageRight) continue;
+            var box = { x0: x0, x1: x1, y0: labelBoxBot, y1: labelBoxTop };
+            if (!labelBoxFree(pages.length, box)) continue;
+            pushTimelineText(pages.length, '0 0 0 rg');
+            pushTimelineText(pages.length, 'BT /F1 ' + fontSize.toFixed(1) + ' Tf 1 0 0 1 ' + x0.toFixed(2) + ' ' + textY + ' Tm (' + labelEsc + ') Tj ET');
+            recordLabelBox(pages.length, box);
+            if (side === 'left') leftStack += labelTextW + 6 + bump;
+            else rightStack += labelTextW + 6 + bump;
+            placed = true;
           }
         });
       }
